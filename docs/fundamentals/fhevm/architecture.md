@@ -3,7 +3,7 @@
 The following diagram shows an fhEVM-native blockchain with 4 validators.
 
 ```mermaid
-graph LR;    
+graph LR;
     Validator1{{Validator1 Node}}
     Validator1-- execution API ---Executor1
     Executor1(Executor1)
@@ -24,6 +24,12 @@ graph LR;
     FullNode-- execution API ---ExecutorFull
     ExecutorFull(Executor F)
 
+    dApp[dApp]
+    fhevmjs[fhevmjs]
+    dApp-- uses ---fhevmjs
+    fhevmjs-- HTTP ---Gateway
+    fhevmjs-- RPC ---FullNode
+
     Gateway(((Gateway)))
     Gateway-- KMS txns, events ---KMS
     Gateway-- RPC/WebSocket ---FullNode
@@ -41,3 +47,9 @@ The Executor exposes an API that the validator node uses to send it FHE computat
 A full node is similar to validators in the sense that it executes all blocks. The difference is that the full node doesn't have stake in the network and, therefore, cannot propose blocks. The full node has all the blockchain data locally. It can be used by the Gateway over RPC or WebSocket endpoints, allowing the Gateway to fetch storage proofs, fetch ciphertexts, listen for events on the fhEVM blockchain, etc.
 
 The Gateway is a client from the KMS' perspective and sends decryption/reencryption transactions, listens for "decryption ready" events, etc.
+
+A dApp uses the `fhevmjs` library to interact with the fhEVM. Some examples are:
+ * connect over HTTP to the Gateway for reencryptions
+ * encrypt and decrypt data from the blockchain
+ * send transactions via a full node
+ * get the FHE public key from a full node

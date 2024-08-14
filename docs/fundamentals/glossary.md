@@ -10,6 +10,8 @@
 
 - _FheLib_: A precompiled contract that is available on nodes/validators. Exposes a number of functions, e.g. getting ciphertexts, verifying inputs, etc. At the time of writing, it exists at address **0x000000000000000000000000000000000000005d**.
 
+- _fhevmjs_: A JavaScript library that allows dApps to interact with the fhEVM.
+
 - _Gateway Smart Contract_: Smart contract deployed on the fhEVM blockchain that is used by a dApp smart contract to request a decrypt. This emits an event that triggers the gateway.
 
 - _KMS Smart Contract_: Smart contract running on the fhEVM blockchain that is used by a dApp contract to verify decryption results from the KMS. To that end, it contains the identity of the KMS and is used to verify its signatures.

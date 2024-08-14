@@ -24,7 +24,7 @@ Access control applies to passing ciphertexts from one contract to another, for 
 
 ### Garbage Collection of Allowed Ciphertexts Data
 
-The pairs field in the ACL contract grows indefinitely as new ciphertexts are produced. We might want to expose ways for developers to reclaim space by marking that certain ciphertexts are no longer needed and, consequently, zeroing the slot in pairs. A future effort will look into that.
+Data in the ACL contract grows indefinitely as new ciphertexts are produced. We might want to expose ways for developers to reclaim space by marking that certain ciphertexts are no longer needed and, consequently, zeroing the slot in the ACL. A future effort will look into that.
 
 ## Gateway Contract
 
