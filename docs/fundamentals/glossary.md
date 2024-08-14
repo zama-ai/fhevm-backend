@@ -6,6 +6,10 @@
 
 - _ACL smart contract_: Smart contract deployed on the fhEVM blockchain to manage access control of ciphertexts. dApp contracts use this to persists their own access rights and to delegate access to other contracts.
 
+- _Executor_: A component that runs alongside the fhEVM blockchain node/validator and does the FHE computation. The node/validator and the Executor communicate over a network connection.
+
+- _FheLib_: A precompiled contract that is available on nodes/validators. Exposes a number of functions, e.g. getting ciphertexts, verifying inputs, etc. At the time of writing, it exists at address **0x000000000000000000000000000000000000005d**.
+
 - _Gateway smart contract_: Smart contract deployed on the fhEVM blockchain that is used by a dApp smart contract to request a decrypt. This emits an event that triggers the gateway.
 
 - _KMS smart contract_: Smart contract running on the fhEVM blockchain that is used by a dApp contract to verify decryption results from the KMS. To that end, it contains the identity of the KMS and is used to verify its signatures.

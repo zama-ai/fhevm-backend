@@ -2,7 +2,7 @@
 
 At the highest level, the system consists of two subsystems: an fhEVM blockchain and a KMS.
 
-An fhEVM blockchain consists of a set of validator nodes with each one running an **Executor**, a configuration referred to as _fhEVM native_. A Key Management System (KMS) is a component that runs a blockchain as a communication layer for a threshold protocol to manage the secret FHE key and handle decryption and reencryption.
+An fhEVM blockchain consists of a set of validator nodes with each one running an **Executor**, a configuration referred to as _fhEVM-native_. A Key Management System (KMS) is a component that runs a blockchain as a communication layer for a threshold protocol to manage the secret FHE key and handle decryption and reencryption.
 
 These two subsystems are not directly connected; instead, a component called a **Gateway** handles communication between them.
 
