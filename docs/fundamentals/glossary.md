@@ -14,6 +14,8 @@
 
 - _Gateway Smart Contract_: Smart contract deployed on the fhEVM blockchain that is used by a dApp smart contract to request a decrypt. This emits an event that triggers the gateway.
 
+- _handle_: A handle refers to (or is a pointer to) a ciphertext in the fhEVM. A handle uniquely refers to a single ciphertext from the user's perspective.
+
 - _KMS Smart Contract_: Smart contract running on the fhEVM blockchain that is used by a dApp contract to verify decryption results from the KMS. To that end, it contains the identity of the KMS and is used to verify its signatures.
 
 - _Symbolic Execution_: Onchain execution where inputs to FHE operations are symbolic values (also called handles) that refer to ciphertexts. We check constraints on these handles, but ignore their actual values.
