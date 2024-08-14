@@ -20,7 +20,7 @@
 
 ## Fundamentals
 
-- [Architecture](fundamentals/overview.md)
+- [Overview](fundamentals/overview.md)
 - fhEVM
   - [Architecture](fundamentals/fhevm/architecture.md)
   - [Contracts](fundamentals/fhevm/contracts.md)
