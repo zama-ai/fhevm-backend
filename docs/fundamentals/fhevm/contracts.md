@@ -32,7 +32,7 @@ The [Gateway](https://github.com/zama-ai/fhevm/blob/main/gateway/GatewayContract
 
 _Note_: It is possible to have multiple Gateways, so multiple Gateway contracts can also be deployed.
 
-## KMSVerifier contract
+## KMSVerifier Contract
 
 The [KMSVerifier](https://github.com/zama-ai/fhevm/blob/main/lib/KMSVerifier.sol) contract allows any dApp to verify a received decryption. This contract exposes a function `verifySignatures` which receives the decryption and signatures coming from the KMS.
 
