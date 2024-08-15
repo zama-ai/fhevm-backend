@@ -24,7 +24,6 @@
 - fhEVM
   - [Architecture](fundamentals/fhevm/architecture.md)
   - [Contracts](fundamentals/fhevm/contracts.md)
-  - [Backend](fundamentals/fhevm/backend.md)
   - [Execution](fundamentals/fhevm/execution.md)
   - [Storage](fundamentals/fhevm/storage.md)
   - [Inputs](fundamentals/fhevm/inputs.md)
