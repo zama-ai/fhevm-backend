@@ -16,7 +16,7 @@
   - [Use Zama's TKMS](getting_started/tkms/zama.md)
   - [Request the creation of a new private key](getting_started/tkms/create.md)
   - [Application Smart Contract](getting_started/tkms/contract.md)
-  - [Run a KMS](getting_started/tkms/run.md)
+  - [Run a TKMS](getting_started/tkms/run.md)
 
 ## Fundamentals
 
