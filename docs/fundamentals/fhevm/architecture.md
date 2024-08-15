@@ -48,7 +48,7 @@ A full node is similar to validators in the sense that it executes all blocks. T
 
 The Gateway is a client from the KMS' perspective and sends decryption/reencryption transactions, listens for "decryption ready" events, etc.
 
-A dApp uses the `fhevmjs` library to interact with the fhEVM. Some examples are:
+A dApp uses the **fhevmjs** library to interact with the fhEVM. Some examples are:
  * connect over HTTP to the Gateway for reencryptions
  * encrypt and decrypt data from the blockchain
  * send transactions via a full node
