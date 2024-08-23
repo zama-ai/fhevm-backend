@@ -5,7 +5,7 @@ use crate::db_queries::{check_if_api_key_is_valid, check_if_ciphertexts_exist_in
 use crate::server::coprocessor::GenericResponse;
 use fhevm_engine_common::tfhe_ops::{check_fhe_operand_types, current_ciphertext_version, debug_trivial_encrypt_be_bytes, deserialize_fhe_ciphertext, try_expand_ciphertext_list};
 use fhevm_engine_common::types::{FhevmError, SupportedFheCiphertexts};
-use keccak_asm::{Digest, Keccak256};
+use sha3::{Digest, Keccak256};
 use crate::types::{CoprocessorError, TfheTenantKeys};
 use crate::utils::sort_computations_by_dependencies;
 use coprocessor::async_computation_input::Input;
@@ -289,12 +289,15 @@ impl coprocessor::fhevm_coprocessor_server::FhevmCoprocessor for CoprocessorServ
             };
 
             for (ct_idx, the_ct) in corresponding_unpacked.iter().enumerate() {
-                let mut handle: [u8; 32] = [0; 32];
-                handle.copy_from_slice(&blob_hash);
-                // this must succeed because we don't allow
-                // more handles than u8 size
                 let (serialized_type, serialized_ct) = the_ct.serialize();
                 let ciphertext_version = current_ciphertext_version();
+                let mut handle_hash = Keccak256::new();
+                handle_hash.update(&blob_hash);
+                handle_hash.update(&[idx as u8]);
+                let mut handle = handle_hash.finalize().to_vec();
+                assert_eq!(handle.len(), 32);
+                // idx cast to u8 must succeed because we don't allow
+                // more handles than u8 size
                 handle[29] = idx as u8;
                 handle[30] = serialized_type as u8;
                 handle[31] = ciphertext_version as u8;

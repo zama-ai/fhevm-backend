@@ -586,12 +586,12 @@ dependencies = [
  "clap",
  "fhevm-engine-common",
  "hex",
- "keccak-asm",
  "lazy_static",
  "lru",
  "prost",
  "regex",
  "serde_json",
+ "sha3",
  "sqlx",
  "strum",
  "testcontainers",
@@ -1407,16 +1407,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ecc2af9a1119c51f12a14607e783cb977bde58bc069ff0c3da1095e635d70654"
 dependencies = [
  "cpufeatures",
-]
-
-[[package]]
-name = "keccak-asm"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "422fbc7ff2f2f5bdffeb07718e5a5324dca72b0c9293d50df4026652385e3314"
-dependencies = [
- "digest",
- "sha3-asm",
 ]
 
 [[package]]
@@ -2337,16 +2327,6 @@ checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
 dependencies = [
  "digest",
  "keccak",
-]
-
-[[package]]
-name = "sha3-asm"
-version = "0.1.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "57d79b758b7cb2085612b11a235055e485605a5103faccdd633f35bd7aee69dd"
-dependencies = [
- "cc",
- "cfg-if",
 ]
 
 [[package]]
