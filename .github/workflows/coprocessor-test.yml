@@ -1,0 +1,37 @@
+name: Run PR test
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+jobs:
+  coprocessor_test:
+    permissions:
+      contents: read
+    runs-on: "large_ubuntu_32"
+    if: ${{ github.event_name == 'push' || !github.event.pull_request.draft }}
+    steps:
+      - name: Check out repo
+        uses: actions/checkout@v4
+
+      - name: Install protobuf compiler
+        run: sudo apt-get install -y protobuf-compiler
+
+      - name: Install sqlx-cli from crates.io
+        uses: baptiste0928/cargo-install@v3
+        with:
+          crate: sqlx-cli
+          version: '^0.8'
+
+      - name: Setup database
+        working-directory: ./fhevm-engine/coprocessor
+        run: |
+          make init_db
+          # build with --release flag for faster tests
+          cargo build --release
+          cargo build --tests --release
+          COPROCESSOR_TEST_LOCAL_DB=true cargo test --release -- --nocapture
+

@@ -7,11 +7,11 @@ build:
 
 .PHONY: cleanup
 cleanup:
-	docker compose down -v
+	docker compose -f docker-compose.test.yml down -v
 
 .PHONY: init_db
 init_db:
-	docker compose up -d
+	docker compose -f docker-compose.test.yml up -d
 	sleep 3
 	$(DB_URL) sqlx db create
 	$(DB_URL) sqlx migrate run
