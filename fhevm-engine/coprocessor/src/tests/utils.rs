@@ -186,7 +186,7 @@ pub async fn wait_until_all_ciphertexts_computed(
             println!("All computations completed");
             break;
         } else {
-            let errors = sqlx::query!("SELECT output_handle, error_message FROM computations WHERE NOT is_error LIMIT 5")
+            let errors = sqlx::query!("SELECT output_handle, error_message FROM computations WHERE is_error LIMIT 5")
                 .fetch_all(&pool)
                 .await?;
             if !errors.is_empty() {
