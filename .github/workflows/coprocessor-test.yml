@@ -33,5 +33,9 @@ jobs:
           # build with --release flag for faster tests
           cargo build --release
           cargo build --tests --release
-          COPROCESSOR_TEST_LOCAL_DB=true cargo test --release -- --nocapture
+          DATABASE_URL="postgres://postgres:postgres@localhost/coprocessor" cargo run --release -- --metrics-addr=127.0.0.1:9100 --run-server &
+          DATABASE_URL="postgres://postgres:postgres@localhost/coprocessor" cargo run --release -- --metrics-addr=127.0.0.1:9101 --run-bg-worker &
+          # give some time for ports to open etc
+          sleep 1
+          COPROCESSOR_TEST_LOCALHOST=true cargo test --release -- --nocapture
 
