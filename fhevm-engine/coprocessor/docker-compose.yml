@@ -17,7 +17,7 @@ services:
     environment:
       - DATABASE_URL=postgresql://postgres:postgres@db:5432/coprocessor
     ports:
-      - '50055:50051'
+      - '50055:50052'
     volumes:
       - ${PWD}/coprocessor.key:/usr/share/coprocessor.key
     command:
