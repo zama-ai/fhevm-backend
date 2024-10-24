@@ -122,12 +122,13 @@ type CoprocessorApi interface {
 type SegmentId int
 
 type ExtraData struct {
-	RandomCounter common.Hash
+	FheRandSeed [32]byte
 }
 
 type CoprocessorSession interface {
 	Execute(input []byte, ed ExtraData, output []byte) error
 	ContractAddress() common.Address
+	AclContractAddress() common.Address
 	NextSegment() SegmentId
 	InvalidateSinceSegment(id SegmentId) SegmentId
 	Commit() error
@@ -140,15 +141,17 @@ type ComputationStore interface {
 }
 
 type ApiImpl struct {
-	store   *SqliteComputationStore
-	address common.Address
+	store              *SqliteComputationStore
+	address            common.Address
+	aclContractAddress common.Address
 }
 
 type SessionImpl struct {
-	address        common.Address
-	coprocessorKey *ecdsa.PrivateKey
-	isCommitted    bool
-	sessionStore   *SessionComputationStore
+	address            common.Address
+	aclContractAddress common.Address
+	coprocessorKey     *ecdsa.PrivateKey
+	isCommitted        bool
+	sessionStore       *SessionComputationStore
 }
 
 type ComputationOperand struct {
@@ -193,8 +196,9 @@ type ciphertextSegment struct {
 
 func (coprocApi *ApiImpl) CreateSession() CoprocessorSession {
 	return &SessionImpl{
-		address:     coprocApi.address,
-		isCommitted: false,
+		address:            coprocApi.address,
+		aclContractAddress: coprocApi.aclContractAddress,
+		isCommitted:        false,
 		sessionStore: &SessionComputationStore{
 			isCommitted:               false,
 			inserts:                   make([]ComputationToInsert, 0),
@@ -223,10 +227,16 @@ func (sessionApi *SessionImpl) Commit() error {
 	return nil
 }
 
-func (sessionApi *SessionImpl) Execute(data []byte, ed ExtraData, output []byte) error {
-	if len(data) < 4 {
-		return fmt.Errorf("input data must be at least 4 bytes for signature, got %d", len(data))
+func (sessionApi *SessionImpl) Execute(dataOrig []byte, ed ExtraData, outputOrig []byte) error {
+	if len(dataOrig) < 4 {
+		return fmt.Errorf("input data must be at least 4 bytes for signature, got %d", len(dataOrig))
 	}
+
+	// make copies so we could assume array is immutable later
+	data := make([]byte, len(dataOrig))
+	output := make([]byte, len(outputOrig))
+	copy(data, dataOrig)
+	copy(output, outputOrig)
 
 	signature := binary.BigEndian.Uint32(data[0:4])
 	callData := data[4:]
@@ -261,6 +271,10 @@ func (sessionApi *SessionImpl) InvalidateSinceSegment(id SegmentId) SegmentId {
 
 func (sessionApi *SessionImpl) ContractAddress() common.Address {
 	return sessionApi.address
+}
+
+func (sessionApi *SessionImpl) AclContractAddress() common.Address {
+	return sessionApi.aclContractAddress
 }
 
 func (sessionApi *SessionImpl) GetStore() ComputationStore {
@@ -409,9 +423,16 @@ func InitCoprocessor() (CoprocessorApi, error) {
 			return nil, err
 		}
 
+		aclContractAddressHex := os.Getenv("ACL_CONTRACT_ADDRESS")
+		if !common.IsHexAddress(aclContractAddressHex) {
+			return nil, fmt.Errorf("bad or missing ACL_CONTRACT_ADDRESS: %s", aclContractAddressHex)
+		}
+		aclContractAddress := common.HexToAddress(aclContractAddressHex)
+
 		apiImpl := ApiImpl{
-			store:   ciphertextDb,
-			address: fhevmContractAddress,
+			store:              ciphertextDb,
+			address:            fhevmContractAddress,
+			aclContractAddress: aclContractAddress,
 		}
 
 		// background job to submit computations to coprocessor
