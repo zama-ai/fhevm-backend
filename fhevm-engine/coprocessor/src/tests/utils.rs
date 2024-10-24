@@ -186,7 +186,19 @@ pub async fn wait_until_all_ciphertexts_computed(
             println!("All computations completed");
             break;
         } else {
-            println!("{current_count} computations remaining, waiting...");
+            let errors = sqlx::query!("SELECT output_handle, error_message FROM computations WHERE is_error LIMIT 5")
+                .fetch_all(&pool)
+                .await?;
+            if !errors.is_empty() {
+                println!("errors found inside computations, breaking: {:?}", errors);
+                break;
+            } else {
+                println!("{current_count} computations remaining, waiting...");
+                let recs = sqlx::query!("SELECT * FROM computations WHERE NOT is_completed LIMIT 5")
+                    .fetch_all(&pool)
+                    .await?;
+                println!("{:#?}", recs);
+            }
         }
     }
 
