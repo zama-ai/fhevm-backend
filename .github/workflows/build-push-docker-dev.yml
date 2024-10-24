@@ -52,25 +52,30 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-buildx-
 
-      - name: Get Docker tag
-        id: get_tag
+      # DEBUG
+      - name: List env vars
         run: |
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            DOCKER_TAG="${GITHUB_REF#refs/tags/}"
-          else
-            DOCKER_TAG="${GITHUB_SHA}"
-          fi
-          echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
+          printenv | grep GITHUB
 
-      - name: Build and Push Docker Image
-        uses: docker/build-push-action@v5
-        with:
-          context: .
-          file: ${{ github.event.inputs.dockerfile_path }}
-          platforms: linux/amd64,linux/arm64
-          push: true
-          cache-from: type=local,src=/tmp/.buildx-cache
-          cache-to: type=local,dest=/tmp/.buildx-cache
-          tags: |
-            ${{ github.event.inputs.image_name }}:${{ env.DOCKER_TAG }}  # Tag with Git tag or commit SHA
-            ${{ github.event.inputs.image_name }}:latest  # Tag as 'latest'
+      # - name: Get Docker tag
+      #   id: get_tag
+      #   run: |
+      #     if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+      #       DOCKER_TAG="${GITHUB_REF#refs/tags/}"
+      #     else
+      #       DOCKER_TAG="${GITHUB_SHA}"
+      #     fi
+      #     echo "DOCKER_TAG=$DOCKER_TAG" >> $GITHUB_ENV
+
+      # - name: Build and Push Docker Image
+      #   uses: docker/build-push-action@v5
+      #   with:
+      #     context: .
+      #     file: ${{ github.event.inputs.dockerfile_path }}
+      #     platforms: linux/amd64,linux/arm64
+      #     push: true
+      #     cache-from: type=local,src=/tmp/.buildx-cache
+      #     cache-to: type=local,dest=/tmp/.buildx-cache
+      #     tags: |
+      #       ${{ github.event.inputs.image_name }}:${{ env.DOCKER_TAG }}  # Tag with Git tag or commit SHA
+      #       ${{ github.event.inputs.image_name }}:latest  # Tag as 'latest'
