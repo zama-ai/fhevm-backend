@@ -20,7 +20,6 @@ use crate::{
 use super::operators::supported_types;
 
 #[tokio::test]
-#[ignore]
 async fn test_fhe_random_basic() -> Result<(), Box<dyn std::error::Error>> {
     let app = setup_test_app().await?;
     let pool = sqlx::postgres::PgPoolOptions::new()
@@ -154,7 +153,6 @@ fn to_be_bytes(input: &str) -> Vec<u8> {
 }
 
 #[tokio::test]
-#[ignore]
 async fn test_fhe_random_bounded() -> Result<(), Box<dyn std::error::Error>> {
     let app = setup_test_app().await?;
     let pool = sqlx::postgres::PgPoolOptions::new()
