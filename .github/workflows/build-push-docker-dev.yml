@@ -30,6 +30,10 @@ jobs:
       packages: write
       contents: read
 
+    strategy:
+      matrix:
+        platforms: [linux/amd64]
+
     steps:
       - name: Check out the repository
         uses: actions/checkout@v4
@@ -79,6 +83,3 @@ jobs:
           tags: |
             ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:${{ env.DOCKER_IMAGE_TAG }}
             ${{ env.DOCKER_REGISTRY }}/${{ env.DOCKER_IMAGE_NAME }}:latest
-        strategy:
-          matrix:
-            platforms: [linux/amd64]
