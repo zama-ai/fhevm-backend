@@ -19,7 +19,7 @@ COPY contracts/tasks ./tasks/
 COPY contracts/gateway ./gateway/
 
 # Set executable permissions and prepare the environment
-RUN chmod +x *.sh && \
+RUN chmod +x ./*.sh && \
     cp .env.example.deployment .env && \
     ./precompute-addresses.sh
 

@@ -16,4 +16,4 @@ COPY contracts/lib ./lib/
 COPY contracts/tasks ./tasks/
 COPY contracts/gateway ./gateway/
 
-RUN chmod +x *.sh
+RUN chmod +x ./*.sh
