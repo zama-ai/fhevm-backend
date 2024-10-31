@@ -34,3 +34,9 @@ sequenceDiagram
 For more on symbolic execution, please see [Symbolic Execution](../symbolic_execution.md).
 
 Note that, for now, we omit the Data Availability (DA) layer. It is still work in progress and the Coprocessor only inserts FHE ciphertexts into its local DB. Eventually, we would like that FHE ciphertexts are also inserted into the DA.
+
+## Parallel Execution
+
+Since the Coprocessor can extract data dependencies from the `AsyncCompute` request, it can use them to execute FHE computations in parallel.
+
+At the time of writing, the Coprocessor uses a simple policy to schedule FHE computation on multiple threads. More optimal policies will be introduced in the future and made configurable.

@@ -39,3 +39,8 @@ sequenceDiagram
 
 The [TFHEExecutor](../../../../contracts/contracts/TFHEExecutor.sol) contract is deployed when the chain is created and is at a well-known address that is also known by blockchain nodes. When a node (validator or full node) detects a call to this address (a CALL or STATITCCALL opcode), the EVM running in the node looks at the function signature and determines which FHE computation is being requested. The result handle is the result of this particular call to the TFHEExecutor contract and the EVM can accumulate it in the computations list for the block.
 
+## Scheduling Policies
+
+Since the Executor can extract data dependencies from the `SyncCompute` request, it can use them to execute FHE computations in parallel.
+
+Different scheduling policies can be set for FHE computation via the `FHEVM_DF_SCHEDULE` environment variable with possible choices: **LOOP**, **FINE_GRAIN**, **MAX_PARALLELISM**, **MAX_LOCALITY**.
