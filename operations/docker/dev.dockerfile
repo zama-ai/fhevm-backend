@@ -18,14 +18,19 @@ COPY contracts/lib ./lib/
 COPY contracts/tasks ./tasks/
 COPY contracts/gateway ./gateway/
 
+# Set SHELL with pipefail option to handle pipe errors properly
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
 # Set executable permissions and prepare the environment
 RUN chmod +x ./*.sh && \
     cp .env.example.deployment .env && \
     ./precompute-addresses.sh
 
 # Set up environment variables and compile contracts
-RUN export PRIVATE_KEY_FHEVM_DEPLOYER=$(grep PRIVATE_KEY_FHEVM_DEPLOYER .env | cut -d '"' -f 2) && \
-    export NUM_KMS_SIGNERS=$(grep NUM_KMS_SIGNERS .env | cut -d '"' -f 2) && \
+RUN PRIVATE_KEY_FHEVM_DEPLOYER="$(grep PRIVATE_KEY_FHEVM_DEPLOYER .env | cut -d '"' -f 2)" && \
+    export PRIVATE_KEY_FHEVM_DEPLOYER && \
+    NUM_KMS_SIGNERS="$(grep NUM_KMS_SIGNERS .env | cut -d '"' -f 2)" && \
+    export NUM_KMS_SIGNERS && \
     npx hardhat clean && \
     npx hardhat compile:specific --contract addresses && \
     npx hardhat compile:specific --contract contracts && \
