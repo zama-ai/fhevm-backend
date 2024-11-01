@@ -37,7 +37,7 @@ sequenceDiagram
 
 ## Interaction with the TFHEExecutor Contract
 
-The [TFHEExecutor](../../../../contracts/contracts/TFHEExecutor.sol) contract is deployed when the chain is created and is at a well-known address that is also known by blockchain nodes. When a node (validator or full node) detects a call to this address (a CALL or STATITCCALL opcode), the EVM running in the node looks at the function signature and determines which FHE computation is being requested. The result handle is the result of this particular call to the TFHEExecutor contract and the EVM can accumulate it in the computations list for the block.
+The [TFHEExecutor](../../../../contracts/contracts/TFHEExecutor.sol) contract is deployed when the chain is created and is at a well-known address that is also known by blockchain nodes. When a node (validator or full node) detects a call to this address (a CALL or STATICCALL opcode), the EVM running in the node looks at the function signature and determines which FHE computation is being requested. The result handle is the result of this particular call to the TFHEExecutor contract and the EVM can accumulate it in the computations list for the block.
 
 ## Scheduling Policies
 

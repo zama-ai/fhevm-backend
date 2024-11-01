@@ -69,7 +69,7 @@ function getChainConfig(chain: keyof typeof chainIds): NetworkUserConfig {
       break;
     case 'sepolia':
       jsonRpcUrl = process.env.SEPOLIA_RPC_URL!;
-    case 'maiinet':
+    case 'mainnet':
       jsonRpcUrl = process.env.MAINNET_RPC_URL!;
   }
   return {
