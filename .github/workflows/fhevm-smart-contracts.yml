@@ -21,8 +21,8 @@ jobs:
     with:
       working-directory: "."
       push_image: true
-      image-name: "fhevm-contracts"
-      image-dev-name: "fhevm-contracts-dev"
+      image-name: "fhevm-smart-contracts"
+      image-dev-name: "fhevm-smart-contracts-dev"
       generate-dev-image: true
       docker-file: "ci.dockerfile"
       docker-file-dev: "dev.dockerfile"
