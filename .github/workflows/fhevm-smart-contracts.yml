@@ -7,6 +7,10 @@ on:
       - .github/workflows/fhevm-contracts.yml
       - contracts/**
 
+concurrency:
+  group: fhevm-contracts-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   docker-smart-contracts:
     uses: ./.github/workflows/common-docker.yml
