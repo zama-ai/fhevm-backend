@@ -2,6 +2,8 @@ name: Run Docker test
 
 on:
   workflow_dispatch:
+  paths:
+    - .github/workflows/test-docker.yml
 
 jobs:
   retag-and-push:
