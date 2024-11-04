@@ -3,6 +3,13 @@ name: "fhEVM smart contracts Docker Image"
 on:
   push:
     branches: ["amina/fhevm-sc-workflows"]
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: 'Image (to be built/pushed) tag (default: latest)'
+        default: "latest"
+        type: string
+        required: false
 
 jobs:
   docker-smart-contracts:
@@ -19,7 +26,7 @@ jobs:
       generate-dev-image: true
       docker-file: "ci.dockerfile"
       docker-file-dev: "dev.dockerfile"
-      image-dev-description: "fhEVM smart contracts dev Image"
+      image-dev-description: "fhevm smart contracts dev image"
       arm-build: true
 
     secrets:
