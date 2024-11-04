@@ -4,7 +4,7 @@ on:
   push:
     branches: ["amina/fhevm-sc-workflows"]
     paths:
-      - .github/workflows/fhevm-smart-contracts.yml
+      - .github/workflows/fhevm-contracts.yml
       - contracts/**
 
 jobs:
