@@ -1,8 +1,9 @@
 name: Run Docker test
 
 on:
-  workflow_dispatch:
-  paths:
+  push:
+    branches: ["amina/fhevm-sc-workflows"]
+    paths:
     - .github/workflows/test-docker.yml
 
 jobs:
