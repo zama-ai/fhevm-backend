@@ -22,7 +22,7 @@ jobs:
       working-directory: "."
       push_image: true
       image-name: "fhevm-coprocessor"
-      generate-dev-image: true
+      generate-dev-image: false
       docker-file: "fhevm-engine/coprocessor/Dockerfile"
       arm-build: true
 
