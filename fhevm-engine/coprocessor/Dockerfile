@@ -13,7 +13,6 @@ COPY fhevm-engine/Cargo.toml /app/fhevm-engine/
 COPY fhevm-engine/Cargo.lock /app/fhevm-engine/
 
 # Build with SQLX offline flag
-WORKDIR /app/fhevm-engine/coprocessor
 RUN SQLX_OFFLINE=true cargo build --release
 
 # Stage 2: Final image
