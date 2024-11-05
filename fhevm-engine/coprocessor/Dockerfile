@@ -3,7 +3,7 @@ FROM rust:1.80.1-bullseye AS build
 
 # Install dependencies
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends protobuf-compiler=3.12.3-2 && \
+    apt-get install -y --no-install-recommends protobuf-compiler && \
     rm -rf /var/lib/apt/lists/*
 
 # Copy necessary files
