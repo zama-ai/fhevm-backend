@@ -24,8 +24,8 @@ jobs:
       image-name: "fhevm-smart-contracts"
       image-dev-name: "fhevm-smart-contracts-dev"
       generate-dev-image: true
-      docker-file: "ci.dockerfile"
-      docker-file-dev: "dev.dockerfile"
+      docker-file: "contracts/operations/docker/ci.dockerfile"
+      docker-file-dev: "contracts/operations/docker/dev.dockerfile"
       image-dev-description: "fhevm smart contracts dev image"
       arm-build: true
 
