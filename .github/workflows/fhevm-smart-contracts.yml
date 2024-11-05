@@ -23,7 +23,7 @@ jobs:
       push_image: true
       image-name: "fhevm-smart-contracts"
       image-dev-name: "fhevm-smart-contracts-dev"
-      generate-dev-image: true
+      generate-dev-image: false
       docker-file: "ci.dockerfile"
       docker-file-dev: "dev.dockerfile"
       image-dev-description: "fhevm smart contracts dev image"
