@@ -8,7 +8,7 @@ on:
       - contracts/**
 
 concurrency:
-  group: fhevm-contracts-${{ github.ref }}
+  group: fhevm-smart-contracts
   cancel-in-progress: true
 
 jobs:
