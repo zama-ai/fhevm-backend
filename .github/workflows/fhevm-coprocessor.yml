@@ -26,7 +26,7 @@ jobs:
       packages: "write"
     with:
       working-directory: "."
-      push_image: true
+      push_image: ${{ github.event_name == 'release' || github.ref_name == 'main' }}
       image-name: "fhevm-coprocessor"
       generate-dev-image: false
       docker-file: "fhevm-engine/coprocessor/Dockerfile"
