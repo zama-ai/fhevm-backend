@@ -5,6 +5,7 @@ on:
     branches: ["main"]
     paths:
       - .github/workflows/fhevm-smart-contracts.yml
+      - ./.github/workflows/common-docker.yml
       - contracts/**
 
 concurrency:

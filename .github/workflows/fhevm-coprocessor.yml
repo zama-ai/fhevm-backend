@@ -5,6 +5,7 @@ on:
     branches: ["amina/fhevm-coprocessor-workflows"]
     paths:
       - .github/workflows/fhevm-coprocessor.yml
+      - ./.github/workflows/common-docker.yml
       - fhevm-engine/coprocessor/**
 
 concurrency:
