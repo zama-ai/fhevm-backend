@@ -2,11 +2,16 @@ name: "fhEVM smart contracts Docker Image"
 
 on:
   push:
-    branches: ["main"]
+    branches:
+      - main
+      - amina/fhevm-coprocessor-workflows
     paths:
       - .github/workflows/fhevm-smart-contracts.yml
-      - ./.github/workflows/common-docker.yml
+      - .github/workflows/common-docker.yml
       - contracts/**
+  release:
+    types:
+      - published
 
 concurrency:
   group: fhevm-smart-contracts

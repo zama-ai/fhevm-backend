@@ -2,11 +2,16 @@ name: "fhEVM Coprocessor Docker Image"
 
 on:
   push:
-    branches: ["amina/fhevm-coprocessor-workflows"]
+    branches:
+      - main
+      - amina/fhevm-coprocessor-workflows
     paths:
       - .github/workflows/fhevm-coprocessor.yml
-      - ./.github/workflows/common-docker.yml
+      - .github/workflows/common-docker.yml
       - fhevm-engine/coprocessor/**
+  release:
+    types:
+      - published
 
 concurrency:
   group: fhevm-coprocessor
