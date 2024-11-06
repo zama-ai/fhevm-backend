@@ -14,7 +14,7 @@ on:
       - published
 
 concurrency:
-  group: fhevm-smart-contracts
+  group: fhevm-smart-contracts-${{ github.ref_name }}
   cancel-in-progress: true
 
 jobs:
