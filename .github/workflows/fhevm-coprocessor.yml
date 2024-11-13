@@ -4,10 +4,11 @@ on:
   push:
     branches:
       - main
-    paths:
-      - .github/workflows/fhevm-coprocessor.yml
-      - .github/workflows/common-docker.yml
-      - fhevm-engine/coprocessor/**
+    paths-ignore:
+      - 'docs/**'
+      - 'contracts/**'
+      - '.github/workflows/fhevm-smart-contracts.yml'
+      - '**/*.md'
   release:
     types:
       - published
