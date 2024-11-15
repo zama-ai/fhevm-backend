@@ -1656,6 +1656,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1462739cb27611015575c0c11df5df7601141071f07518d56fcc1be504cbec97"
 
 [[package]]
+name = "cmake"
+version = "0.1.51"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fb1e43aa7fd152b1f968787f7dbcdeb306d1867ff373c69955211876c053f91a"
+dependencies = [
+ "cc",
+]
+
+[[package]]
 name = "coins-ledger"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2202,6 +2211,7 @@ dependencies = [
  "daggy",
  "fhevm-engine-common",
  "prost",
+ "rand",
  "rayon",
  "scheduler",
  "sha3",
@@ -5161,6 +5171,7 @@ dependencies = [
  "rayon",
  "serde",
  "sha3",
+ "tfhe-cuda-backend",
  "tfhe-versionable",
  "tfhe-zk-pok",
 ]
@@ -5230,6 +5241,16 @@ dependencies = [
  "hashbrown 0.14.5",
  "rayon",
  "tfhe-ark-ff",
+]
+
+[[package]]
+name = "tfhe-cuda-backend"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e18b965fb25f3e2ba70f858f8ff964d9d8ebdccd09b0213165e35d396b2f3390"
+dependencies = [
+ "cmake",
+ "pkg-config",
 ]
 
 [[package]]
