@@ -357,8 +357,12 @@ async fn tfhe_worker_cycle(
                 let keys = rk.get(tenant_id).expect("Can't get tenant key from cache");
 
                 // Schedule computations in parallel as dependences allow
-                let mut sched = Scheduler::new(&mut graph.graph, args.coprocessor_fhe_threads);
-                sched.schedule(keys.sks.clone()).await?;
+                let mut sched = Scheduler::new(
+                    &mut graph.graph,
+                    args.coprocessor_fhe_threads,
+                    keys.sks.clone(),
+                );
+                sched.schedule().await?;
             }
             // Extract the results from the graph
             let res = graph.get_results().unwrap();

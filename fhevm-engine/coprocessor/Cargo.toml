@@ -52,6 +52,7 @@ tfhe = { workspace = true, features = ["aarch64-unix"] }
 
 [features]
 nightly-avx512 = ["tfhe/nightly-avx512"]
+gpu = ["tfhe/gpu"]
 
 [dev-dependencies]
 testcontainers = "0.21"

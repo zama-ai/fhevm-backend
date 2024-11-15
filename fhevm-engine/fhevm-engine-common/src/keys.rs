@@ -15,6 +15,8 @@ use tfhe::{
     zk::{CompactPkeCrs, CompactPkePublicParams},
     ClientKey, CompactPublicKey, Config, ConfigBuilder, ServerKey,
 };
+#[cfg(feature = "gpu")]
+use tfhe::{CompressedServerKey, CudaServerKey};
 
 use crate::utils::{safe_deserialize_key, safe_serialize_key};
 
@@ -34,6 +36,8 @@ pub struct FhevmKeys {
     pub client_key: Option<ClientKey>,
     pub compact_public_key: CompactPublicKey,
     pub public_params: Arc<CompactPkePublicParams>,
+    #[cfg(feature = "gpu")]
+    pub gpu_server_key: CudaServerKey,
 }
 
 pub struct SerializedFhevmKeys {
@@ -50,11 +54,15 @@ impl FhevmKeys {
         let (client_key, server_key) = generate_keys(config);
         let compact_public_key = CompactPublicKey::new(&client_key);
         let crs = CompactPkeCrs::from_config(config, MAX_BITS_TO_PROVE).expect("CRS creation");
+        #[cfg(feature = "gpu")]
+        let gpu_server_key = CompressedServerKey::new(&client_key).decompress_to_gpu();
         FhevmKeys {
             server_key,
             client_key: Some(client_key),
             compact_public_key,
             public_params: Arc::new(crs.public_params().clone()),
+            #[cfg(feature = "gpu")]
+            gpu_server_key,
         }
     }
 
@@ -129,16 +137,21 @@ impl From<FhevmKeys> for SerializedFhevmKeys {
 
 impl From<SerializedFhevmKeys> for FhevmKeys {
     fn from(f: SerializedFhevmKeys) -> Self {
+        let client_key = f
+            .client_key
+            .map(|c| safe_deserialize_key(&c).expect("deserialize client key"));
+
         FhevmKeys {
             server_key: safe_deserialize_key(&f.server_key).expect("deserialize server key"),
-            client_key: f
-                .client_key
-                .map(|c| safe_deserialize_key(&c).expect("deserialize client key")),
+            client_key: client_key.clone(),
             compact_public_key: safe_deserialize_key(&f.compact_public_key)
                 .expect("deserialize compact public key"),
             public_params: Arc::new(
                 safe_deserialize_key(&f.public_params).expect("deserialize public params"),
             ),
+            #[cfg(feature = "gpu")]
+            gpu_server_key: CompressedServerKey::new(&client_key.expect("missing client key"))
+                .decompress_to_gpu(),
         }
     }
 }
