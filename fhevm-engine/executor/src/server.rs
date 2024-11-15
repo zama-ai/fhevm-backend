@@ -14,7 +14,27 @@ use fhevm_engine_common::{
     types::{get_ct_type, FhevmError, Handle, SupportedFheCiphertexts, HANDLE_LEN},
 };
 use sha3::{Digest, Keccak256};
-use std::{cell::Cell, collections::HashMap};
+use std::{borrow::Borrow, cell::Cell, collections::HashMap};
+#[cfg(feature = "gpu")]
+use tfhe::CudaServerKey;
+use tfhe::{
+    generate_keys,
+    prelude::{FheEncrypt, FheTrivialEncrypt},
+    shortint::{
+        parameters::{
+            compact_public_key_only::p_fail_2_minus_64::ks_pbs::PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+            key_switching::p_fail_2_minus_64::ks_pbs::PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+            list_compression::COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+            CompactPublicKeyEncryptionParameters, CompressionParameters,
+            ShortintKeySwitchingParameters, PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+        },
+        ClassicPBSParameters,
+    },
+    zk::CompactPkeCrs,
+    ClientKey, CompactPublicKey, CompressedServerKey, Config, ConfigBuilder, FheBool, FheUint64,
+    ServerKey,
+};
+
 use tfhe::{set_server_key, zk::CompactPkePublicParams};
 use tokio::task::spawn_blocking;
 use tonic::{transport::Server, Code, Request, Response, Status};
@@ -32,13 +52,14 @@ thread_local! {
 
 pub fn start(args: &crate::cli::Args) -> Result<()> {
     let keys: FhevmKeys = SerializedFhevmKeys::load_from_disk(&args.fhe_keys_directory).into();
-    LOCAL_RAYON_THREADS.set(args.policy_fhe_compute_threads);
+    let num_threads = args.policy_fhe_compute_threads;
+    LOCAL_RAYON_THREADS.set(num_threads);
     let executor = FhevmExecutorService::new(keys.clone());
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(args.tokio_threads)
         .max_blocking_threads(args.fhe_compute_threads)
         .on_thread_start(move || {
-            set_server_key(keys.server_key.clone());
+            LOCAL_RAYON_THREADS.set(num_threads);
         })
         .enable_all()
         .build()?;
@@ -77,23 +98,39 @@ impl FhevmExecutor for FhevmExecutorService {
     ) -> Result<Response<SyncComputeResponse>, Status> {
         let public_params = self.keys.public_params.clone();
         let sks = self.keys.server_key.clone();
+        let cks = self
+            .keys
+            .client_key
+            .as_ref()
+            .expect("missing client key")
+            .clone();
+        #[cfg(feature = "gpu")]
+        let csks = self.keys.gpu_server_key.clone();
         let resp = spawn_blocking(move || {
             let req = req.get_ref();
             let mut state = ComputationState::default();
 
+            println!("CP 0");
             // Exapnd compact ciphertext lists for the whole request.
             if Self::expand_compact_lists(&req.compact_ciphertext_lists, &mut state, &public_params)
                 .is_err()
             {
+                println!("CP 0e");
                 return SyncComputeResponse {
                     resp: Some(Resp::Error(SyncComputeError::BadInputList.into())),
                 };
             }
 
             // Decompress compressed ciphertexts for the whole request.
-            if Self::decompress_compressed_ciphertexts(&req.compressed_ciphertexts, &mut state)
-                .is_err()
+            println!("CP 1");
+            if Self::decompress_compressed_ciphertexts(
+                &req.compressed_ciphertexts,
+                &mut state,
+                &cks,
+            )
+            .is_err()
             {
+                println!("CP 1e");
                 return SyncComputeResponse {
                     resp: Some(Resp::Error(SyncComputeError::BadInputCiphertext.into())),
                 };
@@ -104,15 +141,26 @@ impl FhevmExecutor for FhevmExecutorService {
             let _ = handle.enter();
             let resp = handle.block_on(async {
                 // Build the dataflow graph for this request
+                println!("CP 2");
                 let mut graph = DFGraph::default();
                 if let Err(e) = build_taskgraph_from_request(&mut graph, req, &state) {
+                    println!("CP 2e");
                     return Some(Resp::Error((e as SyncComputeError).into()));
                 }
                 // Schedule computations in parallel as dependences allow
-                let mut sched = Scheduler::new(&mut graph.graph, LOCAL_RAYON_THREADS.get());
-
                 let now = std::time::SystemTime::now();
-                if sched.schedule(sks).await.is_err() {
+                println!("CP 3");
+                let mut sched = Scheduler::new(
+                    &mut graph.graph,
+                    LOCAL_RAYON_THREADS.get(),
+                    sks,
+                    #[cfg(feature = "gpu")]
+                    csks,
+                );
+
+                println!("CP 4");
+                if sched.schedule().await.is_err() {
+                    println!("CP 4e");
                     return Some(Resp::Error(SyncComputeError::ComputationFailed.into()));
                 }
                 println!(
@@ -121,15 +169,21 @@ impl FhevmExecutor for FhevmExecutorService {
                 );
                 // Extract the results from the graph
                 match graph.get_results() {
-                    Ok(mut result_cts) => Some(Resp::ResultCiphertexts(ResultCiphertexts {
-                        ciphertexts: result_cts
-                            .iter_mut()
-                            .map(|(h, ct)| CompressedCiphertext {
-                                handle: h.clone(),
-                                serialization: std::mem::take(&mut ct.2),
-                            })
-                            .collect(),
-                    })),
+                    Ok(mut result_cts) => {
+                        for ct in result_cts.iter() {
+                            println!("Result {}", ct.1 .0.decrypt(&cks.clone()))
+                        }
+
+                        Some(Resp::ResultCiphertexts(ResultCiphertexts {
+                            ciphertexts: result_cts
+                                .iter_mut()
+                                .map(|(h, ct)| CompressedCiphertext {
+                                    handle: h.clone(),
+                                    serialization: std::mem::take(&mut ct.2),
+                                })
+                                .collect(),
+                        }))
+                    }
                     Err(_) => Some(Resp::Error(SyncComputeError::ComputationFailed.into())),
                 }
             });
@@ -201,6 +255,7 @@ impl FhevmExecutorService {
     fn decompress_compressed_ciphertexts(
         cts: &Vec<CompressedCiphertext>,
         state: &mut ComputationState,
+        cks: &ClientKey,
     ) -> Result<()> {
         for ct in cts.iter() {
             let ct_type = get_ct_type(&ct.handle)?;
@@ -213,6 +268,43 @@ impl FhevmExecutorService {
                 },
             );
         }
+        let bals = FheUint64::encrypt(100u64, cks);
+        let bald = FheUint64::encrypt(20u64, cks);
+        let trxa = FheUint64::encrypt(10u64, cks);
+        let zero = FheUint64::encrypt(0u64, cks);
+        let handle_bals = get_handle(777713);
+        let handle_trxa = get_handle(777714);
+        let handle_bald = get_handle(777715);
+        let handle_zero = get_handle(777716);
+        state.ciphertexts.insert(
+            handle_bals,
+            InMemoryCiphertext {
+                expanded: SupportedFheCiphertexts::FheUint64(bals),
+                compressed: vec![],
+            },
+        );
+        state.ciphertexts.insert(
+            handle_bald,
+            InMemoryCiphertext {
+                expanded: SupportedFheCiphertexts::FheUint64(bald),
+                compressed: vec![],
+            },
+        );
+        state.ciphertexts.insert(
+            handle_trxa,
+            InMemoryCiphertext {
+                expanded: SupportedFheCiphertexts::FheUint64(trxa),
+                compressed: vec![],
+            },
+        );
+        state.ciphertexts.insert(
+            handle_zero,
+            InMemoryCiphertext {
+                expanded: SupportedFheCiphertexts::FheUint64(zero),
+                compressed: vec![],
+            },
+        );
+
         Ok(())
     }
 
@@ -351,5 +443,18 @@ pub fn build_taskgraph_from_request(
             }
         }
     }
+    println!(
+        "Pre-partition graph: {:?}",
+        daggy::petgraph::dot::Dot::with_config(dfg.graph.graph(), &[])
+    );
     Ok(())
+}
+
+fn get_handle(h: u32) -> Vec<u8> {
+    let mut res: Vec<u8> = Vec::with_capacity(HANDLE_LEN);
+    let slice: [u8; 4] = h.to_be_bytes();
+    for _i in 0..HANDLE_LEN / 4 {
+        res.extend_from_slice(&slice);
+    }
+    res.to_vec()
 }
