@@ -9,16 +9,8 @@ build:
 cleanup:
 	docker compose down -v
 
-.PHONY: init_db
-init_db:
-	docker compose up -d db
-	sleep 3
-	$(DB_URL) sqlx db create
-	$(DB_URL) sqlx migrate run
-	$(DB_URL) cargo test setup_test_user -- --nocapture --ignored
-
-.PHONY: start
-start:
+.PHONY: run
+run:
 	docker compose up -d
 
 .PHONY: recreate_db
