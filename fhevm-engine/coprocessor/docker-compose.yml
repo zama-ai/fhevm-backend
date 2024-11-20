@@ -18,34 +18,48 @@ services:
     volumes:
       - db:/var/lib/postgresql/data
 
-  coprocessor:
-    container_name: coprocessor
-    image: ghcr.io/zama-ai/fhevm-coprocessor:latest
-    environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/coprocessor
-    ports:
-      - '50051:50051'
-    volumes:
-      - ./coprocessor.key:/usr/share/coprocessor.key
-    command:
-      - --run-bg-worker
-      - --run-server
-      - --server-addr=0.0.0.0:50051
-      - --coprocessor-private-key=/usr/share/coprocessor.key
-    depends_on:
-      db:
-        condition: service_healthy
+  migration:
+      container_name: migration
+      image: rust:1.74
+      volumes:
+        - ./initialize_db.sh:/initialize_db.sh
+        - ./migrations:/migrations
+        - ../fhevm-keys:/fhevm-keys
+      entrypoint:
+        - /bin/bash
+        - /initialize_db.sh
+      depends_on:
+        db:
+          condition: service_healthy
 
-  geth:
-    container_name: geth
-    image: ghcr.io/zama-ai/go-ethereum-coprocessor-dev:latest
-    environment:
-      FHEVM_COPROCESSOR_API_KEY: a1503fb6-d79b-4e9e-826d-44cf262f3e05
-      FHEVM_COPROCESSOR_URL: coprocessor:50051
-      COPROCESSOR_CONTRACT_ADDRESS: 0x6819e3aDc437fAf9D533490eD3a7552493fCE3B1
-      ACL_CONTRACT_ADDRESS: 0x339EcE85B9E11a3A3AA557582784a15d7F82AAf2
-    ports:
-      - '8745:8545'
+  # coprocessor:
+  #   container_name: coprocessor
+  #   image: ghcr.io/zama-ai/fhevm-coprocessor:latest
+  #   environment:
+  #     DATABASE_URL: postgresql://postgres:postgres@db:5432/postgres
+  #   ports:
+  #     - '50051:50051'
+  #   volumes:
+  #     - ./coprocessor.key:/usr/share/coprocessor.key
+  #   command:
+  #     - --run-bg-worker
+  #     - --run-server
+  #     - --server-addr=0.0.0.0:50051
+  #     - --coprocessor-private-key=/usr/share/coprocessor.key
+  #   depends_on:
+  #     db:
+  #       condition: service_healthy
+
+  # geth:
+  #   container_name: geth
+  #   image: ghcr.io/zama-ai/go-ethereum-coprocessor-dev:latest
+  #   environment:
+  #     FHEVM_COPROCESSOR_API_KEY: a1503fb6-d79b-4e9e-826d-44cf262f3e05
+  #     FHEVM_COPROCESSOR_URL: coprocessor:50051
+  #     COPROCESSOR_CONTRACT_ADDRESS: 0x6819e3aDc437fAf9D533490eD3a7552493fCE3B1
+  #     ACL_CONTRACT_ADDRESS: 0x339EcE85B9E11a3A3AA557582784a15d7F82AAf2
+  #   ports:
+  #     - '8745:8545'
 
 volumes:
   db:
