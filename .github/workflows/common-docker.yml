@@ -142,7 +142,7 @@ jobs:
           cache-to: ${{ inputs.cache-to }}
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@@0.28.0
+        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # 0.29.0
         with:
           image-ref: 'ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }}'
           format: 'table'
