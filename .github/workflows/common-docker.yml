@@ -137,6 +137,7 @@ jobs:
           file: ${{ inputs.working-directory }}/${{ inputs.docker-file }}
           push: false
           pull: false
+          load: true
           tags: ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }},ghcr.io/zama-ai/${{ inputs.image-name }}:latest
           cache-from: ${{ inputs.cache-from }}
           cache-to: ${{ inputs.cache-to }}
