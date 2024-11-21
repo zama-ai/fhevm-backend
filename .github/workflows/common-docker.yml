@@ -135,11 +135,21 @@ jobs:
           build-args: |
             BLOCKCHAIN_ACTIONS_TOKEN=${{ secrets.BLOCKCHAIN_ACTIONS_TOKEN }}
           file: ${{ inputs.working-directory }}/${{ inputs.docker-file }}
-          push: ${{ inputs.push_image }}
+          push: false
           pull: false
           tags: ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }},ghcr.io/zama-ai/${{ inputs.image-name }}:latest
           cache-from: ${{ inputs.cache-from }}
           cache-to: ${{ inputs.cache-to }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@5681af892cd0f4997658e2bacc62bd0a894cf564 # 0.27.0
+        with:
+          image-ref: 'ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
 
       - name: Extract Docker metadata
         if: ${{ inputs.generate-dev-image }}
@@ -165,13 +175,23 @@ jobs:
           build-args: |
             BLOCKCHAIN_ACTIONS_TOKEN=${{ secrets.BLOCKCHAIN_ACTIONS_TOKEN }}
           file: ${{ inputs.working-directory }}/${{ inputs.docker-file-dev }}
-          push: ${{ inputs.push_image }}
+          push: false
           pull: false
           tags: ghcr.io/zama-ai/${{ inputs.image-dev-name }}:${{env.DOCKER_TAG_IMAGE}},ghcr.io/zama-ai/${{ inputs.image-dev-name }}:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
+
+      - name: Run Trivy vulnerability scanner
+        uses: aquasecurity/trivy-action@5681af892cd0f4997658e2bacc62bd0a894cf564 # 0.27.0
+        with:
+          image-ref: 'ghcr.io/zama-ai/${{ inputs.image-dev-name }}:${{env.DOCKER_TAG_IMAGE}}'
+          format: 'table'
+          exit-code: '1'
+          ignore-unfixed: true
+          vuln-type: 'os,library'
+          severity: 'CRITICAL,HIGH'
 
       - name: Export image name
         id: export-image
