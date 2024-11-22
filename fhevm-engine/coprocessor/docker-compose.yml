@@ -36,7 +36,7 @@ services:
     container_name: coprocessor
     image: ghcr.io/zama-ai/fhevm-coprocessor:v0.1.0-3
     environment:
-      DATABASE_URL: postgresql://postgres:postgres@db:5432/postgres
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/coprocessor
     ports:
       - '50051:50051'
     volumes:
