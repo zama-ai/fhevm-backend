@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - security/trivy
     paths:
       - .github/workflows/fhevm-smart-contracts.yml
       - .github/workflows/common-docker.yml
@@ -28,7 +29,7 @@ jobs:
       push_image: true
       image-name: "fhevm-smart-contracts"
       image-dev-name: "fhevm-smart-contracts-dev"
-      generate-dev-image: true
+      generate-dev-image: false
       docker-file: "contracts/operations/docker/ci.dockerfile"
       docker-file-dev: "contracts/operations/docker/dev.dockerfile"
       image-dev-description: "fhevm smart contracts dev image"
