@@ -20,14 +20,9 @@ services:
 
   migration:
       container_name: migration
-      image: rust:1.74
-      volumes:
-        - ./initialize_db.sh:/initialize_db.sh
-        - ./migrations:/migrations
-        - ../fhevm-keys:/fhevm-keys
-      entrypoint:
-        - /bin/bash
-        - /initialize_db.sh
+      image: migration:v1
+      environment:
+        DATABASE_URL: postgres://postgres:postgres@db:5432/coprocessor
       depends_on:
         db:
           condition: service_healthy
