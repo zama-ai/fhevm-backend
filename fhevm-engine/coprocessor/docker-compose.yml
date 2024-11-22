@@ -22,7 +22,7 @@ services:
       container_name: migration
       image: migration:v1
       environment:
-        DATABASE_URL: postgres://postgres:postgres@db:5432/coprocessor
+        DATABASE_URL: postgresql://postgres:postgres@db:5432/coprocessor
       depends_on:
         db:
           condition: service_healthy
