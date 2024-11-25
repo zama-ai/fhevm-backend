@@ -20,7 +20,7 @@ services:
 
   migration:
       container_name: migration
-      image: ghcr.io/zama-ai/fhevm-db-migration:v1
+      image: ghcr.io/zama-ai/fhevm-db-migration:v1.1
       environment:
         DATABASE_URL: postgresql://postgres:postgres@db:5432/coprocessor
       depends_on:
