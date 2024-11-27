@@ -70,7 +70,7 @@ on:
         value: "${{ jobs.build-and-push-docker.outputs.image_name }}"
 
 jobs:
-  build-and-push-docker:
+  build:
     runs-on: ${{ inputs.runs_on }}
     outputs:
       image_name: ${{ steps.export-image.outputs.image }}
@@ -137,65 +137,137 @@ jobs:
           file: ${{ inputs.working-directory }}/${{ inputs.docker-file }}
           push: false
           pull: false
-          outputs: type=docker
+          outputs: type=docker, dest=docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }}
           tags: ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }},ghcr.io/zama-ai/${{ inputs.image-name }}:latest
           cache-from: ${{ inputs.cache-from }}
           cache-to: ${{ inputs.cache-to }}
-
-      - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # 0.29.0
+      
+      - name: Upload Container Img Tarball as Artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882    ## v4.4.3
+        if: success()
         with:
-          image-ref: 'ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }}'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
-        continue-on-error: true
+          name: docker-${{ inputs.image-name }}-img-${{env.DOCKER_TAG_IMAGE }}
+          path: docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }}
 
-      - name: Extract Docker metadata
-        if: ${{ inputs.generate-dev-image }}
-        id: meta
-        uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
+      # - name: Run Trivy vulnerability scanner
+      #   uses: aquasecurity/trivy-action@18f2510ee396bbf400402947b394f2dd8c87dbb0 # 0.29.0
+      #   with:
+      #     image-ref: 'ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }}'
+      #     format: 'table'
+      #     exit-code: '1'
+      #     ignore-unfixed: true
+      #     vuln-type: 'os,library'
+      #     severity: 'CRITICAL,HIGH'
+      #   continue-on-error: true
+
+      # - name: Extract Docker metadata
+      #   if: ${{ inputs.generate-dev-image }}
+      #   id: meta
+      #   uses: docker/metadata-action@8e5442c4ef9f78752691e2d8f8d19755c6f78e81 # v5.5.1
+      #   with:
+      #     annotations: |
+      #       org.opencontainers.image.description="${{ inputs.image-dev-description }}"
+      #     labels: |
+      #       zama.fhevm.version=${{ env.DOCKER_TAG_IMAGE }}
+      #       zama.fhevm.description="${{ inputs.image-dev-description }}"
+      #     images: ghcr.io/zama-ai/${{ inputs.image-dev-name }}:${{ env.DOCKER_TAG_IMAGE }}
+      #   env:
+      #     DOCKER_METADATA_ANNOTATIONS_LEVELS: index
+
+      # - name: Docker Build Dev Image
+      #   if: ${{ inputs.generate-dev-image }}
+      #   uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
+      #   timeout-minutes: 360
+      #   with:
+      #     context: ${{ inputs.docker-context }}
+      #     platforms: linux/amd64,linux/arm64
+      #     build-args: |
+      #       BLOCKCHAIN_ACTIONS_TOKEN=${{ secrets.BLOCKCHAIN_ACTIONS_TOKEN }}
+      #     file: ${{ inputs.working-directory }}/${{ inputs.docker-file-dev }}
+      #     push: false
+      #     pull: false
+      #     tags: ghcr.io/zama-ai/${{ inputs.image-dev-name }}:${{env.DOCKER_TAG_IMAGE}},ghcr.io/zama-ai/${{ inputs.image-dev-name }}:latest
+      #     cache-from: type=gha
+      #     cache-to: type=gha,mode=max
+      #     labels: ${{ steps.meta.outputs.labels }}
+      #     annotations: ${{ steps.meta.outputs.annotations }}
+
+      # - name: Run Trivy vulnerability scanner Dev Image
+      #   if: ${{ inputs.generate-dev-image }}
+      #   uses: aquasecurity/trivy-action@5681af892cd0f4997658e2bacc62bd0a894cf564 # 0.27.0
+      #   with:
+      #     image-ref: 'ghcr.io/zama-ai/${{ inputs.image-dev-name }}:${{env.DOCKER_TAG_IMAGE}}'
+      #     format: 'table'
+      #     exit-code: '1'
+      #     ignore-unfixed: true
+      #     vuln-type: 'os,library'
+      #     severity: 'CRITICAL,HIGH'
+
+      # - name: Export image name
+      #   id: export-image
+      #   run: echo "image=ghcr.io/zama-ai/${{inputs.image-name}}:${{env.DOCKER_TAG_IMAGE}}" >> "${GITHUB_OUTPUT}"
+
+  scan-vulns-docker-tarball:
+    runs-on: ubuntu-latest
+    needs: [build]
+
+    steps:
+      - name: Checkout parent Repo
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683    ## v4
+
+      - name: Download Container Img Tarball as Artifact
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16    ## v4
         with:
-          annotations: |
-            org.opencontainers.image.description="${{ inputs.image-dev-description }}"
-          labels: |
-            zama.fhevm.version=${{ env.DOCKER_TAG_IMAGE }}
-            zama.fhevm.description="${{ inputs.image-dev-description }}"
-          images: ghcr.io/zama-ai/${{ inputs.image-dev-name }}:${{ env.DOCKER_TAG_IMAGE }}
+          name: docker-${{ inputs.image-name }}-img-${{env.DOCKER_TAG_IMAGE }}
+          path: _tmp/
+
+      - name: Check Container Image Tarball
+        run: |
+          cd _tmp/
+          mkdir _tar/
+          file docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }}
+          tar -xvf docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }} -C _tar/
+          ls -la _tar/
+
+      - name: Vuln scan in Docker (json)
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2    ## master
+        if: success()
+        with:
+          scan-type: image
+          scanners: vuln,secret
+          input: _tmp/_tar/
+          format: json
+          output: trivy-out-docker.json
         env:
-          DOCKER_METADATA_ANNOTATIONS_LEVELS: index
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
+          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
 
-      - name: Docker Build Dev Image
-        if: ${{ inputs.generate-dev-image }}
-        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
-        timeout-minutes: 360
+      - name: Vuln scan in Docker (sarif)
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2    ## master
+        if: success()
         with:
-          context: ${{ inputs.docker-context }}
-          platforms: linux/amd64,linux/arm64
-          build-args: |
-            BLOCKCHAIN_ACTIONS_TOKEN=${{ secrets.BLOCKCHAIN_ACTIONS_TOKEN }}
-          file: ${{ inputs.working-directory }}/${{ inputs.docker-file-dev }}
-          push: false
-          pull: false
-          tags: ghcr.io/zama-ai/${{ inputs.image-dev-name }}:${{env.DOCKER_TAG_IMAGE}},ghcr.io/zama-ai/${{ inputs.image-dev-name }}:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          labels: ${{ steps.meta.outputs.labels }}
-          annotations: ${{ steps.meta.outputs.annotations }}
-
-      - name: Run Trivy vulnerability scanner Dev Image
-        if: ${{ inputs.generate-dev-image }}
-        uses: aquasecurity/trivy-action@5681af892cd0f4997658e2bacc62bd0a894cf564 # 0.27.0
+          scan-type: fs
+          scanners: vuln,secret
+          input: _tmp/_tar/
+          format: sarif
+          output: trivy-out-docker.sarif
+          #skip-dirs: node_modules/browser-resolve/node_modules/resolve/
+        env:
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
+          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
+      
+      - name: Upload Docker scan results as Artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882    ## v4.4.3
+        #if: success() || failure()
+        if: success()
         with:
-          image-ref: 'ghcr.io/zama-ai/${{ inputs.image-dev-name }}:${{env.DOCKER_TAG_IMAGE}}'
-          format: 'table'
-          exit-code: '1'
-          ignore-unfixed: true
-          vuln-type: 'os,library'
-          severity: 'CRITICAL,HIGH'
+          name: trivy-reports-docker-${{ inputs.image-name }}-${{env.DOCKER_TAG_IMAGE }}
+          path: trivy-out-docker.*
+      
+      - name: Load Trivy SARIF Report for Docker into GH
+        uses: github/codeql-action/upload-sarif@ea9e4e37992a54ee68a9622e985e60c8e8f12d9f    ## v3.27.4
+        if: false
+        with:
+          sarif_file: trivy-out-docker.sarif
+          category: sca-trivy-docker
 
-      - name: Export image name
-        id: export-image
-        run: echo "image=ghcr.io/zama-ai/${{inputs.image-name}}:${{env.DOCKER_TAG_IMAGE}}" >> "${GITHUB_OUTPUT}"
