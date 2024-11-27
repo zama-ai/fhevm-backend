@@ -28,11 +28,7 @@ jobs:
       working-directory: "."
       push_image: true
       image-name: "fhevm-smart-contracts"
-      image-dev-name: "fhevm-smart-contracts-dev"
-      generate-dev-image: false
       docker-file: "contracts/operations/docker/ci.dockerfile"
-      docker-file-dev: "contracts/operations/docker/dev.dockerfile"
-      image-dev-description: "fhevm smart contracts dev image"
       arm-build: true
 
     secrets:
