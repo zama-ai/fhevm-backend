@@ -137,6 +137,7 @@ jobs:
           file: ${{ inputs.working-directory }}/${{ inputs.docker-file }}
           push: false
           pull: false
+          provenance: false
           outputs: type=docker, dest=docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }}
           tags: ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }},ghcr.io/zama-ai/${{ inputs.image-name }}:latest
           cache-from: ${{ inputs.cache-from }}
