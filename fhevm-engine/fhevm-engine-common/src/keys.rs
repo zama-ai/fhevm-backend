@@ -79,6 +79,12 @@ impl FhevmKeys {
     pub fn set_server_key_for_current_thread(&self) {
         set_server_key(self.server_key.clone());
     }
+    pub fn set_gpu_server_key_for_current_thread(&self) {
+        #[cfg(feature = "gpu")]
+        set_server_key(self.gpu_server_key.clone());
+        #[cfg(not(feature = "gpu"))]
+        set_server_key(self.server_key.clone());
+    }
 }
 
 impl SerializedFhevmKeys {
