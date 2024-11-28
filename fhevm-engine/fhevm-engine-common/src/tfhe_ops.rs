@@ -15,7 +15,7 @@ use tfhe::{
         CastInto, CiphertextList, FheEq, FheMax, FheMin, FheOrd, FheTryTrivialEncrypt, IfThenElse,
         RotateLeft, RotateRight,
     },
-    zk::CompactPkePublicParams,
+    zk::{CompactPkeCrs, CompactPkePublicParams},
     FheBool, FheUint1024, FheUint128, FheUint16, FheUint160, FheUint2, FheUint2048, FheUint256,
     FheUint32, FheUint4, FheUint512, FheUint64, FheUint8, Seed,
 };
@@ -282,7 +282,7 @@ pub fn try_expand_ciphertext_list(
     let the_list: tfhe::ProvenCompactCiphertextList = safe_deserialize_conformant(
         input_ciphertext,
         &IntegerProvenCompactCiphertextListConformanceParams::from_public_key_encryption_parameters_and_crs_parameters(
-            pk_params, public_params,
+            pk_params, &CompactPkeCrs::from(public_params.clone()),
         ),
     )?;
 

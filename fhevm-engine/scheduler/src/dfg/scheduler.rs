@@ -492,13 +492,13 @@ fn run_computation(
     match inputs {
         Ok(inputs) => match op {
             Ok(FheOperation::FheGetCiphertext) => {
-                //let (ct_type, ct_bytes) = inputs[0].compress();
-                Ok((graph_node_index, (inputs[0].clone(), 0, vec![])))
+                let (ct_type, ct_bytes) = inputs[0].compress();
+                Ok((graph_node_index, (inputs[0].clone(), ct_type, ct_bytes)))
             }
             Ok(_) => match perform_fhe_operation(operation as i16, &inputs) {
                 Ok(result) => {
-                    //let (ct_type, ct_bytes) = result.compress();
-                    Ok((graph_node_index, (result.clone(),  0, vec![])))
+                    let (ct_type, ct_bytes) = result.compress();
+                    Ok((graph_node_index, (result.clone(), ct_type, ct_bytes)))
                 }
                 Err(e) => Err(e.into()),
             },

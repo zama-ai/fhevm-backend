@@ -8,7 +8,7 @@ use executor::server::executor::{sync_input::Input, SyncInput};
 use fhevm_engine_common::types::{SupportedFheCiphertexts, HANDLE_LEN};
 use std::time::SystemTime;
 use tfhe::prelude::CiphertextList;
-use tfhe::zk::ZkComputeLoad;
+use tfhe::zk::{CompactPkeCrs, ZkComputeLoad};
 use tfhe::ProvenCompactCiphertextList;
 use utils::get_test;
 mod utils;
@@ -41,7 +41,11 @@ async fn schedule_multi_erc20() {
         .push(10_u64) // Transfer amount
         .push(20_u64) // Balance destination
         .push(0_u64) // 0
-        .build_with_proof_packed(&test.keys.public_params, &[], ZkComputeLoad::Proof)
+        .build_with_proof_packed(
+            &CompactPkeCrs::from((*test.keys.public_params).clone()),
+            &[],
+            ZkComputeLoad::Proof,
+        )
         .unwrap();
     let expander = list.expand_without_verification().unwrap();
     let bals = SupportedFheCiphertexts::FheUint64(expander.get(0).unwrap().unwrap());

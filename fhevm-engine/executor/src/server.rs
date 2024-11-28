@@ -98,39 +98,29 @@ impl FhevmExecutor for FhevmExecutorService {
     ) -> Result<Response<SyncComputeResponse>, Status> {
         let public_params = self.keys.public_params.clone();
         let sks = self.keys.server_key.clone();
-        let cks = self
-            .keys
-            .client_key
-            .as_ref()
-            .expect("missing client key")
-            .clone();
         #[cfg(feature = "gpu")]
         let csks = self.keys.gpu_server_key.clone();
         let resp = spawn_blocking(move || {
             let req = req.get_ref();
             let mut state = ComputationState::default();
 
-            println!("CP 0");
             // Exapnd compact ciphertext lists for the whole request.
             if Self::expand_compact_lists(&req.compact_ciphertext_lists, &mut state, &public_params)
                 .is_err()
             {
-                println!("CP 0e");
                 return SyncComputeResponse {
                     resp: Some(Resp::Error(SyncComputeError::BadInputList.into())),
                 };
             }
 
             // Decompress compressed ciphertexts for the whole request.
-            println!("CP 1");
+	    set_server_key(sks.clone());
             if Self::decompress_compressed_ciphertexts(
                 &req.compressed_ciphertexts,
                 &mut state,
-                &cks,
             )
             .is_err()
             {
-                println!("CP 1e");
                 return SyncComputeResponse {
                     resp: Some(Resp::Error(SyncComputeError::BadInputCiphertext.into())),
                 };
@@ -141,15 +131,12 @@ impl FhevmExecutor for FhevmExecutorService {
             let _ = handle.enter();
             let resp = handle.block_on(async {
                 // Build the dataflow graph for this request
-                println!("CP 2");
                 let mut graph = DFGraph::default();
                 if let Err(e) = build_taskgraph_from_request(&mut graph, req, &state) {
-                    println!("CP 2e");
                     return Some(Resp::Error((e as SyncComputeError).into()));
                 }
                 // Schedule computations in parallel as dependences allow
                 let now = std::time::SystemTime::now();
-                println!("CP 3");
                 let mut sched = Scheduler::new(
                     &mut graph.graph,
                     LOCAL_RAYON_THREADS.get(),
@@ -158,9 +145,7 @@ impl FhevmExecutor for FhevmExecutorService {
                     csks,
                 );
 
-                println!("CP 4");
                 if sched.schedule().await.is_err() {
-                    println!("CP 4e");
                     return Some(Resp::Error(SyncComputeError::ComputationFailed.into()));
                 }
                 println!(
@@ -170,10 +155,6 @@ impl FhevmExecutor for FhevmExecutorService {
                 // Extract the results from the graph
                 match graph.get_results() {
                     Ok(mut result_cts) => {
-                        for ct in result_cts.iter() {
-                            println!("Result {}", ct.1 .0.decrypt(&cks.clone()))
-                        }
-
                         Some(Resp::ResultCiphertexts(ResultCiphertexts {
                             ciphertexts: result_cts
                                 .iter_mut()
@@ -255,7 +236,6 @@ impl FhevmExecutorService {
     fn decompress_compressed_ciphertexts(
         cts: &Vec<CompressedCiphertext>,
         state: &mut ComputationState,
-        cks: &ClientKey,
     ) -> Result<()> {
         for ct in cts.iter() {
             let ct_type = get_ct_type(&ct.handle)?;
@@ -268,43 +248,6 @@ impl FhevmExecutorService {
                 },
             );
         }
-        let bals = FheUint64::encrypt(100u64, cks);
-        let bald = FheUint64::encrypt(20u64, cks);
-        let trxa = FheUint64::encrypt(10u64, cks);
-        let zero = FheUint64::encrypt(0u64, cks);
-        let handle_bals = get_handle(777713);
-        let handle_trxa = get_handle(777714);
-        let handle_bald = get_handle(777715);
-        let handle_zero = get_handle(777716);
-        state.ciphertexts.insert(
-            handle_bals,
-            InMemoryCiphertext {
-                expanded: SupportedFheCiphertexts::FheUint64(bals),
-                compressed: vec![],
-            },
-        );
-        state.ciphertexts.insert(
-            handle_bald,
-            InMemoryCiphertext {
-                expanded: SupportedFheCiphertexts::FheUint64(bald),
-                compressed: vec![],
-            },
-        );
-        state.ciphertexts.insert(
-            handle_trxa,
-            InMemoryCiphertext {
-                expanded: SupportedFheCiphertexts::FheUint64(trxa),
-                compressed: vec![],
-            },
-        );
-        state.ciphertexts.insert(
-            handle_zero,
-            InMemoryCiphertext {
-                expanded: SupportedFheCiphertexts::FheUint64(zero),
-                compressed: vec![],
-            },
-        );
-
         Ok(())
     }
 
