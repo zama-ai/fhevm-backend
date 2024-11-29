@@ -93,15 +93,15 @@ jobs:
       - name: Download Container Img Tarball as Artifact
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16    ## v4
         with:
-          name: docker-${{ inputs.image-name }}-img-${{env.DOCKER_TAG_IMAGE }}
+          name: docker-${{ inputs.image-name }}-img-${{env.DOCKER_TAG_IMAGE }}-amd
           path: _tmp/
 
       - name: Check Container Image Tarball
         run: |
           cd _tmp/
           mkdir _tar/
-          file docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }}
-          tar -xvf docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }} -C _tar/
+          file docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }}-amd
+          tar -xvf docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }}-amd -C _tar/
           ls -la _tar/
 
       - name: Vuln scan in Docker (json)
@@ -145,3 +145,11 @@ jobs:
         with:
           sarif_file: trivy-out-docker.sarif
           category: sca-trivy-docker
+
+      - name: Push Docker Image (AMD64)
+        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85
+        with:
+          tags: ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }}
+          push: true
+          cache-from: type=gha
+
