@@ -26,7 +26,7 @@ on:
 
 jobs:
   setup:
-    runs-on: ubuntu-latest
+    runs-on: ${{ inputs.runs_on }}
     outputs:
       docker_tag_image:  ${{ steps.set-docker-tag.outputs.tag }}
     steps:
@@ -60,7 +60,7 @@ jobs:
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 
 
-      - name: Docker Build for Audit (AMD64)
+      - name: Docker Build
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         with:
           context: ${{ inputs.docker-context }}
@@ -70,23 +70,17 @@ jobs:
           file: ${{ inputs.working-directory }}/${{ inputs.docker-file }}
           push: false
           provenance: false
-          outputs: type=docker #, dest=docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-amd
+          outputs: type=docker, dest=docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64.tar.gz
           tags: ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}-amd64
           cache-from: ${{ inputs.cache-from }}
           cache-to: ${{ inputs.cache-to }}
 
-      - name: Vuln scan in Docker (table)(AMD64)
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
+      - name: Upload Container Img Tarball as Artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882    ## v4.4.3
+        if: success()
         with:
-          scan-type: image
-          scanners: vuln,secret
-          # input: _tmp/docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-amd
-          image-ref: 'ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}-amd64'
-          format: table
-          hide-progress: true
-        env:
-          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
-          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
+          name: docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64
+          path: docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64.tar.gz
 
   build-arm64:
     needs: [setup]
@@ -116,7 +110,7 @@ jobs:
             - endpoint: "ssh://ec2-user@${{ inputs.graviton-build-host }}"
               platforms: linux/arm64
 
-      - name: Docker Build for Audit (ARM64)
+      - name: Docker Build (arm64)
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         with:
           context: ${{ inputs.docker-context }}
@@ -126,19 +120,64 @@ jobs:
           file: ${{ inputs.working-directory }}/${{ inputs.docker-file }}
           push: false
           provenance: false
-          outputs: type=docker #, dest=docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-arm
+          outputs: type=docker, dest=docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64.tar.gz
           tags: |
             ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}-arm64
-            ghcr.io/zama-ai/${{ inputs.image-name }}:latest
           cache-from: ${{ inputs.cache-from }}
           cache-to: ${{ inputs.cache-to }}
-      
+    
+      - name: Upload Container Img Tarball as Artifact
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882    ## v4.4.3
+        if: success()
+        with:
+          name: docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64
+          path: docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64.tar.gz
+
+  scan-vulns-docker:
+    needs: [build-amd64, build-arm64, setup]
+    runs-on: ubuntu-latest
+    steps:
+
+      - name: Download Container Img Tarball as Artifact (AMD)
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16    ## v4
+        with:
+          name: docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64
+          path: _tmp/
+
+      - name: Download Container Img Tarball as Artifact (ARM)
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16    ## v4
+        with:
+          name: docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64
+          path: _tmp/
+
+      - name: Check Container Image Tarball
+        run: |
+          cd _tmp/
+          mkdir _tar/
+          file docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64.tar.gz
+          file docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64.tar.gz
+          tar -xvf docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64.tar.gz -C _tar/
+          tar -xvf docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64.tar.gz -C _tar/
+          ls -la _tar/
+
+      - name: Vuln scan in Docker (table)(AMD)
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
+        with:
+          scan-type: image
+          scanners: vuln,secret
+          input: _tmp/_tar/docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64
+          format: table
+          hide-progress: true
+        env:
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
+          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
+
       - name: Vuln scan in Docker (table)(ARM)
         uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
         with:
           scan-type: image
           scanners: vuln,secret
-          image-ref: 'ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}-arm64'
+          input: _tmp/_tar/docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64
           format: table
           hide-progress: true
         env:
@@ -149,6 +188,22 @@ jobs:
       needs: [setup, build-amd64, build-arm64]
       runs-on: ${{ inputs.runs_on }}
       steps:
+        - name: Download Container Img Tarball as Artifact (AMD)
+          uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16    ## v4
+          with:
+            name: docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64
+            path: _tmp/
+
+        - name: Download Container Img Tarball as Artifact (ARM)
+          uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16    ## v4
+          with:
+            name: docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64
+            path: _tmp/
+
+        - name: Load Images
+          run: |
+            docker load < _tmp/docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64.tar.gz
+            docker load < _tmp/docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64.tar.gz
         - name: Login to GitHub Container Registry
           uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
           with:
@@ -165,8 +220,8 @@ jobs:
             
             docker manifest create \
               ghcr.io/zama-ai/${{ inputs.image-name }}:latest \
-              ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.build-amd64.outputs.image_tag }}-amd64 \
-              ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.build-amd64.outputs.image_tag }}-arm64
+              ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}-amd64 \
+              ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}-arm64
             
             docker manifest push ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}
             docker manifest push ghcr.io/zama-ai/${{ inputs.image-name }}:latest
