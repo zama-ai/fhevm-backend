@@ -152,6 +152,8 @@ jobs:
     needs: [setup, build-amd64, build-arm64]
     runs-on: ${{ inputs.runs_on }}
     steps:
+      - name: Checkout Project
+        uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       - name: Login to GitHub Container Registry
         uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
         with:
