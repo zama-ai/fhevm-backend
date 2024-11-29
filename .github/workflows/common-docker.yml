@@ -156,8 +156,8 @@ jobs:
           mkdir _tar/
           file docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64.tar.gz
           file docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64.tar.gz
-          tar -xvf docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64.tar.gz -C _tar/
-          tar -xvf docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64.tar.gz -C _tar/
+          tar -xvf docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64.tar.gz -C _tar-amd64/
+          tar -xvf docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64.tar.gz -C _tar-arm64/
           ls -la _tar/
 
       - name: Vuln scan in Docker (table)(AMD)
@@ -165,7 +165,7 @@ jobs:
         with:
           scan-type: image
           scanners: vuln,secret
-          input: _tmp/_tar/docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64
+          input: _tmp/_tar-amd64
           format: table
           hide-progress: true
         env:
@@ -177,7 +177,7 @@ jobs:
         with:
           scan-type: image
           scanners: vuln,secret
-          input: _tmp/_tar/docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64
+          input: _tmp/_tar-arm64
           format: table
           hide-progress: true
         env:
