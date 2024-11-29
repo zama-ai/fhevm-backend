@@ -76,10 +76,11 @@ jobs:
             BLOCKCHAIN_ACTIONS_TOKEN=${{ secrets.BLOCKCHAIN_ACTIONS_TOKEN }}
           file: ${{ inputs.working-directory }}/${{ inputs.docker-file }}
           push: false
-          pull: false
           provenance: false
           outputs: type=docker, dest=docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }}-amd
-          tags: ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }},ghcr.io/zama-ai/${{ inputs.image-name }}:latest
+          tags: |
+            ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }}
+            ghcr.io/zama-ai/${{ inputs.image-name }}:latest
           cache-from: ${{ inputs.cache-from }}
           cache-to: ${{ inputs.cache-to }}
       
@@ -103,53 +104,32 @@ jobs:
           file docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }}-amd
           tar -xvf docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }}-amd -C _tar/
           ls -la _tar/
-
-      - name: Vuln scan in Docker (json)
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2    ## master
-        if: success()
+      
+      - name: Vuln scan in Docker (table)(AMD)
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
         with:
           scan-type: image
           scanners: vuln,secret
-          input: _tmp/_tar/
-          format: json
-          output: trivy-out-docker.json
+          input: _tmp/docker-${{ inputs.image-name }}-oci-tar-${{env.DOCKER_TAG_IMAGE }}-amd
+          format: table
+          hide-progress: true
         env:
           TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
           TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
 
-      - name: Vuln scan in Docker (sarif)
-        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2    ## master
-        if: success()
+      - name: Docker Push
+        if: ${{ inputs.push_image }}
+        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
         with:
-          scan-type: fs
-          scanners: vuln,secret
-          input: _tmp/_tar/
-          format: sarif
-          output: trivy-out-docker.sarif
-          #skip-dirs: node_modules/browser-resolve/node_modules/resolve/
-        env:
-          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db:2
-          TRIVY_JAVA_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-java-db:1
-      
-      - name: Upload Docker scan results as Artifact
-        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882    ## v4.4.3
-        #if: success() || failure()
-        if: success()
-        with:
-          name: trivy-reports-docker-${{ inputs.image-name }}-${{env.DOCKER_TAG_IMAGE }}
-          path: trivy-out-docker.*
-      
-      - name: Load Trivy SARIF Report for Docker into GH
-        uses: github/codeql-action/upload-sarif@ea9e4e37992a54ee68a9622e985e60c8e8f12d9f    ## v3.27.4
-        if: false
-        with:
-          sarif_file: trivy-out-docker.sarif
-          category: sca-trivy-docker
-
-      - name: Push Docker Image (AMD64)
-        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85
-        with:
-          tags: ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }}
+          context: .
+          platforms: linux/amd64
+          build-args: |
+            CI_ACTIONS_TOKEN=${{ secrets.BLOCKCHAIN_ACTIONS_TOKEN }}
+          file: ${{ inputs.working-directory }}/${{ inputs.docker-file }}
           push: true
+          provenance: false
+          tags: |
+            ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }}
+            ghcr.io/zama-ai/${{ inputs.image-name }}:latest
           cache-from: type=gha
-
+          cache-to: type=gha,mode=max
