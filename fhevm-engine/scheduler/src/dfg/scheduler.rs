@@ -113,10 +113,14 @@ impl<'a> Scheduler<'a> {
     async fn schedule_fine_grain(&mut self) -> Result<()> {
         let mut set: JoinSet<Result<(usize, (SupportedFheCiphertexts, i16, Vec<u8>))>> =
             JoinSet::new();
-        tfhe::set_server_key(self.csks.clone());
+        #[cfg(feature = "gpu")]
+        let sks = self.csks.clone();
+        #[cfg(not(feature = "gpu"))]
+        let sks = self.sks.clone();
+        tfhe::set_server_key(sks.clone());
         // Prime the scheduler with all nodes without dependences
         for idx in 0..self.graph.node_count() {
-            let sks = self.csks.clone();
+            let sks = sks.clone();
             let index = NodeIndex::new(idx);
             let node = self.graph.node_weight_mut(index).unwrap();
             if Self::is_ready(node) {
@@ -145,7 +149,7 @@ impl<'a> Scheduler<'a> {
             let node_index = NodeIndex::new(index);
             // Satisfy deps from the executed task
             for edge in self.edges.edges_directed(node_index, Direction::Outgoing) {
-                let sks = self.csks.clone();
+                let sks = sks.clone();
                 let child_index = edge.target();
                 let child_node = self.graph.node_weight_mut(child_index).unwrap();
                 child_node.inputs[*edge.weight() as usize] =
@@ -175,7 +179,11 @@ impl<'a> Scheduler<'a> {
     }
 
     async fn schedule_coarse_grain(&mut self, strategy: PartitionStrategy) -> Result<()> {
-        tfhe::set_server_key(self.csks.clone());
+        #[cfg(feature = "gpu")]
+        let sks = self.csks.clone();
+        #[cfg(not(feature = "gpu"))]
+        let sks = self.sks.clone();
+        tfhe::set_server_key(sks.clone());
         let mut set: JoinSet<
             Result<(
                 Vec<(usize, (SupportedFheCiphertexts, i16, Vec<u8>))>,
@@ -195,7 +203,7 @@ impl<'a> Scheduler<'a> {
 
         // Prime the scheduler with all nodes without dependences
         for idx in 0..execution_graph.node_count() {
-            let sks = self.csks.clone();
+            let sks = sks.clone();
             let index = NodeIndex::new(idx);
             let node = execution_graph.node_weight_mut(index).unwrap();
             if self.is_ready_task(node) {
@@ -231,7 +239,7 @@ impl<'a> Scheduler<'a> {
                 self.graph[node_index].result = Some(o.1);
             }
             for edge in task_dependences.edges_directed(task_index, Direction::Outgoing) {
-                let sks = self.csks.clone();
+                let sks = sks.clone();
                 let dependent_task_index = edge.target();
                 let dependent_task = execution_graph
                     .node_weight_mut(dependent_task_index)
@@ -261,7 +269,11 @@ impl<'a> Scheduler<'a> {
         let mut execution_graph: Dag<ExecNode, ()> = Dag::default();
         let _ = partition_components(self.graph, &mut execution_graph);
         let mut comps = vec![];
-
+        #[cfg(feature = "gpu")]
+        let sks = self.csks.clone();
+        #[cfg(not(feature = "gpu"))]
+        let sks = self.sks.clone();
+        tfhe::set_server_key(sks.clone());
         // Prime the scheduler with all nodes without dependences
         for idx in 0..execution_graph.node_count() {
             let index = NodeIndex::new(idx);
@@ -278,7 +290,7 @@ impl<'a> Scheduler<'a> {
         }
 
         rayon::broadcast(|_| {
-            tfhe::set_server_key(self.csks.clone());
+            tfhe::set_server_key(sks.clone());
         });
         let (src, dest) = channel();
         let rayon_threads = self.rayon_threads;
@@ -288,7 +300,7 @@ impl<'a> Scheduler<'a> {
                 *index,
                 true,
                 rayon_threads,
-                self.csks.clone(),
+                sks.clone(),
             ))
             .unwrap();
         });
@@ -425,7 +437,8 @@ fn execute_partition(
     task_id: NodeIndex,
     use_global_threadpool: bool,
     rayon_threads: usize,
-    server_key: tfhe::CudaServerKey,
+    #[cfg(feature = "gpu")] server_key: tfhe::CudaServerKey,
+    #[cfg(not(feature = "gpu"))] server_key: tfhe::ServerKey,
 ) -> Result<(
     Vec<(usize, (SupportedFheCiphertexts, i16, Vec<u8>))>,
     NodeIndex,

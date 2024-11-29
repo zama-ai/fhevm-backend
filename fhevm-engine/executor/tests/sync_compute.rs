@@ -25,11 +25,11 @@ async fn get_input_ciphertext() {
     let list = safe_serialize(
         &builder
             .push(10_u8)
-        .build_with_proof_packed(
-            &CompactPkeCrs::from((*test.keys.public_params).clone()),
-            &[],
-            ZkComputeLoad::Proof,
-        )
+            .build_with_proof_packed(
+                &CompactPkeCrs::from((*test.keys.public_params).clone()),
+                &[],
+                ZkComputeLoad::Proof,
+            )
             .unwrap(),
     );
     // TODO: tests for all types and avoiding passing in 2 as an identifier for FheUint8.
@@ -147,11 +147,11 @@ async fn compute_on_compact_and_serialized_ciphertexts() {
     let compact_list = safe_serialize(
         &builder_input
             .push(10_u16)
-        .build_with_proof_packed(
-            &CompactPkeCrs::from((*test.keys.public_params).clone()),
-            &[],
-            ZkComputeLoad::Proof,
-        )
+            .build_with_proof_packed(
+                &CompactPkeCrs::from((*test.keys.public_params).clone()),
+                &[],
+                ZkComputeLoad::Proof,
+            )
             .unwrap(),
     );
     let mut builder_cts = ProvenCompactCiphertextList::builder(&test.keys.compact_public_key);
