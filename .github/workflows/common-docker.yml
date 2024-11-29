@@ -212,17 +212,17 @@ jobs:
             username: ${{ github.actor }}
             password: ${{ secrets.BLOCKCHAIN_ACTIONS_TOKEN }}
 
-        - name: Create and push multi-arch manifest
-          run: |
-            docker manifest create \
-              ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }} \
-              ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}-amd64 \
-              ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}-arm64
-            
-            docker manifest create \
-              ghcr.io/zama-ai/${{ inputs.image-name }}:latest \
-              ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}-amd64 \
-              ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}-arm64
-            
-            docker manifest push ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}
-            docker manifest push ghcr.io/zama-ai/${{ inputs.image-name }}:latest
+        - name: Create and push multi-arch image
+          uses: docker/build-push-action@v3
+          with:
+            context: .
+            build-args: |
+              BLOCKCHAIN_ACTIONS_TOKEN=${{ secrets.BLOCKCHAIN_ACTIONS_TOKEN }}
+            file: ${{ inputs.working-directory }}/${{ inputs.docker-file }}
+            platforms: linux/amd64,linux/arm64
+            push: true
+            provenance: false
+            tags: ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}
+            load: true
+            cache-from: type=local,src=./cache
+            cache-to: type=local,dest=./cache
