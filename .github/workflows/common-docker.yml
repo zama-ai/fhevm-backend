@@ -70,20 +70,20 @@ jobs:
           file: ${{ inputs.working-directory }}/${{ inputs.docker-file }}
           push: false
           provenance: false
-          outputs: type=docker, dest=docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-amd
+          outputs: type=docker #, dest=docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-amd
           tags: |
             ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}
             ghcr.io/zama-ai/${{ inputs.image-name }}:latest
           cache-from: ${{ inputs.cache-from }}
           cache-to: ${{ inputs.cache-to }}
-      
+
       - name: Vuln scan in Docker (table)(AMD64)
         uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
         with:
           scan-type: image
           scanners: vuln,secret
-          input: _tmp/docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-amd
-          # image-ref: 'ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }}'
+          # input: _tmp/docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-amd
+          image-ref: 'ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}'
           format: table
           hide-progress: true
         env:
@@ -113,7 +113,7 @@ jobs:
         if: inputs.arm-build
         uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
         with:
-          platforms: linux/amd64,linux/arm64
+          platforms: linux/arm64
           append: |
             - endpoint: "ssh://ec2-user@${{ inputs.graviton-build-host }}"
               platforms: linux/arm64
@@ -128,28 +128,20 @@ jobs:
           file: ${{ inputs.working-directory }}/${{ inputs.docker-file }}
           push: false
           provenance: false
-          outputs: type=docker, dest=docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-arm
+          outputs: type=docker #, dest=docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-arm
           tags: |
             ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}
             ghcr.io/zama-ai/${{ inputs.image-name }}:latest
           cache-from: ${{ inputs.cache-from }}
           cache-to: ${{ inputs.cache-to }}
-
-      - name: Check Container Image Tarball
-        run: |
-          cd _tmp/
-          mkdir _tar/
-          file docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-arm
-          tar -xvf docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-arm -C _tar/
-          ls -la _tar/
       
       - name: Vuln scan in Docker (table)(ARM)
         uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
         with:
           scan-type: image
           scanners: vuln,secret
-          input: _tmp/docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-arm
-          # image-ref: 'ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }}'
+          # input: _tmp/docker-${{ inputs.image-name }}-oci-tar-${{ needs.setup.outputs.docker_tag_image }}-arm
+          image-ref: 'ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}'
           format: table
           hide-progress: true
         env:
