@@ -226,6 +226,5 @@ jobs:
             push: true
             provenance: false
             tags: ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}
-            load: true
             cache-from: ${{ inputs.cache-from }}
             cache-to: ${{ inputs.cache-to }}
