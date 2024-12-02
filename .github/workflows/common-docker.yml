@@ -137,7 +137,6 @@ jobs:
     needs: [build-amd64, build-arm64, setup]
     runs-on: ubuntu-latest
     steps:
-
       - name: Download Container Img Tarball as Artifact (AMD)
         uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16    ## v4
         with:
@@ -189,22 +188,26 @@ jobs:
       needs: [setup, build-amd64, build-arm64]
       runs-on: ${{ inputs.runs_on }}
       steps:
-        - name: Download Container Img Tarball as Artifact (AMD)
-          uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16    ## v4
-          with:
-            name: docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64
-            path: _tmp/
+        - name: Checkout Project
+          uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
 
-        - name: Download Container Img Tarball as Artifact (ARM)
-          uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16    ## v4
+        - name: Set up SSH
+          if: inputs.arm-build
+          uses: MrSquaare/ssh-setup-action@2d028b70b5e397cf8314c6eaea229a6c3e34977a # v3.1.0
           with:
-            name: docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64
-            path: _tmp/
+            host: ${{ inputs.graviton-build-host }}
+            private-key: ${{ secrets.GRAVITON_BUILDER_SSH_PRIVATE_KEY }}
+            private-key-name: docker_builder_arm
 
-        - name: Load Images
-          run: |
-            docker load < _tmp/docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-amd64.tar.gz
-            docker load < _tmp/docker-${{ inputs.image-name }}-${{ needs.setup.outputs.docker_tag_image }}-arm64.tar.gz
+        - name: Set up Docker Buildx
+          if: inputs.arm-build
+          uses: docker/setup-buildx-action@d70bba72b1f3fd22344832f00baa16ece964efeb # v3.3.0
+          with:
+            platforms: linux/amd64,linux/arm64
+            append: |
+              - endpoint: "ssh://ec2-user@${{ inputs.graviton-build-host }}"
+                platforms: linux/arm64
+
         - name: Login to GitHub Container Registry
           uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
           with:
@@ -224,5 +227,5 @@ jobs:
             provenance: false
             tags: ghcr.io/zama-ai/${{ inputs.image-name }}:${{ needs.setup.outputs.docker_tag_image }}
             load: true
-            cache-from: type=local,src=./cache
-            cache-to: type=local,dest=./cache
+            cache-from: ${{ inputs.cache-from }}
+            cache-to: ${{ inputs.cache-to }}
