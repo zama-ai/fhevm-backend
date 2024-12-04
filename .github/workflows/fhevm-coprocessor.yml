@@ -4,10 +4,12 @@ on:
   push:
     branches:
       - main
+      - temp-fix-coprocessor-crash
     paths:
       - .github/workflows/fhevm-coprocessor.yml
       - .github/workflows/common-docker.yml
       - fhevm-engine/coprocessor/**
+      - fhevm-engine/scheduler/**
       - fhevm-engine/.sqlx
       - proto/**
   release:
