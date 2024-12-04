@@ -79,6 +79,9 @@ impl<'a> Scheduler<'a> {
 
     pub async fn schedule(&mut self, server_key: tfhe::ServerKey) -> Result<()> {
         let schedule_type = std::env::var("FHEVM_DF_SCHEDULE");
+
+        println!("Scheduling with strategy {:?}", schedule_type);
+
         match schedule_type {
             Ok(val) => match val.as_str() {
                 "MAX_PARALLELISM" => {
@@ -89,11 +92,11 @@ impl<'a> Scheduler<'a> {
                     self.schedule_coarse_grain(PartitionStrategy::MaxLocality, server_key)
                         .await
                 }
-                "LOOP" => self.schedule_component_loop(server_key).await,
+                "LOOP" => self.schedule_component_loop(server_key),
                 "FINE_GRAIN" => self.schedule_fine_grain(server_key).await,
                 unhandled => panic!("Scheduling strategy {:?} does not exist", unhandled),
             },
-            _ => self.schedule_component_loop(server_key).await,
+            _ => self.schedule_component_loop(server_key),
         }
     }
 
@@ -248,7 +251,7 @@ impl<'a> Scheduler<'a> {
         Ok(())
     }
 
-    async fn schedule_component_loop(&mut self, server_key: tfhe::ServerKey) -> Result<()> {
+    fn schedule_component_loop(&mut self, server_key: tfhe::ServerKey) -> Result<()> {
         let mut execution_graph: Dag<ExecNode, ()> = Dag::default();
         let _ = partition_components(self.graph, &mut execution_graph);
         let mut comps = vec![];
@@ -268,21 +271,28 @@ impl<'a> Scheduler<'a> {
             }
         }
 
+        let (src, dest) = channel();
+        let rayon_threads = self.rayon_threads;
+
         rayon::broadcast(|_| {
             tfhe::set_server_key(server_key.clone());
         });
-        let (src, dest) = channel();
-        let rayon_threads = self.rayon_threads;
-        comps.par_iter().for_each_with(src, |src, (args, index)| {
-            src.send(execute_partition(
-                args.to_vec(),
-                *index,
-                true,
-                rayon_threads,
-                server_key.clone(),
-            ))
-            .unwrap();
+        
+        // Execute computations in parallel using Rayon threadpool
+        tokio::task::block_in_place( move || {
+            comps.par_iter().for_each_with(src, |src, (args, index)| {
+                tfhe::set_server_key(server_key.clone());
+                src.send(execute_partition(
+                    args.to_vec(),
+                    *index,
+                    true,
+                    rayon_threads,
+                    server_key.clone(),
+                ))
+                .unwrap();
+            });
         });
+
         let results: Vec<_> = dest.iter().collect();
         for result in results {
             let mut output = result?;
@@ -292,6 +302,7 @@ impl<'a> Scheduler<'a> {
                 self.graph[node_index].result = Some(o.1);
             }
         }
+
         Ok(())
     }
 }
@@ -444,6 +455,7 @@ fn execute_partition(
                 }
             }
         }
+
         if use_global_threadpool {
             let (node_index, result) = run_computation(opcode, Ok(cts), nidx.index())?;
             res.insert(node_index, result);
