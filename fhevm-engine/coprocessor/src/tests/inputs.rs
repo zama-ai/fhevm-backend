@@ -55,7 +55,11 @@ async fn test_fhe_inputs() -> Result<(), Box<dyn std::error::Error>> {
         .push(StaticUnsignedBigInt::<8>::from(8u32))
         .push(StaticUnsignedBigInt::<16>::from(9u32))
         .push(StaticUnsignedBigInt::<32>::from(10u32))
-        .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+        .build_with_proof_packed(
+            &tfhe::zk::CompactPkeCrs::from((*keys.public_params).clone()),
+            &[],
+            tfhe::zk::ZkComputeLoad::Proof,
+        )
         .unwrap();
 
     let serialized = safe_serialize(&the_list);
@@ -79,7 +83,8 @@ async fn test_fhe_inputs() -> Result<(), Box<dyn std::error::Error>> {
     let resp = resp.get_ref();
     assert_eq!(resp.upload_responses.len(), 1);
     for resp in &resp.upload_responses {
-        println!(r#"response
+        println!(
+            r#"response
         acl address:      {}
         contract address: {}
         hash:             0x{}
@@ -94,7 +99,10 @@ async fn test_fhe_inputs() -> Result<(), Box<dyn std::error::Error>> {
             resp.user_address,
             resp.signer_address,
             hex::encode(&resp.eip712_signature),
-            resp.input_handles.iter().map(|i| hex::encode(&i.handle)).collect::<Vec<_>>()
+            resp.input_handles
+                .iter()
+                .map(|i| hex::encode(&i.handle))
+                .collect::<Vec<_>>()
         );
     }
 
@@ -166,7 +174,11 @@ async fn custom_insert_inputs() -> Result<(), Box<dyn std::error::Error>> {
         .push(3u32)
         .push(4u64)
         .push(5u64)
-        .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+        .build_with_proof_packed(
+            &tfhe::zk::CompactPkeCrs::from((*keys.public_params).clone()),
+            &[],
+            tfhe::zk::ZkComputeLoad::Proof,
+        )
         .unwrap();
 
     let serialized = safe_serialize(&the_list);
