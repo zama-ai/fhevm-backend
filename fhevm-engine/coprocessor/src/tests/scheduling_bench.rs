@@ -63,7 +63,11 @@ async fn schedule_multi_erc20() -> Result<(), Box<dyn std::error::Error>> {
         .push(10_u64) // Transfer amount
         .push(20_u64) // Balance destination
         .push(0_u64) // 0
-        .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+        .build_with_proof_packed(
+            &tfhe::zk::CompactPkeCrs::from((*keys.public_params).clone()),
+            &[],
+            tfhe::zk::ZkComputeLoad::Proof,
+        )
         .unwrap();
 
     let serialized = safe_serialize(&the_list);

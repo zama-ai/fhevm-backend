@@ -45,7 +45,11 @@ async fn test_coprocessor_input_errors() -> Result<(), Box<dyn std::error::Error
             .push(2u16)
             .push(3u32)
             .push(4u64)
-            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .build_with_proof_packed(
+                &tfhe::zk::CompactPkeCrs::from((*keys.public_params).clone()),
+                &[],
+                tfhe::zk::ZkComputeLoad::Proof,
+            )
             .unwrap();
 
         let serialized = safe_serialize(&the_list);
@@ -88,7 +92,11 @@ async fn test_coprocessor_input_errors() -> Result<(), Box<dyn std::error::Error
             .push(2u16)
             .push(3u32)
             .push(4u64)
-            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .build_with_proof_packed(
+                &tfhe::zk::CompactPkeCrs::from((*keys.public_params).clone()),
+                &[],
+                tfhe::zk::ZkComputeLoad::Proof,
+            )
             .unwrap();
 
         let serialized = safe_serialize(&the_list);
@@ -126,7 +134,11 @@ async fn test_coprocessor_input_errors() -> Result<(), Box<dyn std::error::Error
         }
 
         let the_list = builder
-            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .build_with_proof_packed(
+                &tfhe::zk::CompactPkeCrs::from((*keys.public_params).clone()),
+                &[],
+                tfhe::zk::ZkComputeLoad::Proof,
+            )
             .unwrap();
         let serialized = safe_serialize(&the_list);
 
@@ -290,7 +302,11 @@ async fn test_coprocessor_computation_errors() -> Result<(), Box<dyn std::error:
             .push(2u16)
             .push(3u32)
             .push(4u64)
-            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .build_with_proof_packed(
+                &tfhe::zk::CompactPkeCrs::from((*keys.public_params).clone()),
+                &[],
+                tfhe::zk::ZkComputeLoad::Proof,
+            )
             .unwrap();
 
         let serialized = safe_serialize(&the_list);
