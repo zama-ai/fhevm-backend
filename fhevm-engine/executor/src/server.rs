@@ -26,9 +26,10 @@ use tfhe::{
             key_switching::p_fail_2_minus_64::ks_pbs::PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
             list_compression::COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
             CompactPublicKeyEncryptionParameters, CompressionParameters,
-            ShortintKeySwitchingParameters, PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+            ShortintKeySwitchingParameters, PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS,
+            PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
         },
-        ClassicPBSParameters,
+        ClassicPBSParameters, MultiBitPBSParameters,
     },
     zk::CompactPkeCrs,
     ClientKey, CompactPublicKey, CompressedServerKey, Config, ConfigBuilder, FheBool, FheUint64,
@@ -114,12 +115,9 @@ impl FhevmExecutor for FhevmExecutorService {
             }
 
             // Decompress compressed ciphertexts for the whole request.
-	    set_server_key(sks.clone());
-            if Self::decompress_compressed_ciphertexts(
-                &req.compressed_ciphertexts,
-                &mut state,
-            )
-            .is_err()
+            set_server_key(sks.clone());
+            if Self::decompress_compressed_ciphertexts(&req.compressed_ciphertexts, &mut state)
+                .is_err()
             {
                 return SyncComputeResponse {
                     resp: Some(Resp::Error(SyncComputeError::BadInputCiphertext.into())),
@@ -154,17 +152,15 @@ impl FhevmExecutor for FhevmExecutorService {
                 );
                 // Extract the results from the graph
                 match graph.get_results() {
-                    Ok(mut result_cts) => {
-                        Some(Resp::ResultCiphertexts(ResultCiphertexts {
-                            ciphertexts: result_cts
-                                .iter_mut()
-                                .map(|(h, ct)| CompressedCiphertext {
-                                    handle: h.clone(),
-                                    serialization: std::mem::take(&mut ct.2),
-                                })
-                                .collect(),
-                        }))
-                    }
+                    Ok(mut result_cts) => Some(Resp::ResultCiphertexts(ResultCiphertexts {
+                        ciphertexts: result_cts
+                            .iter_mut()
+                            .map(|(h, ct)| CompressedCiphertext {
+                                handle: h.clone(),
+                                serialization: std::mem::take(&mut ct.2),
+                            })
+                            .collect(),
+                    })),
                     Err(_) => Some(Resp::Error(SyncComputeError::ComputationFailed.into())),
                 }
             });
