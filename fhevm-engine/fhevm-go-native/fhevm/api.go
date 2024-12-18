@@ -652,8 +652,8 @@ func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage Chain
 	// We create buckets, how many blocks in the future user wants
 	// his ciphertexts to be evaluated
 
-	// Get the current process ID
 	log := logger("evm_store")
+	log.Info("Processing computations", "count", len(computations))
 
 	buckets := make(map[int64][]*ComputationToInsert)
 	// index the buckets
@@ -665,7 +665,7 @@ func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage Chain
 	}
 
 	if len(buckets) != 0 {
-		log.Info("New buckets added", "buckets", len(buckets))
+		log.Debug("New buckets added", "buckets", len(buckets))
 	}
 
 	// collect all their keys and sort because golang doesn't traverse map
@@ -743,7 +743,7 @@ func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage Chain
 				ctsStorage.queue = append(ctsStorage.queue, comp)
 				ctsStorage.enqueuedCiphertext[string(comp.OutputHandle)] = true
 
-				log.Info("Add bucket to Cache",
+				log.Debug("Add computation to Cache",
 					"commit block", queueBlockNumber,
 					"handle", comp.Handle(),
 					"cache length", len(ctsStorage.queue))
@@ -871,7 +871,7 @@ func (executorApi *ApiImpl) flushFheResultsToState(blockNumber int64, api ChainS
 		metadata := bytesToMetadata(api.GetState(executorApi.contractStorageAddress, ctAddr.metadata))
 		outputHandle := api.GetState(executorApi.contractStorageAddress, ctAddr.outputHandle)
 
-		log.Info("Reset computation LateCommit queue", "block number", blockNumber,
+		log.Debug("Reset computation LateCommit queue", "block number", blockNumber,
 			"handle", outputHandle.TerminalString())
 
 		handlesToMaterialize = append(handlesToMaterialize, outputHandle)
@@ -1038,7 +1038,7 @@ func executorWorkerThread(impl *ApiImpl) {
 
 		err := executorProcessPendingComputations(impl)
 		if err != nil {
-			log.Error("Failed to execute", "executor_err", fmt.Sprintf("%v", err))
+			log.Error("Failed to compute", "error", err.Error())
 		}
 	}
 }
@@ -1057,7 +1057,7 @@ func executorProcessPendingComputations(impl *ApiImpl) error {
 	defer func() {
 		if availableCts > 0 {
 			duration := time.Since(startTime).Milliseconds()
-			fmt.Printf("executor computations completed in %dms\n", duration)
+			log.Debug("Computations completed", "duration", duration)
 		}
 	}()
 
@@ -1087,7 +1087,7 @@ func executorProcessPendingComputations(impl *ApiImpl) error {
 
 	ctToBlockIndex := make(map[string]int64)
 	for block, compute := range impl.cache.ciphertextsToCompute {
-		log.Info("Processing block",
+		log.Debug("Processing block",
 			"commit block", block, "computations", len(compute.queue))
 
 		for _, ct := range compute.queue {
@@ -1122,19 +1122,19 @@ func executorProcessPendingComputations(impl *ApiImpl) error {
 			}
 
 			request.Computations = append(request.Computations, comp)
-			log.Info("Add operation", "op", comp.Operation, "handle", ct.Handle())
+			log.Debug("Add operation", "op", comp.Operation, "handle", ct.Handle())
 
 			ctToBlockIndex[string(ct.OutputHandle)] = block
 		}
 	}
 
-	log.Info("Sending request",
+	log.Info("Sending grpc request",
 		"computations", len(request.Computations),
 		"compressed ciphertexts", len(request.CompressedCiphertexts))
 
 	if len(request.Computations) != 0 {
 		for _, compCt := range request.CompressedCiphertexts {
-			log.Info("Request with compressed ciphertext", "handle", common.BytesToHash(compCt.Handle).TerminalString(),
+			log.Debug("Request with compressed ciphertext", "handle", common.BytesToHash(compCt.Handle).TerminalString(),
 				"compCt len", len(compCt.Serialization))
 		}
 	}
@@ -1169,7 +1169,7 @@ func executorProcessPendingComputations(impl *ApiImpl) error {
 
 		blockData.materializedCiphertexts[string(ct.Handle)] = ct.Serialization
 
-		log.Info("Result block data", "block", common.BytesToHash(ct.Handle).TerminalString())
+		log.Debug("Response ciphertext", "handle", common.BytesToHash(ct.Handle).TerminalString(), "len", len(ct.Serialization))
 	}
 
 	// reset map of the queue
