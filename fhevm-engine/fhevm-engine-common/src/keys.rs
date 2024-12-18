@@ -11,7 +11,7 @@ use tfhe::{
             ShortintKeySwitchingParameters, PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS,
             PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
         },
-        ClassicPBSParameters,
+        ClassicPBSParameters, MultiBitPBSParameters,
     },
     zk::{CompactPkeCrs, CompactPkePublicParams},
     ClientKey, CompactPublicKey, Config, ConfigBuilder, ServerKey,
