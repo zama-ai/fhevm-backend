@@ -657,17 +657,17 @@ func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage Chain
 
 	buckets := make(map[int64][]*ComputationToInsert)
 	// index the buckets
-	for _, comp := range computations {
+	for ind, comp := range computations {
 		if buckets[comp.CommitBlockId] == nil {
 			buckets[comp.CommitBlockId] = make([]*ComputationToInsert, 0)
 		}
-		buckets[comp.CommitBlockId] = append(buckets[comp.CommitBlockId], &comp)
+		buckets[comp.CommitBlockId] = append(buckets[comp.CommitBlockId], &computations[ind])
 	}
 
 	if len(buckets) != 0 {
 		log.Debug("New buckets added", "buckets", len(buckets))
 	}
-
+  
 	// collect all their keys and sort because golang doesn't traverse map
 	// in deterministic order
 	allKeys := make([]int, 0)
