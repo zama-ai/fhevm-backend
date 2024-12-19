@@ -15,7 +15,6 @@ import (
 
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/crypto"
-	"github.com/ethereum/go-ethereum/log"
 
 	_ "github.com/mattn/go-sqlite3"
 	grpc "google.golang.org/grpc"
@@ -126,7 +125,10 @@ type ExecutorApi interface {
 	// the cache prepared to be inserted when commit block comes.
 	// We pass current block number to know at which
 	// block ciphertext should be materialized inside blockchain state.
-	CreateSession(blockNumber int64) ExecutorSession
+	//
+	// HostLogger is an implementation of FHELogger from the host chain,
+	// used to delegate logging. If set to nil, logging will be disabled.
+	CreateSession(blockNumber int64, hostLogger FHELogger) ExecutorSession
 	// Preload ciphertexts into cache and perform initial computations,
 	// should be called once after blockchain node initialization
 	PreloadCiphertexts(blockNumber int64, api ChainStorageApi) error
@@ -201,10 +203,10 @@ type ApiImpl struct {
 	executorUrl            string
 	contractStorageAddress common.Address
 	cache                  *CiphertextCache
-
 	// The offset from the current block number for committing the FHE computations.
 	// If set to 0, the computations are committed in the current block.
 	commitBlockOffset uint8
+  logger                 ProxyLogger
 }
 
 // Notify the executor that there is work available
@@ -214,6 +216,7 @@ func (s *ApiImpl) notifyWorkAvailable() {
 	default:
 	}
 }
+
 
 type SessionImpl struct {
 	sessionStore *SessionComputationStore
@@ -274,15 +277,20 @@ type SessionComputationStore struct {
 	cache                  *CiphertextCache
 	contractStorageAddress common.Address
 	commitBlockOffset      uint8
+	logger                 ProxyLogger
+
 }
 
 type EvmStorageComputationStore struct {
 	currentBlockNumber     int64
 	contractStorageAddress common.Address
 	cache                  *CiphertextCache
+	logger                 ProxyLogger
 }
 
-func (executorApi *ApiImpl) CreateSession(blockNumber int64) ExecutorSession {
+func (executorApi *ApiImpl) CreateSession(blockNumber int64, hostLogger FHELogger) ExecutorSession {
+	executorApi.logger = log(hostLogger, "module::fhevm")
+
 	return &SessionImpl{
 		apiImpl: executorApi,
 		sessionStore: &SessionComputationStore{
@@ -294,12 +302,13 @@ func (executorApi *ApiImpl) CreateSession(blockNumber int64) ExecutorSession {
 			cache:                  executorApi.cache,
 			contractStorageAddress: executorApi.contractStorageAddress,
 			commitBlockOffset:      executorApi.commitBlockOffset,
+			logger:                 executorApi.logger,
 		},
 	}
 }
 
 func (executorApi *ApiImpl) PreloadCiphertexts(blockNumber int64, api ChainStorageApi) error {
-	log := logger("preload")
+	log := log(&executorApi.logger, "preload")
 
 	computations := executorApi.loadComputationsFromStateToCache(blockNumber, api)
 	log.Info("Preload ciphertexts", "block", blockNumber, "length", computations)
@@ -314,7 +323,7 @@ func (executorApi *ApiImpl) loadComputationsFromStateToCache(startBlockNumber in
 	loadStartTime := time.Now()
 	computations := 0
 	defer func() {
-		log := logger("preload")
+		log := log(&executorApi.logger, "preload")
 		duration := time.Since(loadStartTime)
 		log.Info("Preload done", "computations", computations, "duration", duration)
 	}()
@@ -411,7 +420,7 @@ func (executorApi *ApiImpl) loadComputationsFromStateToCache(startBlockNumber in
 }
 
 func (sessionApi *SessionImpl) Commit(blockNumber int64, storage ChainStorageApi) error {
-	log := logger("commit")
+	log := log(&sessionApi.apiImpl.logger, "commit")
 
 	log.Debug("Session store ciphertexts", "block", blockNumber)
 	err := sessionApi.sessionStore.Commit(storage)
@@ -442,7 +451,7 @@ func (sessionApi *SessionImpl) Commit(blockNumber int64, storage ChainStorageApi
 }
 
 func (sessionApi *SessionImpl) Execute(dataOrig []byte, ed ExtraData, outputOrig []byte) error {
-	log := logger("session::execute")
+	log := log(&sessionApi.apiImpl.logger, "session::execute")
 
 	if len(dataOrig) < 4 {
 		err := fmt.Errorf("input data must be at least 4 bytes for signature, got %d", len(dataOrig))
@@ -521,7 +530,7 @@ func (dbApi *SessionComputationStore) InsertComputationBatch(computations []Comp
 }
 
 func (dbApi *SessionComputationStore) InsertComputation(computation ComputationToInsert) error {
-	log := logger("store")
+	log := log(&dbApi.logger, "session::execute")
 
 	_, found := dbApi.insertedHandles[string(computation.OutputHandle)]
 	if !found {
@@ -681,16 +690,16 @@ func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage Chain
 	// We create buckets, how many blocks in the future user wants
 	// his ciphertexts to be evaluated
 
-	log := logger("evm_store")
+	log := log(&dbApi.logger, "evm_store")
 	log.Info("Processing computations", "count", len(computations))
 
 	buckets := make(map[int64][]*ComputationToInsert)
 	// index the buckets
-	for _, comp := range computations {
+	for ind, comp := range computations {
 		if buckets[comp.CommitBlockId] == nil {
 			buckets[comp.CommitBlockId] = make([]*ComputationToInsert, 0)
 		}
-		buckets[comp.CommitBlockId] = append(buckets[comp.CommitBlockId], &comp)
+		buckets[comp.CommitBlockId] = append(buckets[comp.CommitBlockId], &computations[ind])
 	}
 
 	if len(buckets) != 0 {
@@ -785,7 +794,7 @@ func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage Chain
 }
 
 func (dbApi *EvmStorageComputationStore) hydrateComputationFromEvmState(evmStorage ChainStorageApi, comp *ComputationToInsert) error {
-	log := logger("evm_store")
+	log := log(&dbApi.logger, "evm_store")
 
 	// hydrate operands from storage
 	for idx := range comp.Operands {
@@ -872,7 +881,7 @@ func ReadBytesToAddress(api ChainStorageApi, contractAddress common.Address, add
 }
 
 func (executorApi *ApiImpl) flushFheResultsToState(blockNumber int64, api ChainStorageApi) error {
-	log := logger("flush")
+	log := log(&executorApi.logger, "flush")
 
 	// cleanup the queue for the block number
 	countAddress := blockNumberToQueueItemCountAddress(blockNumber)
@@ -937,6 +946,8 @@ func (executorApi *ApiImpl) materializeHandlesInStorage(blockNumber int64, handl
 		executorApi.cache.lock.Unlock()
 	}()
 
+	log := log(&executorApi.logger, "materialize")
+
 	executorApi.cache.latestBlockFlushed = blockNumber
 
 	contractAddr := executorApi.contractStorageAddress
@@ -947,7 +958,6 @@ func (executorApi *ApiImpl) materializeHandlesInStorage(blockNumber int64, handl
 		return nil
 	}
 
-	log := logger("materialize")
 	for _, handle := range handles {
 		ciphertext, ok := blockData.materializedCiphertexts[string(handle[:])]
 		if !ok {
@@ -998,7 +1008,9 @@ func ciphertextCacheGc(cache *CiphertextCache) {
 	cache.lastCacheGc = time.Now()
 }
 
-func InitExecutor() (ExecutorApi, error) {
+func InitExecutor(hostLogger FHELogger) (ExecutorApi, error) {
+	log := log(hostLogger, "module::fhevm")
+
 	executorUrl, hasUrl := os.LookupEnv("FHEVM_EXECUTOR_URL")
 	if !hasUrl {
 		return nil, errors.New("FHEVM_EXECUTOR_URL is not configured")
@@ -1019,6 +1031,7 @@ func InitExecutor() (ExecutorApi, error) {
 	// pick hardcoded value in the beginning, we can change later
 	storageAddress := common.HexToAddress("0x0000000000000000000000000000000000000070")
 
+
 	commitBlockOffset := uint8(0)
 	offset, hasOffset := os.LookupEnv("FHEVM_COMMIT_BLOCK_OFFSET")
 	if hasOffset {
@@ -1029,7 +1042,7 @@ func InitExecutor() (ExecutorApi, error) {
 		commitBlockOffset = uint8(parsedOffset)
 	}
 
-	logger("init").Info("FHEVM initialized",
+	log.Info("FHEVM initialized",
 		"Executor addr", executorUrl,
 		"FHEVM contract", contractAddr,
 		"ACL contract", aclContractAddressHex,
@@ -1063,7 +1076,8 @@ func InitExecutor() (ExecutorApi, error) {
 }
 
 func executorWorkerThread(impl *ApiImpl) {
-	log := logger("worker")
+	log := log(&impl.logger, "worker")
+
 	for {
 		// try reading notification from channel
 		<-impl.cache.workAvailableChan
@@ -1080,22 +1094,14 @@ func executorWorkerThread(impl *ApiImpl) {
 }
 
 func executorProcessPendingComputations(impl *ApiImpl) error {
-	log := logger("sync compute")
+	log := log(&impl.logger, "sync_compute")
 
-	startTime := time.Now()
 	impl.cache.lock.Lock()
 	defer func() {
 		impl.cache.lock.Unlock()
 	}()
 
 	availableCts := len(impl.cache.ciphertextsToCompute)
-
-	defer func() {
-		if availableCts > 0 {
-			duration := time.Since(startTime).Milliseconds()
-			log.Debug("Computations completed", "duration", duration)
-		}
-	}()
 
 	// empty channel from multiple notifications before processing
 	for len(impl.cache.workAvailableChan) > 0 {
@@ -1175,6 +1181,7 @@ func executorProcessPendingComputations(impl *ApiImpl) error {
 		}
 	}
 
+	startTime := time.Now()
 	client := NewFhevmExecutorClient(conn)
 	response, err := client.SyncCompute(context.Background(), &request)
 	if err != nil {
@@ -1184,6 +1191,10 @@ func executorProcessPendingComputations(impl *ApiImpl) error {
 	ciphertexts := response.GetResultCiphertexts()
 	if ciphertexts == nil {
 		return errors.New(response.GetError().String())
+	}
+
+	if availableCts > 0 {
+		log.Debug("Computations completed", "duration", time.Since(startTime))
 	}
 
 	log.Info("Response", "ciphertexts count", len(ciphertexts.Ciphertexts))
@@ -1212,8 +1223,4 @@ func executorProcessPendingComputations(impl *ApiImpl) error {
 	impl.cache.ciphertextsToCompute = make(map[int64]*BlockCiphertextQueue)
 
 	return nil
-}
-
-func logger(ctx string) log.Logger {
-	return log.Root().With("module", fmt.Sprintf("fhevm:%s", ctx))
 }
