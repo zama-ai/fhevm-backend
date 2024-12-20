@@ -4,8 +4,8 @@ use tfhe::{
     generate_keys, set_server_key,
     shortint::{
         parameters::{
-            compact_public_key_only::p_fail_2_minus_64::ks_pbs::PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
-            key_switching::p_fail_2_minus_64::ks_pbs::PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+            compact_public_key_only::p_fail_2_minus_64::ks_pbs::V0_11_PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+            key_switching::p_fail_2_minus_64::ks_pbs::V0_11_PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
             list_compression::COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
             CompactPublicKeyEncryptionParameters, CompressionParameters,
             ShortintKeySwitchingParameters, PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS,
@@ -13,7 +13,7 @@ use tfhe::{
         },
         ClassicPBSParameters, MultiBitPBSParameters,
     },
-    zk::{CompactPkeCrs, CompactPkePublicParams},
+    zk::{CompactPkeCrs, ZkCompactPkeV1PublicParams},
     ClientKey, CompactPublicKey, Config, ConfigBuilder, ServerKey,
 };
 #[cfg(feature = "gpu")]
@@ -28,9 +28,9 @@ pub const TFHE_PARAMS: MultiBitPBSParameters = PARAM_GPU_MULTI_BIT_MESSAGE_2_CAR
 pub const TFHE_COMPRESSION_PARAMS: CompressionParameters =
     COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
 pub const TFHE_COMPACT_PK_ENCRYPTION_PARAMS: CompactPublicKeyEncryptionParameters =
-    PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
+    V0_11_PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
 pub const TFHE_KS_PARAMS: ShortintKeySwitchingParameters =
-    PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
+    V0_11_PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
 
 pub const MAX_BITS_TO_PROVE: usize = 2048;
 
@@ -39,7 +39,7 @@ pub struct FhevmKeys {
     pub server_key: ServerKey,
     pub client_key: Option<ClientKey>,
     pub compact_public_key: CompactPublicKey,
-    pub public_params: Arc<CompactPkePublicParams>,
+    pub public_params: Arc<ZkCompactPkeV1PublicParams>,
     #[cfg(feature = "gpu")]
     pub gpu_server_key: CudaServerKey,
 }
@@ -57,16 +57,21 @@ impl FhevmKeys {
         let config = Self::new_config();
         let (client_key, server_key) = generate_keys(config);
         let compact_public_key = CompactPublicKey::new(&client_key);
-        let crs = CompactPkeCrs::from_config(config, MAX_BITS_TO_PROVE).expect("CRS creation");
-        #[cfg(feature = "gpu")]
-        let gpu_server_key = CompressedServerKey::new(&client_key).decompress_to_gpu();
-        FhevmKeys {
-            server_key,
-            client_key: Some(client_key),
-            compact_public_key,
-            public_params: Arc::new(crs.public_params().clone()),
+        if let CompactPkeCrs::PkeV1(crs) =
+            CompactPkeCrs::from_config(config, MAX_BITS_TO_PROVE).expect("CRS creation")
+        {
             #[cfg(feature = "gpu")]
-            gpu_server_key,
+            let gpu_server_key = CompressedServerKey::new(&client_key).decompress_to_gpu();
+            FhevmKeys {
+                server_key,
+                client_key: Some(client_key),
+                compact_public_key,
+                public_params: Arc::new(crs.clone()),
+                #[cfg(feature = "gpu")]
+                gpu_server_key,
+            }
+        } else {
+            panic!("Wrong PKE version");
         }
     }
 
