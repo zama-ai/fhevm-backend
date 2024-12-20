@@ -8,6 +8,7 @@ import (
 	"math/big"
 	"os"
 	"sort"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -204,6 +205,10 @@ type ApiImpl struct {
 	contractStorageAddress common.Address
 	cache                  *CiphertextCache
 	logger                 ProxyLogger
+
+	// The offset from the current block number for committing the FHE computations.
+	// If set to 0, the computations are committed in the current block.
+	commitBlockOffset uint8
 }
 
 type SessionImpl struct {
@@ -265,6 +270,7 @@ type SessionComputationStore struct {
 	cache                  *CiphertextCache
 	contractStorageAddress common.Address
 	logger                 ProxyLogger
+	commitBlockOffset      uint8
 }
 
 type EvmStorageComputationStore struct {
@@ -290,6 +296,7 @@ func (executorApi *ApiImpl) CreateSession(blockNumber int64) ExecutorSession {
 			cache:                  executorApi.cache,
 			contractStorageAddress: executorApi.contractStorageAddress,
 			logger:                 executorApi.logger,
+			commitBlockOffset:      executorApi.commitBlockOffset,
 		},
 	}
 }
@@ -406,6 +413,14 @@ func (executorApi *ApiImpl) loadComputationsFromStateToCache(startBlockNumber in
 	return computations
 }
 
+// Signal the executor that there is work available
+func (s *ApiImpl) notifyWorkAvailable() {
+	select {
+	case s.cache.workAvailableChan <- true:
+	default:
+	}
+}
+
 func (sessionApi *SessionImpl) Commit(blockNumber int64, storage ChainStorageApi) error {
 	log := log(&sessionApi.apiImpl.logger, "commit")
 
@@ -414,6 +429,19 @@ func (sessionApi *SessionImpl) Commit(blockNumber int64, storage ChainStorageApi
 	if err != nil {
 		log.Error("Commit failed", "block", blockNumber, "error", err)
 		return err
+	}
+
+	// Compute pending computations
+	if sessionApi.apiImpl.commitBlockOffset == 0 {
+		// Late commit is disabled, send compute gRPC request and waits for it to finish
+		err := executorProcessPendingComputations(sessionApi.apiImpl)
+		if err != nil {
+			log.Error("Executor failed", "block", blockNumber, "error", err)
+			return err
+		}
+	} else {
+		// Signal the executor thread that work is ready.
+		sessionApi.apiImpl.notifyWorkAvailable()
 	}
 
 	err = sessionApi.apiImpl.flushFheResultsToState(blockNumber, storage)
@@ -513,7 +541,7 @@ func (dbApi *SessionComputationStore) InsertComputation(computation ComputationT
 		// hardcode late commit for now to be 5 blocks from current block
 		// in future we can implement dynamic compute, if user pays more
 		// he can have faster commit
-		computation.CommitBlockId = dbApi.blockNumber + 5
+		computation.CommitBlockId = dbApi.blockNumber + int64(dbApi.commitBlockOffset)
 		dbApi.inserts = append(dbApi.inserts, computation)
 		log.Info("Insert computation",
 			"inserts count", len(dbApi.inserts), "computation", computation)
@@ -539,7 +567,9 @@ func (dbApi *SessionComputationStore) Commit(storage ChainStorageApi) error {
 		currentBlockNumber:     dbApi.blockNumber,
 		contractStorageAddress: dbApi.contractStorageAddress,
 		cache:                  dbApi.cache,
+		logger:                 dbApi.logger,
 	}
+
 	err := evmInserter.InsertComputationBatch(storage, finalInserts)
 	if err != nil {
 		return err
@@ -745,6 +775,7 @@ func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage Chain
 		}
 
 		for _, comp := range bucket {
+
 			// don't have duplicates, from possibly evaluating multiple trie caches
 			if !ctsStorage.enqueuedCiphertext[string(comp.OutputHandle)] {
 				// we must fill the raw ciphertext values here from storage so cache
@@ -761,12 +792,6 @@ func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage Chain
 			}
 		}
 
-	}
-
-	// notify about work available
-	select {
-	case dbApi.cache.workAvailableChan <- true:
-	default:
 	}
 
 	return nil
@@ -1010,6 +1035,16 @@ func InitExecutor(hostLogger FHELogger) (ExecutorApi, error) {
 	// pick hardcoded value in the beginning, we can change later
 	storageAddress := common.HexToAddress("0x0000000000000000000000000000000000000070")
 
+	commitBlockOffset := uint8(0)
+	offset, hasOffset := os.LookupEnv("FHEVM_COMMIT_BLOCK_OFFSET")
+	if hasOffset {
+		parsedOffset, err := strconv.ParseUint(offset, 10, 8)
+		if err != nil {
+			log.Crit("Invalid FHEVM_COMMIT_BLOCK_OFFSET", "error", err.Error())
+		}
+		commitBlockOffset = uint8(parsedOffset)
+	}
+
 	log.Info("FHEVM initialized",
 		"Executor addr", executorUrl,
 		"FHEVM contract", contractAddr,
@@ -1032,10 +1067,13 @@ func InitExecutor(hostLogger FHELogger) (ExecutorApi, error) {
 		contractStorageAddress: storageAddress,
 		executorUrl:            executorUrl,
 		cache:                  cache,
+		commitBlockOffset:      commitBlockOffset,
 	}
 
 	// run executor worker in the background
-	go executorWorkerThread(apiImpl)
+	if commitBlockOffset > 0 {
+		go executorWorkerThread(apiImpl)
+	}
 
 	return apiImpl, nil
 }
