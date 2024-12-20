@@ -118,16 +118,17 @@ type ChainStorageApi interface {
 }
 
 type ExecutorApi interface {
+	// Initialize the executor with the host logger
+	// HostLogger is an implementation of FHELogger from the host chain,
+	// used to delegate logging. If set to nil, logging will be disabled.
+	InitLogger(hostLogger FHELogger, ctx string)
 	// Create a session for a single transaction to capture all fhe
 	// operations inside the state. We also schedule asynchronous
 	// compute in background to have operations inside
 	// the cache prepared to be inserted when commit block comes.
 	// We pass current block number to know at which
 	// block ciphertext should be materialized inside blockchain state.
-	//
-	// HostLogger is an implementation of FHELogger from the host chain,
-	// used to delegate logging. If set to nil, logging will be disabled.
-	CreateSession(blockNumber int64, hostLogger FHELogger) ExecutorSession
+	CreateSession(blockNumber int64) ExecutorSession
 	// Preload ciphertexts into cache and perform initial computations,
 	// should be called once after blockchain node initialization
 	PreloadCiphertexts(blockNumber int64, api ChainStorageApi) error
@@ -273,9 +274,11 @@ type EvmStorageComputationStore struct {
 	logger                 ProxyLogger
 }
 
-func (executorApi *ApiImpl) CreateSession(blockNumber int64, hostLogger FHELogger) ExecutorSession {
-	executorApi.logger = log(hostLogger, "module::fhevm")
+func (executorApi *ApiImpl) InitLogger(hostLogger FHELogger, ctx string) {
+	executorApi.logger = log(hostLogger, ctx)
+}
 
+func (executorApi *ApiImpl) CreateSession(blockNumber int64) ExecutorSession {
 	return &SessionImpl{
 		apiImpl: executorApi,
 		sessionStore: &SessionComputationStore{
