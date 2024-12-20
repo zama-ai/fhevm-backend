@@ -22,8 +22,8 @@ use tfhe::{
     prelude::{FheEncrypt, FheTrivialEncrypt},
     shortint::{
         parameters::{
-            compact_public_key_only::p_fail_2_minus_64::ks_pbs::PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
-            key_switching::p_fail_2_minus_64::ks_pbs::PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+            compact_public_key_only::p_fail_2_minus_64::ks_pbs::V0_11_PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+            key_switching::p_fail_2_minus_64::ks_pbs::V0_11_PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
             list_compression::COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
             CompactPublicKeyEncryptionParameters, CompressionParameters,
             ShortintKeySwitchingParameters, PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS,
@@ -36,7 +36,7 @@ use tfhe::{
     ServerKey,
 };
 
-use tfhe::{set_server_key, zk::CompactPkePublicParams};
+use tfhe::{set_server_key, zk::ZkCompactPkeV1PublicParams};
 use tokio::task::spawn_blocking;
 use tonic::{transport::Server, Code, Request, Response, Status};
 
@@ -207,7 +207,7 @@ impl FhevmExecutorService {
     fn expand_compact_lists(
         lists: &Vec<Vec<u8>>,
         state: &mut ComputationState,
-        public_params: &CompactPkePublicParams,
+        public_params: &ZkCompactPkeV1PublicParams,
     ) -> Result<(), FhevmError> {
         for list in lists {
             let cts = try_expand_ciphertext_list(&list, &public_params)?;
