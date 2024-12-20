@@ -696,17 +696,30 @@ func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage Chain
 	log := log(&dbApi.logger, "evm_store")
 	log.Info("Processing computations", "count", len(computations))
 
+	pending_computations := 0
 	buckets := make(map[int64][]*ComputationToInsert)
 	// index the buckets
 	for ind, comp := range computations {
+		// check if we already have this ciphertext in EVM storage
+		// if we do, we don't need to recompute it
+		hash := common.BytesToHash(comp.OutputHandle)
+		resultCt := ReadBytesToAddress(evmStorage, dbApi.contractStorageAddress, hash)
+		if len(resultCt) != 0 {
+			log.Debug("Ciphertext is found in storage", "handle", comp.Handle())
+			continue
+		}
+
 		if buckets[comp.CommitBlockId] == nil {
 			buckets[comp.CommitBlockId] = make([]*ComputationToInsert, 0)
 		}
+
 		buckets[comp.CommitBlockId] = append(buckets[comp.CommitBlockId], &computations[ind])
+		pending_computations += 1
 	}
 
 	if len(buckets) != 0 {
-		log.Debug("New buckets added", "buckets", len(buckets))
+		log.Debug("New buckets added", "buckets", len(buckets),
+			"pending_computations", pending_computations)
 	}
 
 	// collect all their keys and sort because golang doesn't traverse map
