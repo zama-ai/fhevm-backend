@@ -1,8 +1,13 @@
 name: Publish fhEVM Solidity core contracts release
 
 on:
-  release:
-    types: [released]
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Release tag'
+        required: false
+        type: string
+        default: ''
 
 jobs:
   publish:
@@ -24,5 +29,6 @@ jobs:
       - uses: JS-DevTools/npm-publish@19c28f1ef146469e409470805ea4279d47c3d35c # v3.1.1
         with:
           package: ./contracts/package.json
+          tag: ${{ inputs.tag }}
           token: ${{ secrets.NPM_TOKEN }}
           provenance: true
