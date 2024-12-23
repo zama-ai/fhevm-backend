@@ -1,8 +1,9 @@
 name: Publish fhEVM Solidity core contracts release/prerelease
 
 on:
-  release:
-    types: [released]
+  push:
+    branches:
+      - ci/core-contracts
   workflow_dispatch:
     inputs:
       release:
