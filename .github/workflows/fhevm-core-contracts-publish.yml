@@ -1,6 +1,8 @@
 name: Publish fhEVM Solidity core contracts release/prerelease
 
 on:
+  release:
+    types: [released]
   workflow_dispatch:
     inputs:
       release:
