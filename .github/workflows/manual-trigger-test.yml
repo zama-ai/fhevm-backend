@@ -1,6 +1,9 @@
 name: Manual Trigger Test
 
 on:
+  push:
+    branches:
+      - ci/core-contracts
   workflow_dispatch:
 
 jobs:
