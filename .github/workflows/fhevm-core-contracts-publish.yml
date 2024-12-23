@@ -3,8 +3,8 @@ name: Publish fhEVM Solidity core contracts release/prerelease
 on:
   workflow_dispatch:
     inputs:
-      prerelease:
-        description: "Set to true for prerelease tagging"
+      release:
+        description: "Set to true for release tagging"
         required: false
         default: false
 
@@ -46,19 +46,19 @@ jobs:
           token: ${{ secrets.NPM_TOKEN }}
           provenance: true
 
-      - name: Publish to npm
-        if: ${{ inputs.prerelease != 'true' }}
-        uses: JS-DevTools/npm-publish@19c28f1ef146469e409470805ea4279d47c3d35c # v3.1.1
-        with:
-          package: ./contracts/package.json
-          token: ${{ secrets.NPM_TOKEN }}
-          provenance: true
-
       - name: Publish prerelease to npm
-        if: ${{ inputs.prerelease == 'true' }}
+        if: ${{ inputs.release != 'true' }}
         uses: JS-DevTools/npm-publish@19c28f1ef146469e409470805ea4279d47c3d35c # v3.1.1
         with:
           package: ./contracts/package.json
           tag: prerelease
+          token: ${{ secrets.NPM_TOKEN }}
+          provenance: true
+
+      - name: Publish release to npm
+        if: ${{ inputs.release == 'true' }}
+        uses: JS-DevTools/npm-publish@19c28f1ef146469e409470805ea4279d47c3d35c # v3.1.1
+        with:
+          package: ./contracts/package.json
           token: ${{ secrets.NPM_TOKEN }}
           provenance: true
