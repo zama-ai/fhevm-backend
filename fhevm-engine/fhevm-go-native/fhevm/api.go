@@ -1166,10 +1166,22 @@ func executorProcessPendingComputations(impl *ApiImpl) error {
 							Handle: operand.Handle,
 						},
 					})
-					request.CompressedCiphertexts = append(request.CompressedCiphertexts, &CompressedCiphertext{
-						Handle:        operand.Handle,
-						Serialization: operand.CompressedCiphertext,
-					})
+
+					// if we have the compressed ciphertext, we need to send it to the executor
+					// Otherwise,  we expect that the handle is already in the current compute queue
+					if len(operand.CompressedCiphertext) > 0 {
+						request.CompressedCiphertexts = append(request.CompressedCiphertexts, &CompressedCiphertext{
+							Handle:        operand.Handle,
+							Serialization: operand.CompressedCiphertext,
+						})
+					} else {
+						// Ensure that operand.Handle is amongst the previous handles in compute.queue
+						_, exists := ctToBlockIndex[string(operand.Handle)]
+						if !exists {
+							handle := common.BytesToHash(operand.Handle).TerminalString()
+							log.Warn("Non-scalar operand handle not found in previous computations", "handle", handle)
+						}
+					}
 				}
 			}
 
