@@ -39,7 +39,7 @@ For development purposes insecure key generation is the recommended way.
 ## Common-Reference-String (CRS) generation
 
 The CRS is a public object used to generate zero-knowledge-proofs of plaintext knowledge (required to add a new ciphertext).
-The `max-num-bits` argument specifies the maximum number of bits provable with a given CRS, usually 2048 is used.
+The `max-num-bits` argument specifies the maximum number of bits provable with a given CRS, usually 2048 is used, since this is the size of the largest data-type currently supported.
 
 ```{bash}
 cargo run -- -f <path-to-toml-config-file> insecure-crs-gen --max-num-bits <max-num-bits>
