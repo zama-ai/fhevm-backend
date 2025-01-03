@@ -35,14 +35,34 @@ cargo run -- -f <path-to-toml-config-file> insecure-key-gen
 ### "Secure"
 
 Secure key generation takes a lot longer and is a two step process.
-For development purposes insecure key generation is the recommended way.
+For development purposes insecure key generation is the recommended way since it is much faster.
+
+This will do some pre-processing needed for key-generation. The pre-processing id will be needed to then launch a distributed key generation.
+
+```{bash}
+cargo run -- -f <path-to-toml-config-file> preproc-key-gen
+cargo run -- -f <path-to-toml-config-file> key-gen --preproc-id <preprocessing-id>
+```
+
 
 ## Common-Reference-String (CRS) generation
 
 The CRS is a public object used to generate zero-knowledge-proofs of plaintext knowledge (required to add a new ciphertext).
 The `max-num-bits` argument specifies the maximum number of bits provable with a given CRS, usually 2048 is used, since this is the size of the largest data-type currently supported.
 
+### "Insecure"
+
+As for the insecure key-generation this operation will be done by a single party.
+
 ```{bash}
 cargo run -- -f <path-to-toml-config-file> insecure-crs-gen --max-num-bits <max-num-bits>
+```
+
+### "Secure"
+
+This will launch a distributed CRS generation.
+
+```{bash}
+cargo run -- -f <path-to-toml-config-file> crs-gen --max-num-bits <max-num-bits>
 ```
 
