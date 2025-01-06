@@ -4,7 +4,8 @@ Generating a new set of keys and crs is necessary when creating a new FHE Co-pro
 
 To do so one can use the TKMS cli tool packaged in the following [docker image](https://github.com/zama-ai/kms-core/pkgs/container/kms-blockchain-simulator).
 
-The configuration file of the CLI will need to be modified or mounted with a volume to include:
+The configuration file of the CLI will need to be modified or mounted to a volume accessible within the Docker container. 
+The accessible/modified file must include:
 
 ```{toml}
 s3_endpoint = ""
