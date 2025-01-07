@@ -21,9 +21,9 @@ use tfhe::{CompressedServerKey, CudaServerKey};
 
 use crate::utils::{safe_deserialize_key, safe_serialize_key};
 
-#[cfg(not(feature = "gpu"))]
-pub const TFHE_PARAMS: ClassicPBSParameters = PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
-#[cfg(feature = "gpu")]
+//#[cfg(not(feature = "gpu"))]
+//pub const TFHE_PARAMS: ClassicPBSParameters = PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
+//#[cfg(feature = "gpu")]
 pub const TFHE_PARAMS: MultiBitPBSParameters = PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS;
 pub const TFHE_COMPRESSION_PARAMS: CompressionParameters =
     COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
@@ -77,7 +77,7 @@ impl FhevmKeys {
 
     pub fn new_config() -> Config {
         ConfigBuilder::with_custom_parameters(TFHE_PARAMS)
-            .enable_compression(TFHE_COMPRESSION_PARAMS)
+            //.enable_compression(TFHE_COMPRESSION_PARAMS)
             .use_dedicated_compact_public_key_parameters((
                 TFHE_COMPACT_PK_ENCRYPTION_PARAMS,
                 TFHE_KS_PARAMS,
