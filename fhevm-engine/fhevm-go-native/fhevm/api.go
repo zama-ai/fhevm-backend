@@ -147,7 +147,12 @@ func (ed ExtraData) String() string {
 }
 
 type ExecutorSession interface {
-	/// Add computation to session
+
+	/// Add a handle to the current session, ensuring its ciphertext will be persisted to the state
+	/// For EVM, this should be invoked for any value stored using SSTORE.
+	AddStorageHandle(contract common.Address, handle []byte) error
+
+	/// Add computation to current session
 	/// If the operation is not a supported FHE operation, it is discarded.
 	AddComputation(input []byte, ed ExtraData, output []byte) error
 
@@ -269,6 +274,7 @@ func (c ComputationToInsert) String() string {
 
 type SessionComputationStore struct {
 	insertedHandles        map[string]int
+	storageHandles         *OrderedHashSet[common.Hash]
 	invalidatedSegments    map[SegmentId]bool
 	inserts                []ComputationToInsert
 	segmentCount           int
@@ -303,6 +309,7 @@ func (executorApi *ApiImpl) CreateSession(blockNumber int64) ExecutorSession {
 			contractStorageAddress: executorApi.contractStorageAddress,
 			logger:                 executorApi.logger,
 			commitBlockOffset:      executorApi.commitBlockOffset,
+			storageHandles:         NewOrderedHashSet[common.Hash](),
 		},
 	}
 }
@@ -427,34 +434,38 @@ func (s *ApiImpl) notifyWorkAvailable() {
 	}
 }
 
-func (sessionApi *SessionImpl) Commit(blockNumber int64, storage ChainStorageApi) error {
-	log := log(&sessionApi.apiImpl.logger, "commit")
+func (sess *SessionImpl) Commit(blockNumber int64, storage ChainStorageApi) error {
+	log := log(&sess.apiImpl.logger, "commit")
 
 	log.Debug("Session store ciphertexts", "block", blockNumber)
-	err := sessionApi.sessionStore.Commit(storage)
+	err := sess.sessionStore.Commit(storage)
 	if err != nil {
 		log.Error("Commit failed", "block", blockNumber, "error", err)
 		return err
 	}
 
 	// Compute pending computations
-	if sessionApi.apiImpl.commitBlockOffset == 0 {
+	if sess.apiImpl.commitBlockOffset == 0 {
 		// Late commit is disabled, send compute gRPC request and waits for it to finish
-		err := executorProcessPendingComputations(sessionApi.apiImpl)
+		err := executorProcessPendingComputations(sess.apiImpl)
 		if err != nil {
 			log.Error("Executor failed", "block", blockNumber, "error", err)
 			return err
 		}
 	} else {
 		// Signal the executor thread that work is ready.
-		sessionApi.apiImpl.notifyWorkAvailable()
+		sess.apiImpl.notifyWorkAvailable()
 	}
 
-	err = sessionApi.apiImpl.flushFheResultsToState(blockNumber, storage)
+	err = sess.apiImpl.flushFheResultsToState(blockNumber, storage, sess.sessionStore.storageHandles)
 	if err != nil {
 		return err
 	}
 	return nil
+}
+
+func (sessionApi *SessionImpl) AddStorageHandle(contract common.Address, handle []byte) error {
+	return sessionApi.sessionStore.AddStorageHandle(handle)
 }
 
 func (sessionApi *SessionImpl) AddComputation(dataOrig []byte, ed ExtraData, outputOrig []byte) error {
@@ -551,6 +562,17 @@ func (dbApi *SessionComputationStore) InsertComputation(computation ComputationT
 		dbApi.inserts = append(dbApi.inserts, computation)
 		log.Info("Insert computation",
 			"inserts count", len(dbApi.inserts), "computation", computation)
+	}
+
+	return nil
+}
+
+func (dbApi *SessionComputationStore) AddStorageHandle(handle []byte) error {
+	log := log(&dbApi.logger, "session::execute")
+
+	handleHash := common.BytesToHash(handle)
+	if dbApi.storageHandles.Add(handleHash) {
+		log.Info("Add storage handle", "handle", handleHash.TerminalString())
 	}
 
 	return nil
@@ -706,15 +728,6 @@ func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage Chain
 	buckets := make(map[int64][]*ComputationToInsert)
 	// index the buckets
 	for ind, comp := range computations {
-		// check if we already have this ciphertext in EVM storage
-		// if we do, we don't need to recompute it
-		hash := common.BytesToHash(comp.OutputHandle)
-		resultCt := ReadBytesToAddress(evmStorage, dbApi.contractStorageAddress, hash)
-		if len(resultCt) != 0 {
-			log.Debug("Ciphertext is found in storage", "handle", comp.Handle())
-			continue
-		}
-
 		if buckets[comp.CommitBlockId] == nil {
 			buckets[comp.CommitBlockId] = make([]*ComputationToInsert, 0)
 		}
@@ -903,7 +916,7 @@ func ReadBytesToAddress(api ChainStorageApi, contractAddress common.Address, add
 	return resultBytes
 }
 
-func (executorApi *ApiImpl) flushFheResultsToState(blockNumber int64, api ChainStorageApi) error {
+func (executorApi *ApiImpl) flushFheResultsToState(blockNumber int64, api ChainStorageApi, storageHandles *OrderedHashSet[common.Hash]) error {
 	log := log(&executorApi.logger, "flush")
 
 	// cleanup the queue for the block number
@@ -955,12 +968,12 @@ func (executorApi *ApiImpl) flushFheResultsToState(blockNumber int64, api ChainS
 	}
 
 	// materialize handles in storage assuming they exist in the cache
-	return executorApi.materializeHandlesInStorage(blockNumber, handlesToMaterialize, api)
+	return executorApi.materializeHandlesInStorage(blockNumber, storageHandles, api)
 }
 
-func (executorApi *ApiImpl) materializeHandlesInStorage(blockNumber int64, handles []common.Hash, api ChainStorageApi) error {
+func (executorApi *ApiImpl) materializeHandlesInStorage(blockNumber int64, storageHandles *OrderedHashSet[common.Hash], api ChainStorageApi) error {
 	// no one did fhe computations in the block
-	if len(handles) == 0 {
+	if storageHandles.Size() == 0 {
 		return nil
 	}
 
@@ -981,10 +994,12 @@ func (executorApi *ApiImpl) materializeHandlesInStorage(blockNumber int64, handl
 		return nil
 	}
 
-	for _, handle := range handles {
+	for _, handle := range storageHandles.ToSlice() {
 		ciphertext, ok := blockData.materializedCiphertexts[string(handle[:])]
 		if !ok {
-			return errors.New("ciphertext not found in cache")
+			err := errors.New("ciphertext not found in cache")
+			log.Error("Persist ciphertext", "err", err)
+			return err
 		}
 
 		log.Info("Persist ciphertext to state", "block number", blockNumber, "handle",
