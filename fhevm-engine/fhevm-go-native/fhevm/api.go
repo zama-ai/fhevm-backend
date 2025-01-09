@@ -118,7 +118,7 @@ type ChainStorageApi interface {
 	SetState(common.Address, common.Hash, common.Hash)
 }
 
-type ExecutorApi interface {
+type ExecutorApp interface {
 	// Initialize the executor with the host logger
 	// HostLogger is an implementation of FHELogger from the host chain,
 	// used to delegate logging. If set to nil, logging will be disabled.
@@ -132,7 +132,7 @@ type ExecutorApi interface {
 	CreateSession(blockNumber int64) ExecutorSession
 	// Preload ciphertexts into cache and perform initial computations,
 	// should be called once after blockchain node initialization
-	PreloadCiphertexts(blockNumber int64, api ChainStorageApi) error
+	PreloadCiphertexts(blockNumber int64, hostStorage ChainStorageApi) error
 }
 
 type SegmentId int
@@ -147,17 +147,16 @@ func (ed ExtraData) String() string {
 }
 
 type ExecutorSession interface {
-
-	/// Add a handle to the current session, ensuring its ciphertext will be persisted to the state
-	/// For EVM, this should be invoked for any value stored using SSTORE.
+	// Add a handle to the current session, ensuring its ciphertext will be persisted to the state
+	// For EVM, this should be invoked for any value stored using SSTORE.
 	AddStorageHandle(blockNumber uint64, contract common.Address, handle []byte) error
 
-	/// Add computation to current session
-	/// If the operation is not a supported FHE operation, it is discarded.
+	// Add computation to current session
+	// If the operation is not a supported FHE operation, it is discarded.
 	AddComputation(input []byte, ed ExtraData, output []byte) error
 
-	/// Execute added FHE computations and commit result ciphertexts to state
-	Commit(blockNumber int64, storage ChainStorageApi) error
+	// Execute added FHE computations and commit result ciphertexts to state
+	Commit(blockNumber int64, hostStorage ChainStorageApi) error
 
 	ContractAddress() common.Address
 	AclContractAddress() common.Address
@@ -209,7 +208,8 @@ type CiphertextCache struct {
 	lastCacheGc          time.Time
 }
 
-type ApiImpl struct {
+// Implement the application instantiated by Host chain to interact with the Executor
+type AppImpl struct {
 	address                common.Address
 	aclContractAddress     common.Address
 	executorUrl            string
@@ -222,9 +222,11 @@ type ApiImpl struct {
 	commitBlockOffset uint8
 }
 
+// Implement Session logic for the AppImpl
+// A session handles all FHE operations for a single host transaction
 type SessionImpl struct {
 	sessionStore *SessionComputationStore
-	apiImpl      *ApiImpl
+	app          *AppImpl
 }
 
 type ComputationOperand struct {
@@ -293,45 +295,45 @@ type EvmStorageComputationStore struct {
 	commitBlockOffset      uint8
 }
 
-func (executorApi *ApiImpl) InitLogger(hostLogger FHELogger, ctx string) {
-	executorApi.logger = log(hostLogger, ctx)
+func (app *AppImpl) InitLogger(hostLogger FHELogger, ctx string) {
+	app.logger = log(hostLogger, ctx)
 }
 
-func (executorApi *ApiImpl) CreateSession(blockNumber int64) ExecutorSession {
+func (app *AppImpl) CreateSession(blockNumber int64) ExecutorSession {
 	return &SessionImpl{
-		apiImpl: executorApi,
+		app: app,
 		sessionStore: &SessionComputationStore{
 			inserts:                make([]ComputationToInsert, 0),
 			insertedHandles:        make(map[string]int),
 			invalidatedSegments:    make(map[SegmentId]bool),
 			segmentCount:           0,
 			blockNumber:            blockNumber,
-			cache:                  executorApi.cache,
-			contractStorageAddress: executorApi.contractStorageAddress,
-			logger:                 executorApi.logger,
-			commitBlockOffset:      executorApi.commitBlockOffset,
+			cache:                  app.cache,
+			contractStorageAddress: app.contractStorageAddress,
+			logger:                 app.logger,
+			commitBlockOffset:      app.commitBlockOffset,
 			storageHandles:         NewOrderedHashSet[common.Hash](),
 		},
 	}
 }
 
-func (executorApi *ApiImpl) PreloadCiphertexts(blockNumber int64, api ChainStorageApi) error {
-	log := log(&executorApi.logger, "preload")
+func (app *AppImpl) PreloadCiphertexts(blockNumber int64, hostStorage ChainStorageApi) error {
+	log := log(&app.logger, "preload")
 
-	computations := executorApi.loadComputationsFromStateToCache(blockNumber, api)
+	computations := app.loadComputationsFromStateToCache(blockNumber, hostStorage)
 	log.Info("Preload ciphertexts", "block", blockNumber, "length", computations)
 	if computations > 0 {
-		return executorProcessPendingComputations(executorApi)
+		return executorProcessPendingComputations(app)
 	}
 
 	return nil
 }
 
-func (executorApi *ApiImpl) loadComputationsFromStateToCache(startBlockNumber int64, api ChainStorageApi) int {
+func (app *AppImpl) loadComputationsFromStateToCache(startBlockNumber int64, hostStorage ChainStorageApi) int {
 	loadStartTime := time.Now()
 	computations := 0
 	defer func() {
-		log := log(&executorApi.logger, "preload")
+		log := log(&app.logger, "preload")
 		duration := time.Since(loadStartTime)
 		log.Info("Preload done", "computations", computations, "duration", duration)
 	}()
@@ -339,12 +341,12 @@ func (executorApi *ApiImpl) loadComputationsFromStateToCache(startBlockNumber in
 	// TODO: figure out the limit how long in future blocks we should preload
 	lastBlockToPreload := startBlockNumber + 30
 
-	executorApi.cache.lock.Lock()
-	defer executorApi.cache.lock.Unlock()
+	app.cache.lock.Lock()
+	defer app.cache.lock.Unlock()
 
 	for block := startBlockNumber; block < lastBlockToPreload; block++ {
 		countAddress := blockNumberToQueueItemCountAddress(block)
-		ciphertextsInBlock := api.GetState(executorApi.contractStorageAddress, countAddress).Big()
+		ciphertextsInBlock := hostStorage.GetState(app.contractStorageAddress, countAddress).Big()
 		inBlock := ciphertextsInBlock.Int64()
 		queue := make([]*ComputationToInsert, 0)
 		enqueuedCiphertext := make(map[string]bool)
@@ -357,8 +359,8 @@ func (executorApi *ApiImpl) loadComputationsFromStateToCache(startBlockNumber in
 
 		for ctNum := 0; ctNum < int(inBlock); ctNum++ {
 			layout := blockQueueStorageLayout(block, int64(ctNum))
-			metadata := bytesToMetadata(api.GetState(executorApi.contractStorageAddress, layout.metadata))
-			outputHandle := api.GetState(executorApi.contractStorageAddress, layout.outputHandle)
+			metadata := bytesToMetadata(hostStorage.GetState(app.contractStorageAddress, layout.metadata))
+			outputHandle := hostStorage.GetState(app.contractStorageAddress, layout.outputHandle)
 			computation := &ComputationToInsert{
 				segmentId:     0,
 				Operation:     metadata.Operation,
@@ -367,8 +369,8 @@ func (executorApi *ApiImpl) loadComputationsFromStateToCache(startBlockNumber in
 			}
 
 			if isBinaryOp(metadata.Operation) {
-				firstOpHandle := api.GetState(executorApi.contractStorageAddress, layout.firstOperand)
-				firstOpCt := ReadBytesToAddress(api, executorApi.contractStorageAddress, firstOpHandle)
+				firstOpHandle := hostStorage.GetState(app.contractStorageAddress, layout.firstOperand)
+				firstOpCt := ReadBytesToAddress(hostStorage, app.contractStorageAddress, firstOpHandle)
 
 				computation.Operands = append(computation.Operands, ComputationOperand{
 					IsScalar:             false,
@@ -380,15 +382,15 @@ func (executorApi *ApiImpl) loadComputationsFromStateToCache(startBlockNumber in
 				if metadata.IsBigScalar {
 					// TODO: implement big scalar
 				} else if metadata.IsScalar {
-					secondOpHandle := api.GetState(executorApi.contractStorageAddress, layout.secondOperand)
+					secondOpHandle := hostStorage.GetState(app.contractStorageAddress, layout.secondOperand)
 					computation.Operands = append(computation.Operands, ComputationOperand{
 						IsScalar:    true,
 						Handle:      secondOpHandle[:],
 						FheUintType: handleType(firstOpHandle[:]),
 					})
 				} else {
-					secondOpHandle := api.GetState(executorApi.contractStorageAddress, layout.secondOperand)
-					secondOpCt := ReadBytesToAddress(api, executorApi.contractStorageAddress, secondOpHandle)
+					secondOpHandle := hostStorage.GetState(app.contractStorageAddress, layout.secondOperand)
+					secondOpCt := ReadBytesToAddress(hostStorage, app.contractStorageAddress, secondOpHandle)
 
 					computation.Operands = append(computation.Operands, ComputationOperand{
 						IsScalar:             false,
@@ -398,8 +400,8 @@ func (executorApi *ApiImpl) loadComputationsFromStateToCache(startBlockNumber in
 					})
 				}
 			} else if isUnaryOp(metadata.Operation) {
-				firstOpAddress := api.GetState(executorApi.contractStorageAddress, layout.firstOperand)
-				firstOpCt := ReadBytesToAddress(api, executorApi.contractStorageAddress, firstOpAddress)
+				firstOpAddress := hostStorage.GetState(app.contractStorageAddress, layout.firstOperand)
+				firstOpCt := ReadBytesToAddress(hostStorage, app.contractStorageAddress, firstOpAddress)
 
 				computation.Operands = append(computation.Operands, ComputationOperand{
 					IsScalar:             false,
@@ -421,56 +423,58 @@ func (executorApi *ApiImpl) loadComputationsFromStateToCache(startBlockNumber in
 			queue:              queue,
 			enqueuedCiphertext: enqueuedCiphertext,
 		}
-		executorApi.cache.ciphertextsToCompute[block] = ctsToCompute
+		app.cache.ciphertextsToCompute[block] = ctsToCompute
 	}
 
 	return computations
 }
 
 // Signal the executor that there is work available
-func (s *ApiImpl) notifyWorkAvailable() {
+func (app *AppImpl) notifyWorkAvailable() {
 	select {
-	case s.cache.workAvailableChan <- true:
+	case app.cache.workAvailableChan <- true:
 	default:
 	}
 }
 
-func (sess *SessionImpl) Commit(blockNumber int64, storage ChainStorageApi) error {
-	log := log(&sess.apiImpl.logger, "commit")
+func (sess *SessionImpl) Commit(blockNumber int64, hostStorage ChainStorageApi) error {
+	log := log(&sess.app.logger, "commit")
 
 	log.Debug("Commit to session store", "block", blockNumber)
-	err := sess.sessionStore.Commit(storage)
+	err := sess.sessionStore.Commit(hostStorage)
 	if err != nil {
 		log.Error("Commit failed", "block", blockNumber, "error", err)
 		return err
 	}
 
+	app := sess.app
+
 	// Compute pending computations
-	if sess.apiImpl.commitBlockOffset == 0 {
+	if app.commitBlockOffset == 0 {
 		// Late commit is disabled, send compute gRPC request and waits for it to finish
-		err := executorProcessPendingComputations(sess.apiImpl)
+		err := executorProcessPendingComputations(app)
 		if err != nil {
 			log.Error("Executor failed", "block", blockNumber, "error", err)
 			return err
 		}
 	} else {
 		// Signal the executor thread that work is ready.
-		sess.apiImpl.notifyWorkAvailable()
+		app.notifyWorkAvailable()
+
+		// Zero out Late commit
+		app.zeroLateCommit(blockNumber, hostStorage)
 	}
 
-	err = sess.apiImpl.flushFheResultsToState(blockNumber, storage, sess.sessionStore.storageHandles)
-	if err != nil {
-		return err
-	}
-	return nil
+	// Persist storage handles
+	return app.persistStorageHandles(blockNumber, sess.sessionStore.storageHandles, hostStorage)
 }
 
-func (sessionApi *SessionImpl) AddStorageHandle(blockNumber uint64, contract common.Address, handle []byte) error {
-	return sessionApi.sessionStore.AddStorageHandle(blockNumber, handle)
+func (sess *SessionImpl) AddStorageHandle(blockNumber uint64, contract common.Address, handle []byte) error {
+	return sess.sessionStore.AddStorageHandle(blockNumber, handle)
 }
 
-func (sessionApi *SessionImpl) AddComputation(dataOrig []byte, ed ExtraData, outputOrig []byte) error {
-	log := log(&sessionApi.apiImpl.logger, "session::execute")
+func (sess *SessionImpl) AddComputation(dataOrig []byte, ed ExtraData, outputOrig []byte) error {
+	log := log(&sess.app.logger, "session::execute")
 
 	if len(dataOrig) < 4 {
 		err := fmt.Errorf("input data must be at least 4 bytes for signature, got %d", len(dataOrig))
@@ -497,7 +501,7 @@ func (sessionApi *SessionImpl) AddComputation(dataOrig []byte, ed ExtraData, out
 			log.Debug("Call", "method", *method, "calldata len", len(callData),
 				"extra data", ed, "handle", handle)
 
-			err := method.runFunction(sessionApi, callData, ed, outputHandle)
+			err := method.runFunction(sess, callData, ed, outputHandle)
 			if err != nil {
 				log.Error("Computation not inserted", method, "handle", handle, "error", err)
 			}
@@ -515,29 +519,29 @@ func (sessionApi *SessionImpl) AddComputation(dataOrig []byte, ed ExtraData, out
 	}
 }
 
-func (sessionApi *SessionImpl) NextSegment() SegmentId {
-	sessionApi.sessionStore.segmentCount = sessionApi.sessionStore.segmentCount + 1
-	return SegmentId(sessionApi.sessionStore.segmentCount)
+func (sess *SessionImpl) NextSegment() SegmentId {
+	sess.sessionStore.segmentCount = sess.sessionStore.segmentCount + 1
+	return SegmentId(sess.sessionStore.segmentCount)
 }
 
-func (sessionApi *SessionImpl) InvalidateSinceSegment(id SegmentId) SegmentId {
-	for idx := int(id); idx <= sessionApi.sessionStore.segmentCount; idx++ {
-		sessionApi.sessionStore.invalidatedSegments[SegmentId(idx)] = true
+func (sess *SessionImpl) InvalidateSinceSegment(id SegmentId) SegmentId {
+	for idx := int(id); idx <= sess.sessionStore.segmentCount; idx++ {
+		sess.sessionStore.invalidatedSegments[SegmentId(idx)] = true
 	}
 
-	return sessionApi.NextSegment()
+	return sess.NextSegment()
 }
 
-func (sessionApi *SessionImpl) ContractAddress() common.Address {
-	return sessionApi.apiImpl.address
+func (sess *SessionImpl) ContractAddress() common.Address {
+	return sess.app.address
 }
 
-func (sessionApi *SessionImpl) AclContractAddress() common.Address {
-	return sessionApi.apiImpl.aclContractAddress
+func (sess *SessionImpl) AclContractAddress() common.Address {
+	return sess.app.aclContractAddress
 }
 
-func (sessionApi *SessionImpl) GetStore() ComputationStore {
-	return sessionApi.sessionStore
+func (sess *SessionImpl) GetStore() ComputationStore {
+	return sess.sessionStore
 }
 
 func (dbApi *SessionComputationStore) InsertComputationBatch(computations []ComputationToInsert) error {
@@ -924,20 +928,13 @@ func ReadBytesToAddress(api ChainStorageApi, contractAddress common.Address, add
 	return resultBytes
 }
 
-func (executorApi *ApiImpl) flushFheResultsToState(blockNumber int64, api ChainStorageApi, storageHandles *OrderedHashSet[common.Hash]) error {
-	if executorApi.commitBlockOffset > 0 {
-		executorApi.zeroLateCommit(blockNumber, api)
-	}
-
-	return executorApi.persistStorageHandles(blockNumber, storageHandles, api)
-}
-
 // / Zero out all the computations in the LateCommit queue
-func (executorApi *ApiImpl) zeroLateCommit(blockNumber int64, api ChainStorageApi) {
-	log := log(&executorApi.logger, "flush")
+func (app *AppImpl) zeroLateCommit(blockNumber int64, hostStorage ChainStorageApi) {
+	log := log(&app.logger, "flush")
+	contractStorageAddr := app.contractStorageAddress
 
 	countAddress := blockNumberToQueueItemCountAddress(blockNumber)
-	ciphertextsInBlock := api.GetState(executorApi.contractStorageAddress, countAddress).Big()
+	ciphertextsInBlock := hostStorage.GetState(contractStorageAddr, countAddress).Big()
 	ctCount := ciphertextsInBlock.Int64()
 
 	zero := common.BigToHash(big.NewInt(0))
@@ -946,22 +943,22 @@ func (executorApi *ApiImpl) zeroLateCommit(blockNumber int64, api ChainStorageAp
 	// zero out queue ciphertexts
 	for i := 0; i < int(ctCount); i++ {
 		ctAddr := blockQueueStorageLayout(blockNumber, int64(i))
-		metadata := bytesToMetadata(api.GetState(executorApi.contractStorageAddress, ctAddr.metadata))
-		outputHandle := api.GetState(executorApi.contractStorageAddress, ctAddr.outputHandle)
+		metadata := bytesToMetadata(hostStorage.GetState(contractStorageAddr, ctAddr.metadata))
+		outputHandle := hostStorage.GetState(contractStorageAddr, ctAddr.outputHandle)
 
 		log.Debug("Reset computation LateCommit queue", "block number", blockNumber,
 			"handle", outputHandle.TerminalString())
 
-		api.SetState(executorApi.contractStorageAddress, ctAddr.metadata, zero)
-		api.SetState(executorApi.contractStorageAddress, ctAddr.outputHandle, zero)
-		api.SetState(executorApi.contractStorageAddress, ctAddr.firstOperand, zero)
-		api.SetState(executorApi.contractStorageAddress, ctAddr.secondOperand, zero)
+		hostStorage.SetState(contractStorageAddr, ctAddr.metadata, zero)
+		hostStorage.SetState(contractStorageAddr, ctAddr.outputHandle, zero)
+		hostStorage.SetState(contractStorageAddr, ctAddr.firstOperand, zero)
+		hostStorage.SetState(contractStorageAddr, ctAddr.secondOperand, zero)
 		if metadata.IsBigScalar {
 			counter := new(big.Int)
 			counter.SetBytes(ctAddr.bigScalarOperand[:])
 			// max supported number 2048 is 2048
 			for i := 0; i < 2048/256; i++ {
-				api.SetState(executorApi.contractStorageAddress, common.BigToHash(counter), zero)
+				hostStorage.SetState(contractStorageAddr, common.BigToHash(counter), zero)
 				counter.Add(counter, one)
 			}
 		}
@@ -969,7 +966,7 @@ func (executorApi *ApiImpl) zeroLateCommit(blockNumber int64, api ChainStorageAp
 
 	// set 0 as count
 	if ctCount > 0 {
-		api.SetState(executorApi.contractStorageAddress, countAddress, zero)
+		hostStorage.SetState(contractStorageAddr, countAddress, zero)
 		log.Debug("Reset count addr",
 			"block number", blockNumber,
 			"count addr", countAddress.TerminalString(), "count", ctCount)
@@ -977,25 +974,22 @@ func (executorApi *ApiImpl) zeroLateCommit(blockNumber int64, api ChainStorageAp
 }
 
 // / Persist the computed ciphertexts to the EVM storage
-func (executorApi *ApiImpl) persistStorageHandles(blockNumber int64, storageHandles *OrderedHashSet[common.Hash], api ChainStorageApi) error {
-	// no one did fhe computations in the block
+func (app *AppImpl) persistStorageHandles(blockNumber int64, storageHandles *OrderedHashSet[common.Hash], hostStorage ChainStorageApi) error {
 	if storageHandles.Size() == 0 {
 		return nil
 	}
 
-	executorApi.cache.lock.Lock()
+	app.cache.lock.Lock()
 	defer func() {
-		executorApi.cache.lock.Unlock()
+		app.cache.lock.Unlock()
 	}()
 
-	log := log(&executorApi.logger, "storage")
+	log := log(&app.logger, "storage")
 
-	executorApi.cache.latestBlockFlushed = blockNumber
-	contractAddr := executorApi.contractStorageAddress
+	app.cache.latestBlockFlushed = blockNumber
 
-	blockData, ok := executorApi.cache.blocksCiphertexts[blockNumber]
+	blockData, ok := app.cache.blocksCiphertexts[blockNumber]
 	if !ok {
-		// okay, no ciphertexts were computed in this block
 		return nil
 	}
 
@@ -1010,10 +1004,10 @@ func (executorApi *ApiImpl) persistStorageHandles(blockNumber int64, storageHand
 		log.Info("Persist ciphertext", "block number", blockNumber, "handle",
 			handle.TerminalString(), "ciphertext length", len(ciphertext))
 
-		putBytesToAddress(api, contractAddr, handle, ciphertext)
+		putBytesToAddress(hostStorage, app.contractStorageAddress, handle, ciphertext)
 	}
 
-	ciphertextCacheGc(executorApi.cache)
+	ciphertextCacheGc(app.cache)
 
 	return nil
 }
@@ -1051,7 +1045,7 @@ func ciphertextCacheGc(cache *CiphertextCache) {
 	cache.lastCacheGc = time.Now()
 }
 
-func InitExecutor(hostLogger FHELogger) (ExecutorApi, error) {
+func InitExecutor(hostLogger FHELogger) (ExecutorApp, error) {
 	log := log(hostLogger, "module::fhevm")
 
 	executorUrl, hasUrl := os.LookupEnv("FHEVM_EXECUTOR_URL")
@@ -1100,7 +1094,7 @@ func InitExecutor(hostLogger FHELogger) (ExecutorApi, error) {
 		lastCacheGc:          time.Now(),
 	}
 
-	apiImpl := &ApiImpl{
+	app := &AppImpl{
 		address:                fhevmContractAddress,
 		aclContractAddress:     aclContractAddress,
 		contractStorageAddress: storageAddress,
@@ -1111,43 +1105,43 @@ func InitExecutor(hostLogger FHELogger) (ExecutorApi, error) {
 
 	// run executor worker in the background
 	if commitBlockOffset > 0 {
-		go executorWorkerThread(apiImpl)
+		go executorWorkerThread(app)
 	}
 
-	return apiImpl, nil
+	return app, nil
 }
 
-func executorWorkerThread(impl *ApiImpl) {
-	log := log(&impl.logger, "worker")
+func executorWorkerThread(app *AppImpl) {
+	log := log(&app.logger, "worker")
 
 	for {
 		// try reading notification from channel
-		<-impl.cache.workAvailableChan
+		<-app.cache.workAvailableChan
 
 		// sleep for 500ms to wait for more messages
 		// to consolidate them at one processing batch
 		time.Sleep(time.Millisecond * 500)
 
-		err := executorProcessPendingComputations(impl)
+		err := executorProcessPendingComputations(app)
 		if err != nil {
 			log.Error("Failed to compute", "error", err.Error())
 		}
 	}
 }
 
-func executorProcessPendingComputations(impl *ApiImpl) error {
-	log := log(&impl.logger, "sync_compute")
+func executorProcessPendingComputations(app *AppImpl) error {
+	log := log(&app.logger, "sync_compute")
 
-	impl.cache.lock.Lock()
+	app.cache.lock.Lock()
 	defer func() {
-		impl.cache.lock.Unlock()
+		app.cache.lock.Unlock()
 	}()
 
-	availableCts := len(impl.cache.ciphertextsToCompute)
+	availableCts := len(app.cache.ciphertextsToCompute)
 
 	// empty channel from multiple notifications before processing
-	for len(impl.cache.workAvailableChan) > 0 {
-		<-impl.cache.workAvailableChan
+	for len(app.cache.workAvailableChan) > 0 {
+		<-app.cache.workAvailableChan
 	}
 
 	// no work to be done
@@ -1157,7 +1151,7 @@ func executorProcessPendingComputations(impl *ApiImpl) error {
 
 	var opts []grpc.DialOption
 	opts = append(opts, grpc.WithInsecure())
-	conn, err := grpc.NewClient(impl.executorUrl, opts...)
+	conn, err := grpc.NewClient(app.executorUrl, opts...)
 	if err != nil {
 		return err
 	}
@@ -1170,7 +1164,7 @@ func executorProcessPendingComputations(impl *ApiImpl) error {
 	}
 
 	ctToBlockIndex := make(map[string]int64)
-	for block, compute := range impl.cache.ciphertextsToCompute {
+	for block, compute := range app.cache.ciphertextsToCompute {
 		log.Debug("Processing block",
 			"commit block", block, "computations", len(compute.queue))
 
@@ -1260,12 +1254,12 @@ func executorProcessPendingComputations(impl *ApiImpl) error {
 			return errors.New("ciphertext doesn't exist in our block index we built earlier, should be impossible")
 		}
 
-		blockData := impl.cache.blocksCiphertexts[theBlock]
+		blockData := app.cache.blocksCiphertexts[theBlock]
 		if blockData == nil {
 			blockData = &CacheBlockData{
 				materializedCiphertexts: make(map[string][]byte),
 			}
-			impl.cache.blocksCiphertexts[theBlock] = blockData
+			app.cache.blocksCiphertexts[theBlock] = blockData
 		}
 
 		blockData.materializedCiphertexts[string(ct.Handle)] = ct.Serialization
@@ -1274,7 +1268,7 @@ func executorProcessPendingComputations(impl *ApiImpl) error {
 	}
 
 	// reset map of the queue
-	impl.cache.ciphertextsToCompute = make(map[int64]*BlockCiphertextQueue)
+	app.cache.ciphertextsToCompute = make(map[int64]*BlockCiphertextQueue)
 
 	return nil
 }
