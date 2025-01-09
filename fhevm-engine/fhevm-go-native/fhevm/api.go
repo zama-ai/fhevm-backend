@@ -111,6 +111,10 @@ func IsValidFheType(t byte) bool {
 	return true
 }
 
+// Number of most recent blocks to keep in cache
+const GcBlocksNumberLimit = 100
+const GcTimeLimit = 10.0
+
 // Api to the storage of the host chain, must be passed
 // from the EVM to us
 type ChainStorageApi interface {
@@ -204,7 +208,7 @@ type CiphertextCache struct {
 	blocksCiphertexts    map[int64]*CacheBlockData
 	ciphertextsToCompute map[int64]*BlockCiphertextQueue
 	workAvailableChan    chan bool
-	latestBlockFlushed   int64
+	latestBlockFlushed   uint64
 	lastCacheGc          time.Time
 }
 
@@ -466,7 +470,14 @@ func (sess *SessionImpl) Commit(blockNumber int64, hostStorage ChainStorageApi) 
 	}
 
 	// Persist storage handles
-	return app.persistStorageHandles(blockNumber, sess.sessionStore.storageHandles, hostStorage)
+	err = app.persistStorageHandles(blockNumber, sess.sessionStore.storageHandles, hostStorage)
+	if err != nil {
+		return err
+	}
+
+	app.runCiphertextCacheGc(uint64(blockNumber), GcBlocksNumberLimit, GcTimeLimit)
+
+	return nil
 }
 
 func (sess *SessionImpl) AddStorageHandle(blockNumber uint64, contract common.Address, handle []byte) error {
@@ -973,7 +984,7 @@ func (app *AppImpl) zeroLateCommit(blockNumber int64, hostStorage ChainStorageAp
 	}
 }
 
-// / Persist the computed ciphertexts to the EVM storage
+// Persist the computed ciphertexts to the EVM storage
 func (app *AppImpl) persistStorageHandles(blockNumber int64, storageHandles *OrderedHashSet[common.Hash], hostStorage ChainStorageApi) error {
 	if storageHandles.Size() == 0 {
 		return nil
@@ -985,8 +996,6 @@ func (app *AppImpl) persistStorageHandles(blockNumber int64, storageHandles *Ord
 	}()
 
 	log := log(&app.logger, "storage")
-
-	app.cache.latestBlockFlushed = blockNumber
 
 	blockData, ok := app.cache.blocksCiphertexts[blockNumber]
 	if !ok {
@@ -1007,30 +1016,43 @@ func (app *AppImpl) persistStorageHandles(blockNumber int64, storageHandles *Ord
 		putBytesToAddress(hostStorage, app.contractStorageAddress, handle, ciphertext)
 	}
 
-	ciphertextCacheGc(app.cache)
-
 	return nil
 }
 
-func ciphertextCacheGc(cache *CiphertextCache) {
-	if cache.latestBlockFlushed == 0 {
+// Run garbage collection on the ciphertext cache
+// Keep latest N Blocks with ciphertexts to ensure reorgs are handled
+func (app *AppImpl) runCiphertextCacheGc(blockNumber uint64, blocksNumLimit uint64, timeLimit float64) {
+	log := log(&app.logger, "ct_cache_gc")
+	cache := app.cache
+
+	cache.lock.Lock()
+	defer func() {
+		cache.lock.Unlock()
+	}()
+
+	blockData, ok := cache.blocksCiphertexts[int64(blockNumber)]
+	if ok && len(blockData.materializedCiphertexts) > 0 {
+		cache.latestBlockFlushed = blockNumber
+		log.Debug("Latest block flushed", "block number", blockNumber)
+	}
+
+	if cache.latestBlockFlushed == 0 || cache.latestBlockFlushed < blocksNumLimit {
 		// no flushes processed yet
 		return
 	}
 
-	// don't run gc more often than 10 seconds
+	// don't run gc more often than timeLimit seconds
 	sinceLastGcSeconds := time.Since(cache.lastCacheGc).Seconds()
-	if sinceLastGcSeconds < 10.0 {
+	if sinceLastGcSeconds < timeLimit {
 		return
 	}
 
 	keysToPurge := make([]int64, 0)
-	// keep last 100 blocks in case of reorgs
-	dontKeepBlockOlderThan := cache.latestBlockFlushed - 100
+	dontKeepBlockOlderThan := cache.latestBlockFlushed - blocksNumLimit
 
-	for block, _ := range cache.blocksCiphertexts {
-		if block < dontKeepBlockOlderThan {
-			keysToPurge = append(keysToPurge, block)
+	for blockNumber := range cache.blocksCiphertexts {
+		if blockNumber < int64(dontKeepBlockOlderThan) {
+			keysToPurge = append(keysToPurge, blockNumber)
 		}
 	}
 
@@ -1039,7 +1061,7 @@ func ciphertextCacheGc(cache *CiphertextCache) {
 	}
 
 	if len(keysToPurge) > 0 {
-		fmt.Printf("ciphertext cache removed %d old blocks data\n", len(keysToPurge))
+		log.Info("Remove cts from cache", "count", len(keysToPurge))
 	}
 
 	cache.lastCacheGc = time.Now()
