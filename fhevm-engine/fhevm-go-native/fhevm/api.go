@@ -147,7 +147,13 @@ func (ed ExtraData) String() string {
 }
 
 type ExecutorSession interface {
-	Execute(input []byte, ed ExtraData, output []byte) error
+	/// Add computation to session
+	/// If the operation is not a supported FHE operation, it is discarded.
+	AddComputation(input []byte, ed ExtraData, output []byte) error
+
+	/// Execute added FHE computations and commit result ciphertexts to state
+	Commit(blockNumber int64, storage ChainStorageApi) error
+
 	ContractAddress() common.Address
 	AclContractAddress() common.Address
 	NextSegment() SegmentId
@@ -155,7 +161,7 @@ type ExecutorSession interface {
 	// After commit fhe computations will be put inside the queue
 	// to the blockchain state, also flushes pending computations
 	// from storage to the state
-	Commit(blockNumber int64, storage ChainStorageApi) error
+
 	GetStore() ComputationStore
 }
 
@@ -451,7 +457,7 @@ func (sessionApi *SessionImpl) Commit(blockNumber int64, storage ChainStorageApi
 	return nil
 }
 
-func (sessionApi *SessionImpl) Execute(dataOrig []byte, ed ExtraData, outputOrig []byte) error {
+func (sessionApi *SessionImpl) AddComputation(dataOrig []byte, ed ExtraData, outputOrig []byte) error {
 	log := log(&sessionApi.apiImpl.logger, "session::execute")
 
 	if len(dataOrig) < 4 {
