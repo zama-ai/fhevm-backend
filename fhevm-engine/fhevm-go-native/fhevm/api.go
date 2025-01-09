@@ -150,7 +150,7 @@ type ExecutorSession interface {
 
 	/// Add a handle to the current session, ensuring its ciphertext will be persisted to the state
 	/// For EVM, this should be invoked for any value stored using SSTORE.
-	AddStorageHandle(contract common.Address, handle []byte) error
+	AddStorageHandle(blockNumber uint64, contract common.Address, handle []byte) error
 
 	/// Add computation to current session
 	/// If the operation is not a supported FHE operation, it is discarded.
@@ -290,6 +290,7 @@ type EvmStorageComputationStore struct {
 	contractStorageAddress common.Address
 	cache                  *CiphertextCache
 	logger                 ProxyLogger
+	commitBlockOffset      uint8
 }
 
 func (executorApi *ApiImpl) InitLogger(hostLogger FHELogger, ctx string) {
@@ -437,7 +438,7 @@ func (s *ApiImpl) notifyWorkAvailable() {
 func (sess *SessionImpl) Commit(blockNumber int64, storage ChainStorageApi) error {
 	log := log(&sess.apiImpl.logger, "commit")
 
-	log.Debug("Session store ciphertexts", "block", blockNumber)
+	log.Debug("Commit to session store", "block", blockNumber)
 	err := sess.sessionStore.Commit(storage)
 	if err != nil {
 		log.Error("Commit failed", "block", blockNumber, "error", err)
@@ -464,8 +465,8 @@ func (sess *SessionImpl) Commit(blockNumber int64, storage ChainStorageApi) erro
 	return nil
 }
 
-func (sessionApi *SessionImpl) AddStorageHandle(contract common.Address, handle []byte) error {
-	return sessionApi.sessionStore.AddStorageHandle(handle)
+func (sessionApi *SessionImpl) AddStorageHandle(blockNumber uint64, contract common.Address, handle []byte) error {
+	return sessionApi.sessionStore.AddStorageHandle(blockNumber, handle)
 }
 
 func (sessionApi *SessionImpl) AddComputation(dataOrig []byte, ed ExtraData, outputOrig []byte) error {
@@ -567,12 +568,12 @@ func (dbApi *SessionComputationStore) InsertComputation(computation ComputationT
 	return nil
 }
 
-func (dbApi *SessionComputationStore) AddStorageHandle(handle []byte) error {
+func (dbApi *SessionComputationStore) AddStorageHandle(blockNumber uint64, handle []byte) error {
 	log := log(&dbApi.logger, "session::execute")
 
 	handleHash := common.BytesToHash(handle)
 	if dbApi.storageHandles.Add(handleHash) {
-		log.Info("Add storage handle", "handle", handleHash.TerminalString())
+		log.Info("Add storage handle", "block number", blockNumber, "handle", handleHash.TerminalString())
 	}
 
 	return nil
@@ -596,6 +597,7 @@ func (dbApi *SessionComputationStore) Commit(storage ChainStorageApi) error {
 		contractStorageAddress: dbApi.contractStorageAddress,
 		cache:                  dbApi.cache,
 		logger:                 dbApi.logger,
+		commitBlockOffset:      dbApi.commitBlockOffset,
 	}
 
 	err := evmInserter.InsertComputationBatch(storage, finalInserts)
@@ -698,6 +700,84 @@ type NativeQueueAddressLayout struct {
 }
 
 func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage ChainStorageApi, computations []ComputationToInsert) error {
+	log := log(&dbApi.logger, "evm_store")
+	log.Info("Processing computations", "count", len(computations))
+
+	pending_computations := 0
+	buckets := make(map[int64][]*ComputationToInsert)
+	// index the buckets
+	for ind, comp := range computations {
+		if buckets[comp.CommitBlockId] == nil {
+			buckets[comp.CommitBlockId] = make([]*ComputationToInsert, 0)
+		}
+
+		buckets[comp.CommitBlockId] = append(buckets[comp.CommitBlockId], &computations[ind])
+		pending_computations += 1
+	}
+
+	if len(buckets) != 0 {
+		log.Debug("New buckets added", "buckets", len(buckets),
+			"pending_computations", pending_computations)
+	}
+
+	// collect all their keys and sort because golang doesn't traverse map
+	// in deterministic order
+	allKeys := make([]int, 0)
+	for k := range buckets {
+		allKeys = append(allKeys, int(k))
+	}
+	sort.Ints(allKeys)
+
+	// Insert new computations to the LateCommit queue, if LateCommit is enabled
+	if dbApi.commitBlockOffset > 0 {
+		dbApi.updateLateCommitQueue(allKeys, buckets, evmStorage)
+	}
+
+	// enqueue items to cache, we do this in the
+	// end because it requires locking, so lock for minimal time
+	dbApi.cache.lock.Lock()
+	defer func() {
+		dbApi.cache.lock.Unlock()
+	}()
+
+	for _, key := range allKeys {
+		blockNumber := int64(key)
+		bucket := buckets[blockNumber]
+		ctsStorage := dbApi.cache.ciphertextsToCompute[blockNumber]
+
+		if ctsStorage == nil {
+			ctsStorage = &BlockCiphertextQueue{
+				queue:              make([]*ComputationToInsert, 0),
+				enqueuedCiphertext: make(map[string]bool),
+			}
+			dbApi.cache.ciphertextsToCompute[blockNumber] = ctsStorage
+		}
+
+		for _, comp := range bucket {
+
+			// don't have duplicates, from possibly evaluating multiple trie caches
+			if !ctsStorage.enqueuedCiphertext[string(comp.OutputHandle)] {
+				// we must fill the raw ciphertext values here from storage so cache
+				// would have ciphertexts to compute on, as cache doesn't have easy
+				// access to the evm state
+				dbApi.hydrateComputationFromEvmState(evmStorage, comp)
+				ctsStorage.queue = append(ctsStorage.queue, comp)
+				ctsStorage.enqueuedCiphertext[string(comp.OutputHandle)] = true
+
+				log.Debug("Add computation to Cache",
+					"commit block", blockNumber,
+					"handle", comp.Handle(),
+					"cache length", len(ctsStorage.queue))
+			}
+		}
+	}
+
+	return nil
+}
+
+// / Insert new computations to the LateCommit queue
+// / LateCommit queue is a queue of pending computations
+func (dbApi *EvmStorageComputationStore) updateLateCommitQueue(allKeys []int, buckets map[int64][]*ComputationToInsert, evmStorage ChainStorageApi) {
 	// storage layout for the late commit queue:
 	//
 	// blockNumber address - stores the amount of ciphertexts in the queue in the block,
@@ -722,35 +802,8 @@ func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage Chain
 	// his ciphertexts to be evaluated
 
 	log := log(&dbApi.logger, "evm_store")
-	log.Info("Processing computations", "count", len(computations))
-
-	pending_computations := 0
-	buckets := make(map[int64][]*ComputationToInsert)
-	// index the buckets
-	for ind, comp := range computations {
-		if buckets[comp.CommitBlockId] == nil {
-			buckets[comp.CommitBlockId] = make([]*ComputationToInsert, 0)
-		}
-
-		buckets[comp.CommitBlockId] = append(buckets[comp.CommitBlockId], &computations[ind])
-		pending_computations += 1
-	}
-
-	if len(buckets) != 0 {
-		log.Debug("New buckets added", "buckets", len(buckets),
-			"pending_computations", pending_computations)
-	}
-
-	// collect all their keys and sort because golang doesn't traverse map
-	// in deterministic order
-	allKeys := make([]int, 0)
-	for k, _ := range buckets {
-		allKeys = append(allKeys, int(k))
-	}
-	sort.Ints(allKeys)
 
 	one := big.NewInt(1)
-	// iterate all buckets and put items to their appropriate block queues
 	for _, key := range allKeys {
 		queueBlockNumber := int64(key)
 		bucket := buckets[queueBlockNumber]
@@ -782,51 +835,6 @@ func (dbApi *EvmStorageComputationStore) InsertComputationBatch(evmStorage Chain
 		// set updated count back
 		evmStorage.SetState(dbApi.contractStorageAddress, countAddress, common.BigToHash(ciphertextsInBlock))
 	}
-
-	// enqueue items to cache, we do this in the
-	// end because it requires locking, so lock for minimal time
-	dbApi.cache.lock.Lock()
-	defer func() {
-		dbApi.cache.lock.Unlock()
-	}()
-
-	// TODO: implement cache warmup algorithm, when we restart blockchain
-	// we want to scan storage queue for computations to be completed
-
-	for _, key := range allKeys {
-		queueBlockNumber := int64(key)
-		bucket := buckets[queueBlockNumber]
-		ctsStorage := dbApi.cache.ciphertextsToCompute[queueBlockNumber]
-
-		if ctsStorage == nil {
-			ctsStorage = &BlockCiphertextQueue{
-				queue:              make([]*ComputationToInsert, 0),
-				enqueuedCiphertext: make(map[string]bool),
-			}
-			dbApi.cache.ciphertextsToCompute[queueBlockNumber] = ctsStorage
-		}
-
-		for _, comp := range bucket {
-
-			// don't have duplicates, from possibly evaluating multiple trie caches
-			if !ctsStorage.enqueuedCiphertext[string(comp.OutputHandle)] {
-				// we must fill the raw ciphertext values here from storage so cache
-				// would have ciphertexts to compute on, as cache doesn't have easy
-				// access to the evm state
-				dbApi.hydrateComputationFromEvmState(evmStorage, comp)
-				ctsStorage.queue = append(ctsStorage.queue, comp)
-				ctsStorage.enqueuedCiphertext[string(comp.OutputHandle)] = true
-
-				log.Debug("Add computation to Cache",
-					"commit block", queueBlockNumber,
-					"handle", comp.Handle(),
-					"cache length", len(ctsStorage.queue))
-			}
-		}
-
-	}
-
-	return nil
 }
 
 func (dbApi *EvmStorageComputationStore) hydrateComputationFromEvmState(evmStorage ChainStorageApi, comp *ComputationToInsert) error {
@@ -917,21 +925,23 @@ func ReadBytesToAddress(api ChainStorageApi, contractAddress common.Address, add
 }
 
 func (executorApi *ApiImpl) flushFheResultsToState(blockNumber int64, api ChainStorageApi, storageHandles *OrderedHashSet[common.Hash]) error {
+	if executorApi.commitBlockOffset > 0 {
+		executorApi.zeroLateCommit(blockNumber, api)
+	}
+
+	return executorApi.persistStorageHandles(blockNumber, storageHandles, api)
+}
+
+// / Zero out all the computations in the LateCommit queue
+func (executorApi *ApiImpl) zeroLateCommit(blockNumber int64, api ChainStorageApi) {
 	log := log(&executorApi.logger, "flush")
 
-	// cleanup the queue for the block number
 	countAddress := blockNumberToQueueItemCountAddress(blockNumber)
 	ciphertextsInBlock := api.GetState(executorApi.contractStorageAddress, countAddress).Big()
 	ctCount := ciphertextsInBlock.Int64()
 
-	log.Debug("Flush ciphertexts", "block number", blockNumber, "count addr", countAddress.TerminalString(), "count", ctCount)
-
 	zero := common.BigToHash(big.NewInt(0))
 	one := big.NewInt(1)
-
-	// make sure handles are materialized in storage in deterministic
-	// order, first come first serve basis in the queue
-	handlesToMaterialize := make([]common.Hash, 0)
 
 	// zero out queue ciphertexts
 	for i := 0; i < int(ctCount); i++ {
@@ -942,7 +952,6 @@ func (executorApi *ApiImpl) flushFheResultsToState(blockNumber int64, api ChainS
 		log.Debug("Reset computation LateCommit queue", "block number", blockNumber,
 			"handle", outputHandle.TerminalString())
 
-		handlesToMaterialize = append(handlesToMaterialize, outputHandle)
 		api.SetState(executorApi.contractStorageAddress, ctAddr.metadata, zero)
 		api.SetState(executorApi.contractStorageAddress, ctAddr.outputHandle, zero)
 		api.SetState(executorApi.contractStorageAddress, ctAddr.firstOperand, zero)
@@ -961,17 +970,14 @@ func (executorApi *ApiImpl) flushFheResultsToState(blockNumber int64, api ChainS
 	// set 0 as count
 	if ctCount > 0 {
 		api.SetState(executorApi.contractStorageAddress, countAddress, zero)
-
 		log.Debug("Reset count addr",
 			"block number", blockNumber,
 			"count addr", countAddress.TerminalString(), "count", ctCount)
 	}
-
-	// materialize handles in storage assuming they exist in the cache
-	return executorApi.materializeHandlesInStorage(blockNumber, storageHandles, api)
 }
 
-func (executorApi *ApiImpl) materializeHandlesInStorage(blockNumber int64, storageHandles *OrderedHashSet[common.Hash], api ChainStorageApi) error {
+// / Persist the computed ciphertexts to the EVM storage
+func (executorApi *ApiImpl) persistStorageHandles(blockNumber int64, storageHandles *OrderedHashSet[common.Hash], api ChainStorageApi) error {
 	// no one did fhe computations in the block
 	if storageHandles.Size() == 0 {
 		return nil
@@ -982,10 +988,9 @@ func (executorApi *ApiImpl) materializeHandlesInStorage(blockNumber int64, stora
 		executorApi.cache.lock.Unlock()
 	}()
 
-	log := log(&executorApi.logger, "materialize")
+	log := log(&executorApi.logger, "storage")
 
 	executorApi.cache.latestBlockFlushed = blockNumber
-
 	contractAddr := executorApi.contractStorageAddress
 
 	blockData, ok := executorApi.cache.blocksCiphertexts[blockNumber]
@@ -1002,7 +1007,7 @@ func (executorApi *ApiImpl) materializeHandlesInStorage(blockNumber int64, stora
 			return err
 		}
 
-		log.Info("Persist ciphertext to state", "block number", blockNumber, "handle",
+		log.Info("Persist ciphertext", "block number", blockNumber, "handle",
 			handle.TerminalString(), "ciphertext length", len(ciphertext))
 
 		putBytesToAddress(api, contractAddr, handle, ciphertext)
