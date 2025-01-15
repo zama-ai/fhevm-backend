@@ -34,8 +34,8 @@
 **fhEVM-backend** provides the execution service for FHE computations.
 
 It includes:
-- An **Executor** service for [fhEVM-native](https://docs.zama.ai/fhevm-backend/getting-started/fhevm/fhevm-native) 
-- A **Coprocessor** service for [fhEVM-coprocessor](https://docs.zama.ai/fhevm-backend/getting-started/fhevm/fhevm-coprocessor)
+- An **Executor** service for [fhEVM-native](https://docs.zama.ai/fhevm-backend/getting-started/fhevm/fhevm-native).
+- A **Coprocessor** service for [fhEVM-coprocessor](https://docs.zama.ai/fhevm-backend/getting-started/fhevm/fhevm-coprocessor).
 
 *Learn more about fhEVM-backend features in the [documentation](https://docs.zama.ai/fhevm-backend).*
 <br></br>
@@ -105,9 +105,9 @@ More details on configuration can be found in the [documentation](https://docs.z
 
 #### Dependences
 
-- `docker-compose`
-- `rust`
-- `sqlx-cli` (install with `cargo install sqlx-cli`)
+- `docker-compose`.
+- `rust`.
+- `sqlx-cli` (install with `cargo install sqlx-cli`).
 
 #### Installation
 
@@ -200,7 +200,7 @@ year = "2023"
 
 There are two ways to contribute to the Zama fhEVM:
 
-- [Open issues](https://github.com/zama-ai/fhevm-backend/issues/new/choose) to report bugs and typos, or to suggest new ideas
+- [Open issues](https://github.com/zama-ai/fhevm-backend/issues/new/choose) to report bugs and typos, or to suggest new ideas.
 - Request to become an official contributor by emailing hello@zama.ai.
 
 Becoming an approved contributor involves signing our Contributor License Agreement (CLA)). Only approved contributors can send pull requests, so please make sure to get in touch before you do!
