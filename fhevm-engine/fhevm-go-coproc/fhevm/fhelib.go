@@ -194,6 +194,11 @@ func FheLibMethods() []*FheLibMethod {
 			ArgTypes:    "(bytes,bytes1)",
 			runFunction: trivialEncryptBytesRun,
 		},
+		{
+			Name:        "verifyCiphertext",
+			ArgTypes:    "(bytes32,address,bytes,bytes1)",
+			runFunction: fheVerifyCiphertext,
+		},
 	}
 }
 

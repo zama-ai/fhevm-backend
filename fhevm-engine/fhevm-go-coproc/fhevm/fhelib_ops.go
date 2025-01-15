@@ -1693,6 +1693,11 @@ func trivialEncryptBytesRun(sess CoprocessorSession, unslicedInput []byte, ed Ex
 	return nil
 }
 
+func fheVerifyCiphertext(_ CoprocessorSession, _ []byte, _ ExtraData, _ []byte) error {
+	// Added to suppress an unregistered operation error
+	return nil
+}
+
 func isScalarOp(input []byte) (bool, error) {
 	if len(input) != 65 {
 		return false, errors.New("input needs to contain two 256-bit sized values and 1 8-bit value")
