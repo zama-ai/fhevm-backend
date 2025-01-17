@@ -92,6 +92,7 @@ impl<'a> Scheduler<'a> {
 
     pub async fn schedule(&mut self) -> Result<()> {
         let schedule_type = std::env::var("FHEVM_DF_SCHEDULE");
+        let _ = self.decompress_ciphertexts().await;
         match schedule_type {
             Ok(val) => match val.as_str() {
                 "MAX_PARALLELISM" => {
@@ -108,6 +109,30 @@ impl<'a> Scheduler<'a> {
             },
             _ => self.schedule_component_loop().await,
         }
+    }
+
+    async fn decompress_ciphertexts(&mut self) -> Result<()> {
+        let sks = self.sks.clone();
+        tfhe::set_server_key(sks.clone());
+        rayon::broadcast(|_| {
+            tfhe::set_server_key(sks.clone());
+        });
+        self.graph.node_weights_mut().par_bridge().for_each(|node| {
+            let inputs = node
+                .inputs
+                .iter()
+                .map(|i| match i {
+                    DFGTaskInput::Value(i) => DFGTaskInput::Value(i.clone()),
+                    DFGTaskInput::Compressed((t, c)) => DFGTaskInput::Value(
+                        SupportedFheCiphertexts::decompress(*t, c)
+                            .expect("Could not decompress ciphertext"),
+                    ),
+                    DFGTaskInput::Dependence(d) => DFGTaskInput::Dependence(*d),
+                })
+                .collect();
+            node.inputs = inputs;
+        });
+        Ok(())
     }
 
     async fn schedule_fine_grain(&mut self) -> Result<()> {
@@ -308,7 +333,8 @@ impl<'a> Scheduler<'a> {
                 ))
                 .unwrap();
             });
-        }).await?;
+        })
+        .await?;
 
         let results: Vec<_> = dest.iter().collect();
         for result in results {
@@ -467,8 +493,8 @@ fn execute_partition(
                 DFGTaskInput::Value(v) => {
                     cts.push(v.clone());
                 }
-                DFGTaskInput::Compressed((t, c)) => {
-                    cts.push(SupportedFheCiphertexts::decompress(*t, c)?);
+                DFGTaskInput::Compressed(_) => {
+                    panic!("Ciphertexts should no longer be compressed during FHE execution.");
                 }
             }
         }
