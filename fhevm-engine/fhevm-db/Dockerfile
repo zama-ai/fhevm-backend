@@ -4,7 +4,7 @@ FROM rust:1.74
 # Install dependencies and tools
 RUN apt-get update && \
     apt-get install -y --no-install-recommends libpq-dev postgresql-client xxd && \
-    cargo install sqlx-cli --no-default-features --features postgres --locked && \
+    cargo install sqlx-cli --version 0.7.2 --no-default-features --features postgres --locked && \
     apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Copy migrations and initialization script

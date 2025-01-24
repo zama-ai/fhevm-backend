@@ -10,13 +10,19 @@ sqlx migrate run --source /migrations || { echo "Failed to run migrations."; exi
 
 # 3. Insert test tenant with keys
 echo "Start preparing tenant query..."
-TENANT_API_KEY=a1503fb6-d79b-4e9e-826d-44cf262f3e05
-CHAIN_ID=12345
-ACL_CONTRACT_ADDRESS=0x339EcE85B9E11a3A3AA557582784a15d7F82AAf2
-INPUT_VERIFIER_ADDRESS=0x69dE3158643e738a0724418b21a35FAA20CBb1c5
-PKS_FILE="/fhevm-keys/pks"
-SKS_FILE="/fhevm-keys/sks"
-PUBLIC_PARAMS_FILE="/fhevm-keys/pp"
+
+# API and Chain settings
+TENANT_API_KEY=${TENANT_API_KEY:-"a1503fb6-d79b-4e9e-826d-44cf262f3e05"}
+CHAIN_ID=${CHAIN_ID:-"12345"}
+
+# Contract addresses
+ACL_CONTRACT_ADDRESS=${ACL_CONTRACT_ADDRESS:-"0x339EcE85B9E11a3A3AA557582784a15d7F82AAf2"}
+INPUT_VERIFIER_ADDRESS=${INPUT_VERIFIER_ADDRESS:-"0x69dE3158643e738a0724418b21a35FAA20CBb1c5"}
+
+# Key file paths
+PKS_FILE=${PKS_FILE:-"/fhevm-keys/pks"}
+SKS_FILE=${SKS_FILE:-"/fhevm-keys/sks"}
+PUBLIC_PARAMS_FILE=${PUBLIC_PARAMS_FILE:-"/fhevm-keys/pp"}
 
 TMP_CSV="/tmp/tenant_data.csv"
 echo "tenant_api_key,chain_id,acl_contract_address,verifying_contract_address,pks_key,sks_key,public_params" > $TMP_CSV
