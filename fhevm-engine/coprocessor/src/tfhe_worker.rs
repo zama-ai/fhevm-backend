@@ -79,6 +79,8 @@ async fn tfhe_worker_cycle(
     listener.listen("work_available").await?;
 
     let mut immedially_poll_more_work = false;
+    let mut sched_time: u128 = 0; 
+    let mut decomp_time: u128 = 0; 
     loop {
         // only if previous iteration had no work done do the wait
         if !immedially_poll_more_work {
@@ -229,6 +231,7 @@ async fn tfhe_worker_cycle(
 
         // Process tenants in sequence to avoid switching keys during execution
         for (tenant_id, work) in work_by_tenant.iter() {
+            let now = std::time::SystemTime::now();
             let (src, dest) = channel();
             let mut decompressed_ciphertexts: HashMap<&[u8], _> = HashMap::new();
             {
@@ -259,7 +262,12 @@ async fn tfhe_worker_cycle(
             for (h, ct) in decompressed {
                 let _ = decompressed_ciphertexts.insert(h, ct);
             }
-
+	    let batch_decomp_time = now.elapsed().unwrap().as_millis();
+            println!(
+                "\t Decomp batch time (): {}",
+                 batch_decomp_time
+            );
+	    decomp_time += batch_decomp_time;
             let mut s_schedule = tracer.start_with_context("schedule_fhe_work", &loop_ctx);
             s_schedule.set_attribute(KeyValue::new("work_items", work.len() as i64));
             s_schedule.set_attribute(KeyValue::new("tenant_id", *tenant_id as i64));
@@ -383,6 +391,7 @@ async fn tfhe_worker_cycle(
             // Execute the DFG with the current tenant's keys
             let mut s_outer = tracer.start_with_context("wait_and_update_fhe_work", &loop_ctx);
             {
+                let now = std::time::SystemTime::now();
                 let mut rk = tenant_key_cache.write().await;
                 let keys = rk.get(tenant_id).expect("Can't get tenant key from cache");
 
@@ -395,6 +404,12 @@ async fn tfhe_worker_cycle(
                     keys.csks.clone(),
                 );
                 sched.schedule().await?;
+		let batch_time = now.elapsed().unwrap().as_millis();
+		println!(
+                  "\t Exec batch time (sched only): {}",
+                   batch_time
+            	);
+		sched_time += batch_time;
             }
             // Extract the results from the graph
             let res = graph.get_results().unwrap();
@@ -492,6 +507,10 @@ async fn tfhe_worker_cycle(
             s_outer.end();
         }
         s.end();
+	println!(
+            "Exec time (sched): {} / Decomp time: {}",
+            sched_time, decomp_time
+     	);
 
         trx.commit().await?;
 
