@@ -14,7 +14,8 @@ use fhevm_engine_common::{
     types::{get_ct_type, FhevmError, Handle, SupportedFheCiphertexts, HANDLE_LEN},
 };
 use sha3::{Digest, Keccak256};
-use std::{borrow::Borrow, cell::Cell, collections::HashMap};
+use std::{borrow::Borrow, cell::Cell, collections::HashMap, sync::mpsc::channel};
+use rayon::prelude::*;
 #[cfg(feature = "gpu")]
 use tfhe::CudaServerKey;
 use tfhe::{
@@ -115,14 +116,19 @@ impl FhevmExecutor for FhevmExecutorService {
             }
 
             // Decompress compressed ciphertexts for the whole request.
+            let now = std::time::SystemTime::now();
             set_server_key(sks.clone());
-            if Self::decompress_compressed_ciphertexts(&req.compressed_ciphertexts, &mut state)
+            if Self::decompress_compressed_ciphertexts(&req.compressed_ciphertexts, &mut state, sks.clone())
                 .is_err()
             {
                 return SyncComputeResponse {
                     resp: Some(Resp::Error(SyncComputeError::BadInputCiphertext.into())),
                 };
             }
+            println!(
+                "Decomp time (): {}",
+                 now.elapsed().unwrap().as_millis()
+            );
 
             // Run the request's computations in an async block
             let handle = tokio::runtime::Handle::current();
@@ -232,19 +238,27 @@ impl FhevmExecutorService {
     fn decompress_compressed_ciphertexts(
         cts: &Vec<CompressedCiphertext>,
         state: &mut ComputationState,
+	sks: ServerKey,
     ) -> Result<()> {
-        for ct in cts.iter() {
-            let ct_type = get_ct_type(&ct.handle)?;
-            let supported_ct = SupportedFheCiphertexts::decompress(ct_type, &ct.serialization)?;
+        rayon::broadcast(|_| {
+            tfhe::set_server_key(sks.clone());
+        });
+        let (src, dest) = channel();
+        cts.par_iter().enumerate().for_each_with(src, |src, (index, ct)| {
+            let ct_type = get_ct_type(&ct.handle).expect("Invalid CT handle");
+            src.send((SupportedFheCiphertexts::decompress(ct_type, &ct.serialization).expect("Could not decompress ciphertext"), index)).unwrap();
+           });
+       let decompressed: Vec<_> = dest.iter().collect();
+       for (decomp, index) in decompressed.iter() {
             state.ciphertexts.insert(
-                ct.handle.clone(),
-                InMemoryCiphertext {
-                    expanded: supported_ct,
-                    compressed: ct.serialization.clone(),
-                },
-            );
-        }
-        Ok(())
+                cts[*index].handle.clone(),
+                 InMemoryCiphertext {
+                    expanded: decomp.clone(),
+                    compressed: cts[*index].serialization.clone(),
+                 },
+             );
+       }
+         Ok(())
     }
 
     #[allow(dead_code)]
@@ -382,10 +396,10 @@ pub fn build_taskgraph_from_request(
             }
         }
     }
-    println!(
-        "Pre-partition graph: {:?}",
-        daggy::petgraph::dot::Dot::with_config(dfg.graph.graph(), &[])
-    );
+    // println!(
+    //     "Pre-partition graph: {:?}",
+    //     daggy::petgraph::dot::Dot::with_config(dfg.graph.graph(), &[])
+    // );
     Ok(())
 }
 
