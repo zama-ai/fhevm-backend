@@ -12,15 +12,8 @@ sqlx migrate run --source /migrations || { echo "Failed to run migrations."; exi
 # 3. Insert test tenant with keys
 echo "Start preparing tenant query..."
 
-# API and Chain settings
-TENANT_API_KEY=${TENANT_API_KEY:-}
+# Settings
 CHAIN_ID=${CHAIN_ID:-"12345"}
-
-# Contract addresses
-ACL_CONTRACT_ADDRESS=${ACL_CONTRACT_ADDRESS:-}
-INPUT_VERIFIER_ADDRESS=${INPUT_VERIFIER_ADDRESS:-}
-
-# Key file paths
 PKS_FILE=${PKS_FILE:-"/fhevm-keys/pks"}
 SKS_FILE=${SKS_FILE:-"/fhevm-keys/sks"}
 PUBLIC_PARAMS_FILE=${PUBLIC_PARAMS_FILE:-"/fhevm-keys/pp"}
