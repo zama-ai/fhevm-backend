@@ -33,10 +33,10 @@ fi
 TMP_CSV="/tmp/tenant_data.csv"
 echo "tenant_api_key,chain_id,acl_contract_address,verifying_contract_address,pks_key,sks_key,public_params" > $TMP_CSV
 
-echo "$TENANT_API_KEY,$CHAIN_ID,$ACL_CONTRACT_ADDRESS,$INPUT_VERIFIER_ADDRESS,\"\\x$(cat $PKS_FILE | xxd -p | tr -d '\n')\",\"\\x$(cat $SKS_FILE | xxd -p | tr -d '\n')\",\"\\x$(cat $PUBLIC_PARAMS_FILE | xxd -p | tr -d '\n')\"" >> $TMP_CSV
+echo "$TENANT_API_KEY,$CHAIN_ID,$ACL_CONTRACT_ADDRESS,$INPUT_VERIFIER_ADDRESS,\"\\x$(< "$PKS_FILE" xxd -p | tr -d '\n')\",\"\\x$(< "$SKS_FILE" xxd -p | tr -d '\n')\",\"\\x$(< "$PUBLIC_PARAMS_FILE" xxd -p | tr -d '\n')\"" >> $TMP_CSV
 
 echo "Inserting tenant data using \COPY..."
-psql $DATABASE_URL -c "\COPY tenants (tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params) FROM '$TMP_CSV' CSV HEADER;" || {
+psql "$DATABASE_URL" -c "\COPY tenants (tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params) FROM '$TMP_CSV' CSV HEADER;" || {
     echo "Error: Failed to insert tenant data."; exit 1;
 }
 
