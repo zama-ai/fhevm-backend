@@ -10,7 +10,6 @@ RUN apt-get update && \
 # Copy migrations and initialization script
 COPY fhevm-engine/fhevm-db/initialize_db.sh /initialize_db.sh
 COPY fhevm-engine/fhevm-db/migrations /migrations
-COPY fhevm-engine/fhevm-keys /fhevm-keys
 
 # Make the script executable
 RUN chmod +x /initialize_db.sh
