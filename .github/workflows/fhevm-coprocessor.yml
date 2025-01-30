@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - aw/fix-unknown-platform
     paths:
       - .github/workflows/fhevm-coprocessor.yml
       - .github/workflows/common-docker.yml
