@@ -69,7 +69,8 @@ jobs:
           ${{ runner.os }}-cargo-build-
 
     - name: Init database
-      run: make -C coprocessor init_local_db
+      run: make init_local_db
+      working-directory: fhevm-engine/coprocessor
   
     - name: Run tests
       run: cargo test --verbose
