@@ -44,7 +44,7 @@ pub struct FhevmKeys {
     pub compact_public_key: CompactPublicKey,
     pub public_params: Arc<CompactPkeCrs>,
     #[cfg(feature = "gpu")]
-    pub gpu_server_key: CudaServerKey,
+    pub compressed_server_key: CompressedServerKey,
 }
 
 pub struct SerializedFhevmKeys {
@@ -62,14 +62,14 @@ impl FhevmKeys {
         let compact_public_key = CompactPublicKey::new(&client_key);
         let crs = CompactPkeCrs::from_config(config, MAX_BITS_TO_PROVE).expect("CRS creation");
         #[cfg(feature = "gpu")]
-        let gpu_server_key = CompressedServerKey::new(&client_key).decompress_to_gpu();
+        let compressed_server_key = CompressedServerKey::new(&client_key);
         FhevmKeys {
                 server_key,
                 client_key: Some(client_key),
                 compact_public_key,
                 public_params: Arc::new(crs.clone()),
                 #[cfg(feature = "gpu")]
-                gpu_server_key,
+                compressed_server_key,
         }
     }
 
@@ -88,7 +88,7 @@ impl FhevmKeys {
     }
     pub fn set_gpu_server_key_for_current_thread(&self) {
         #[cfg(feature = "gpu")]
-        set_server_key(self.gpu_server_key.clone());
+        set_server_key(self.compressed_server_key.decompress_to_gpu());
         #[cfg(not(feature = "gpu"))]
         set_server_key(self.server_key.clone());
     }
@@ -163,8 +163,8 @@ impl From<SerializedFhevmKeys> for FhevmKeys {
                 safe_deserialize_key(&f.public_params).expect("deserialize public params"),
             ),
             #[cfg(feature = "gpu")]
-            gpu_server_key: CompressedServerKey::new(&client_key.expect("missing client key"))
-                .decompress_to_gpu(),
+            compressed_server_key: CompressedServerKey::new(&client_key.expect("missing client key"))
+                ,
         }
     }
 }
