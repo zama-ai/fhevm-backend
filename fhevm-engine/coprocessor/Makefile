@@ -26,6 +26,11 @@ recreate_db:
 	$(MAKE) cleanup
 	$(MAKE) init_db
 
+.PHONY: init_local_db
+init_local_db:
+	$(DB_URL) sqlx db create
+	$(DB_URL) sqlx migrate run
+
 .PHONY: clean_run
 clean_run:
 	$(MAKE) recreate_db

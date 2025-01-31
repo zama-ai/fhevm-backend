@@ -9,9 +9,23 @@ on:
       - main
 
 jobs:
-  test:
+  cargo-tests:
     runs-on: ubuntu-latest
 
+    services:
+      postgres:
+        image: postgres:latest
+        ports:
+          - 5432:5432
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: coprocessor
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
     strategy:
       matrix:
         rust: [1.82.0]
@@ -54,6 +68,9 @@ jobs:
         restore-keys: |
           ${{ runner.os }}-cargo-build-
 
+    - name: Init database
+      run: make -C coprocessor init_local_db
+  
     - name: Run tests
       run: cargo test --verbose
       working-directory: fhevm-engine
