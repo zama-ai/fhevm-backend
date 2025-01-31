@@ -27,6 +27,9 @@ jobs:
         profile: minimal
         override: true
 
+    - name: Install protobuf-compiler
+      run: sudo apt-get install -y protobuf-compiler
+
     - name: Cache cargo registry
       uses: actions/cache@v2
       with:
