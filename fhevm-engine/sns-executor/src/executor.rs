@@ -9,10 +9,16 @@ use tokio::select;
 use tokio::sync::broadcast;
 use tracing::{debug, error, info};
 
-use crate::Config;
 use crate::{switch_and_squash::Ciphertext128, KeySet};
+use crate::{Config, DBConfig};
 
 use fhevm_engine_common::types::{get_ct_type, SupportedFheCiphertexts};
+
+enum ConnStatus {
+    Established(sqlx::pool::PoolConnection<sqlx::Postgres>),
+    Failed,
+    Cancelled,
+}
 
 struct SnSTask {
     handle: Vec<u8>,
@@ -24,7 +30,7 @@ struct SnSTask {
 pub(crate) async fn run_loop(
     keys: Option<KeySet>,
     conf: &Config,
-    mut cancel: broadcast::Receiver<()>,
+    mut cancel_chan: broadcast::Receiver<()>,
 ) -> Result<(), Box<dyn Error>> {
     let keys = keys.unwrap_or_else(|| unimplemented!("Read keys from the database"));
     let conf = &conf.db;
@@ -38,29 +44,20 @@ pub(crate) async fn run_loop(
     listener.listen(&conf.listen_channel).await?;
 
     loop {
-        let mut conn = match acquire_connection(&pool).await {
-            Some(conn) => conn,
-            None => continue, // Retry acquiring after a delay
+        let mut conn = match acquire_connection(&pool, &mut cancel_chan).await {
+            ConnStatus::Established(conn) => conn,
+            ConnStatus::Failed => continue, // Retry to reacquire a connection
+            ConnStatus::Cancelled => return Ok(()),
         };
 
         loop {
-            let mut db_txn = match conn.begin().await {
-                Ok(txn) => txn,
-                Err(err) => {
-                    error!(target: "worker", "Failed to begin transaction: {err}");
-                    break; // Break to reacquire a connection
-                }
-            };
-
-            if let Some(mut tasks) = query_sns_tasks(&mut db_txn, conf.batch_limit).await? {
-                process_tasks(&mut tasks, &keys)?;
-                update_large_ct(&mut db_txn, &tasks).await?;
-                notify_large_ct_ready(&mut db_txn, &conf.notify_channel).await?;
-                db_txn.commit().await?;
+            if let Err(err) = poll_and_execute_sns_tasks(&mut conn, &keys, conf).await {
+                error!(target: "worker", "Failed to poll and execute tasks: {err}");
+                break; // Break to reacquire a connection
             }
 
             select! {
-                _ = cancel.recv() => return Ok(()),
+                _ = cancel_chan.recv() => return Ok(()),
                 _ = listener.try_recv() => {
                     debug!(target: "worker", "Received notification");
                 }
@@ -69,13 +66,45 @@ pub(crate) async fn run_loop(
     }
 }
 
-async fn acquire_connection(pool: &PgPool) -> Option<sqlx::pool::PoolConnection<sqlx::Postgres>> {
-    match pool.acquire().await {
-        Ok(conn) => Some(conn),
+/// Polls the database for tasks and executes them.
+async fn poll_and_execute_sns_tasks(
+    conn: &mut sqlx::pool::PoolConnection<sqlx::Postgres>,
+    keys: &KeySet,
+    conf: &DBConfig,
+) -> Result<(), Box<dyn Error>> {
+    let mut db_txn = match conn.begin().await {
+        Ok(txn) => txn,
         Err(err) => {
-            error!(target: "worker", "Failed to acquire connection: {err}");
-            tokio::time::sleep(Duration::from_secs(3)).await;
-            None
+            error!(target: "worker", "Failed to begin transaction: {err}");
+            return Err(err.into());
+        }
+    };
+
+    if let Some(mut tasks) = query_sns_tasks(&mut db_txn, conf.batch_limit).await? {
+        process_tasks(&mut tasks, keys)?;
+        update_large_ct(&mut db_txn, &tasks).await?;
+        notify_large_ct_ready(&mut db_txn, &conf.notify_channel).await?;
+        db_txn.commit().await?;
+    }
+
+    Ok(())
+}
+
+async fn acquire_connection(
+    pool: &PgPool,
+    cancel_chan: &mut broadcast::Receiver<()>,
+) -> ConnStatus {
+    select! {
+        conn = pool.acquire() => match conn {
+            Ok(conn) =>   ConnStatus::Established(conn),
+            Err(err) => {
+                error!(target: "worker", "Failed to acquire connection: {err}");
+                ConnStatus::Failed
+            }
+        },
+        _ = cancel_chan.recv() => {
+            info!(target: "worker", "Cancellation received while acquiring connection");
+            ConnStatus::Cancelled
         }
     }
 }
@@ -86,11 +115,12 @@ async fn query_sns_tasks(
     limit: u32,
 ) -> Result<Option<Vec<SnSTask>>, Box<dyn std::error::Error>> {
     let records = sqlx::query!(
-        "
+        " 
         SELECT handle, ciphertext
         FROM ciphertexts
         WHERE ciphertext IS NOT NULL
-          AND status = 'DECRYPTABLE'
+          AND is_allowed = TRUE
+          AND is_sent = FALSE
           AND large_ct IS NULL
         FOR UPDATE SKIP LOCKED
         LIMIT $1;",
@@ -100,8 +130,6 @@ async fn query_sns_tasks(
     .await?;
 
     info!(target: "sns", { count = records.len()}, "Fetched SnS tasks");
-
-    tokio::time::sleep(time::Duration::from_secs(5)).await;
 
     if records.is_empty() {
         return Ok(None);
@@ -163,8 +191,7 @@ async fn update_large_ct(
             sqlx::query!(
                 "
                 UPDATE ciphertexts
-                SET large_ct = $1,
-                    status = 'COMPUTED'
+                SET large_ct = $1
                 WHERE handle = $2;",
                 large_ct_bytes,
                 task.handle
