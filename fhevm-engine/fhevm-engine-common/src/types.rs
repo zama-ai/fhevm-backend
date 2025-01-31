@@ -393,8 +393,8 @@ impl SupportedFheCiphertexts {
 
     pub fn to_regular_ciphertext(self) -> BaseRadixCiphertext<Ciphertext> {
         match self {
-            SupportedFheCiphertexts::FheBool(_v) => {
-                unimplemented!()
+            SupportedFheCiphertexts::FheBool(v) => {
+                BaseRadixCiphertext::from(vec![v.into_raw_parts()])
             }
             SupportedFheCiphertexts::FheUint4(v) => v.into_raw_parts().0,
             SupportedFheCiphertexts::FheUint8(v) => v.into_raw_parts().0,
