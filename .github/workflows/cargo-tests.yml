@@ -42,7 +42,9 @@ jobs:
         override: true
 
     - name: Install protobuf-compiler
-      run: sudo apt-get install -y protobuf-compiler
+      run: |
+        sudo apt-get install -y protobuf-compiler && \
+        cargo install sqlx-cli
 
     - name: Cache cargo registry
       uses: actions/cache@v2
