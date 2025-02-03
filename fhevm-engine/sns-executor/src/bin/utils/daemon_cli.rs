@@ -4,7 +4,7 @@ use clap::{command, Parser};
 #[command(version, about, long_about = None)]
 pub struct Args {
     /// Work items batch size
-    #[arg(long, default_value_t = 3)]
+    #[arg(long, default_value_t = 4)]
     pub work_items_batch_size: u32,
 
     /// NOTIFY/LISTEN channel for database that the worker listen to
@@ -14,6 +14,14 @@ pub struct Args {
     /// NOTIFY/LISTEN channel for database that the worker notify to
     #[arg(long)]
     pub pg_notify_channel: String,
+
+    /// Polling interval in seconds
+    #[arg(long, default_value_t = 60)]
+    pub pg_polling_interval: u32,
+
+    /// Postgres pool connections
+    #[arg(long, default_value_t = 10)]
+    pub pg_pool_connections: u32,
 
     /// Postgres database url. If unspecified DATABASE_URL environment variable is used
     #[arg(long)]

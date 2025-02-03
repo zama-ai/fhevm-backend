@@ -280,6 +280,7 @@ impl SnsClientKey {
         }
     }
 
+    #[cfg(feature = "decrypt_128")]
     pub fn decrypt_128(&self, ct: &Ciphertext128) -> u128 {
         if ct.is_empty() {
             return 0;
@@ -300,6 +301,7 @@ impl SnsClientKey {
         recomposer.value()
     }
 
+    #[cfg(feature = "decrypt_128")]
     pub(crate) fn decrypt_block_128(&self, ct: &Ciphertext128Block) -> Z128 {
         let total_bits = self.params.total_block_bits() as usize;
         let raw_plaintext = decrypt_lwe_ciphertext(&self.key, ct);

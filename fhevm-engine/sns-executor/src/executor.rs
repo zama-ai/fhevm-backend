@@ -1,5 +1,5 @@
 use std::error::Error;
-use std::time::{self, Duration};
+use std::time::Duration;
 
 use sqlx::postgres::PgListener;
 use sqlx::{Acquire, PgPool, Postgres, Transaction};
@@ -13,6 +13,8 @@ use crate::{switch_and_squash::Ciphertext128, KeySet};
 use crate::{Config, DBConfig};
 
 use fhevm_engine_common::types::{get_ct_type, SupportedFheCiphertexts};
+
+const RETRY_DB_CONN_INTERVAL: Duration = Duration::from_secs(5);
 
 enum ConnStatus {
     Established(sqlx::pool::PoolConnection<sqlx::Postgres>),
@@ -36,7 +38,7 @@ pub(crate) async fn run_loop(
     let conf = &conf.db;
 
     let pool = sqlx::postgres::PgPoolOptions::new()
-        .max_connections(1)
+        .max_connections(conf.max_connections)
         .connect(&conf.url)
         .await?;
 
@@ -46,7 +48,10 @@ pub(crate) async fn run_loop(
     loop {
         let mut conn = match acquire_connection(&pool, &mut cancel_chan).await {
             ConnStatus::Established(conn) => conn,
-            ConnStatus::Failed => continue, // Retry to reacquire a connection
+            ConnStatus::Failed => {
+                tokio::time::sleep(RETRY_DB_CONN_INTERVAL).await;
+                continue; // Retry to reacquire a connection
+            }
             ConnStatus::Cancelled => return Ok(()),
         };
 
@@ -60,6 +65,9 @@ pub(crate) async fn run_loop(
                 _ = cancel_chan.recv() => return Ok(()),
                 _ = listener.try_recv() => {
                     debug!(target: "worker", "Received notification");
+                },
+                _ = tokio::time::sleep(Duration::from_secs(conf.polling_interval.into())) => {
+                    debug!(target: "worker", "Polling timeout, rechecking for tasks");
                 }
             }
         }
@@ -85,6 +93,8 @@ async fn poll_and_execute_sns_tasks(
         update_large_ct(&mut db_txn, &tasks).await?;
         notify_large_ct_ready(&mut db_txn, &conf.notify_channel).await?;
         db_txn.commit().await?;
+    } else {
+        db_txn.rollback().await?;
     }
 
     Ok(())
@@ -159,20 +169,27 @@ fn process_tasks(tasks: &mut [SnSTask], keys: &KeySet) -> Result<(), Box<dyn std
         let blocks = raw_ct.blocks().len();
         info!(target: "sns",  { handle, blocks }, "Converting ciphertext");
 
-        let large_ct = keys
+        let sns_key = keys
             .public_keys
             .sns_key
             .as_ref()
-            .unwrap()
-            .to_large_ciphertext(&raw_ct)
-            .unwrap();
+            .ok_or_else(|| "sns_key not found".to_string())?;
+
+        let large_ct = sns_key.to_large_ciphertext(&raw_ct).map_err(|e| {
+            format!(
+                "Failed to convert to large ciphertext: handle: {} {}",
+                handle, e
+            )
+        })?;
 
         info!(target: "sns",  { handle }, "Ciphertext converted");
 
         // Optional: Decrypt and log for debugging
-        // TODO: Remove this in production
-        let decrypted = keys.sns_secret_key.decrypt_128(&large_ct);
-        info!(target: "sns", { handle, decrypted }, "Decrypted plaintext");
+        #[cfg(feature = "decrypt_128")]
+        {
+            let decrypted = keys.sns_secret_key.decrypt_128(&large_ct);
+            info!(target: "sns", { handle, decrypted }, "Decrypted plaintext");
+        }
 
         task.large_ct = Some(large_ct);
     }
@@ -199,7 +216,7 @@ async fn update_large_ct(
             .execute(db_txn.as_mut())
             .await?;
         } else {
-            error!("Large ciphertext not computed for task");
+            error!(target: "worker", handle = ?task.handle, "Large ciphertext not computed for task");
         }
     }
     Ok(())
@@ -210,7 +227,8 @@ async fn notify_large_ct_ready(
     db_txn: &mut Transaction<'_, Postgres>,
     db_channel: &str,
 ) -> Result<(), Box<dyn Error>> {
-    sqlx::query(&format!("NOTIFY {}", db_channel))
+    sqlx::query("SELECT pg_notify($1, '')")
+        .bind(db_channel)
         .execute(db_txn.as_mut())
         .await?;
     Ok(())

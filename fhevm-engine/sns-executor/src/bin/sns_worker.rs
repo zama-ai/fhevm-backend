@@ -32,6 +32,8 @@ async fn main() {
             listen_channel: args.pg_listen_channel,
             notify_channel: args.pg_notify_channel,
             batch_limit: args.work_items_batch_size,
+            polling_interval: args.pg_polling_interval,
+            max_connections: args.pg_pool_connections,
         },
     };
 

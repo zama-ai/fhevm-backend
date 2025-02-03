@@ -24,6 +24,8 @@ pub struct DBConfig {
     pub listen_channel: String,
     pub notify_channel: String,
     pub batch_limit: u32,
+    pub polling_interval: u32,
+    pub max_connections: u32,
 }
 
 pub struct Config {

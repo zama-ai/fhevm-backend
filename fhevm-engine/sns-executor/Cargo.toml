@@ -41,5 +41,5 @@ name = "sns_worker"
 path = "src/bin/sns_worker.rs"
  
 
-
-
+[features]
+decrypt_128 = []
