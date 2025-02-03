@@ -163,7 +163,7 @@ fn process_tasks(tasks: &mut [SnSTask], keys: &KeySet) -> Result<(), Box<dyn std
 
     for task in tasks.iter_mut() {
         let ct = decompress_ct(&task.handle, &task.compressed)?;
-        let raw_ct = ct.to_regular_ciphertext();
+        let raw_ct = ct.to_ciphertext64();
         let handle = to_hex(&task.handle);
 
         let blocks = raw_ct.blocks().len();

@@ -391,7 +391,7 @@ impl SupportedFheCiphertexts {
         }
     }
 
-    pub fn to_regular_ciphertext(self) -> BaseRadixCiphertext<Ciphertext> {
+    pub fn to_ciphertext64(self) -> BaseRadixCiphertext<Ciphertext> {
         match self {
             SupportedFheCiphertexts::FheBool(v) => {
                 BaseRadixCiphertext::from(vec![v.into_raw_parts()])
