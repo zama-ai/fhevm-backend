@@ -61,7 +61,8 @@ jobs:
       working-directory: fhevm-engine/coprocessor
   
     - name: Run tests
-      run: cargo test --release -- --test-threads=1
+      run: |
+        DATABASE_URL=postgresql://postgres:postgres@localhost:5432/coprocessor cargo test --release -- --test-threads=1
       working-directory: fhevm-engine
 
     # - name: Upload test results
