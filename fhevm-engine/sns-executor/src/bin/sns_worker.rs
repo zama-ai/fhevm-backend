@@ -1,12 +1,21 @@
 use serde::{de::DeserializeOwned, Serialize};
 use sns_executor::DBConfig;
 use std::fs;
+use tokio::{signal::unix, sync::broadcast};
 
 mod utils;
 
 fn read_element<T: DeserializeOwned + Serialize>(file_path: String) -> anyhow::Result<T> {
     let read_element = fs::read(file_path.clone())?;
     Ok(bincode::deserialize_from(read_element.as_slice())?)
+}
+
+fn handle_sigint(cancel_tx: broadcast::Sender<()>) {
+    tokio::spawn(async move {
+        let mut signal = unix::signal(unix::SignalKind::interrupt()).unwrap();
+        signal.recv().await;
+        cancel_tx.send(()).unwrap();
+    });
 }
 
 #[tokio::main]
@@ -37,7 +46,9 @@ async fn main() {
         },
     };
 
-    let (_cancel_tx, cancel_rx) = tokio::sync::broadcast::channel(1);
+    // Handle SIGINIT signals
+    let (cancel_tx, cancel_rx) = broadcast::channel(1);
+    handle_sigint(cancel_tx);
 
     if let Err(err) = sns_executor::run(keys, &conf, cancel_rx).await {
         tracing::error!("Worker failed: {:?}", err);
