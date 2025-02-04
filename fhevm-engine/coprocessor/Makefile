@@ -12,24 +12,11 @@ cleanup:
 .PHONY: init_db
 init_db:
 	docker compose up -d
-	sleep 3
-	$(DB_URL) sqlx db create
-	$(DB_URL) sqlx migrate run
-	$(DB_URL) cargo test setup_test_user -- --nocapture --ignored
-
-.PHONY: run
-run:
-	docker compose up -d
 
 .PHONY: recreate_db
 recreate_db:
 	$(MAKE) cleanup
 	$(MAKE) init_db
-
-.PHONY: init_local_db
-init_local_db:
-	$(DB_URL) sqlx db create
-	$(DB_URL) sqlx migrate run
 
 .PHONY: clean_run
 clean_run:
