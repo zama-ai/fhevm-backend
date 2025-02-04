@@ -19,6 +19,11 @@ jobs:
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
+      with:
+        lfs: true
+
+    - name: Checkout LFS objects
+      run: git lfs checkout
 
     - name: Set up Rust
       uses: actions-rs/toolchain@v1
@@ -59,7 +64,7 @@ jobs:
     - name: Init database
       run: make init_db
       working-directory: fhevm-engine/coprocessor
-  
+
     - name: Run tests
       run: |
         DATABASE_URL=postgresql://postgres:postgres@localhost:5432/coprocessor cargo test --release -- --test-threads=1
