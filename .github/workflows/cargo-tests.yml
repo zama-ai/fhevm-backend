@@ -1,4 +1,4 @@
-name: Rust CI
+name: Rust tests
 
 on:
   push:
@@ -28,20 +28,41 @@ jobs:
     - name: Checkout LFS objects
       run: git lfs checkout
 
-    - uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8 # v1.10.1
+    - name: Set up Rust
+      uses: actions-rs/toolchain@b2417cde72dcf67f306c0ae8e0828a81bf0b189f # v1.0.6
       with:
         toolchain: ${{ matrix.rust }}
-        cache: true
-        cache-on-failure: true
-        cache-workspaces: target
-        cache-directories: |
-          ~/.cargo/registry
-          ~/.cargo/git
+        profile: minimal
+        override: true
 
     - name: Install protobuf-compiler
       run: |
         sudo apt-get install -y protobuf-compiler && \
         cargo install sqlx-cli
+
+    - name: Cache cargo registry
+      uses: actions/cache@e12d46a63a90f2fae62d114769bbf2a179198b5c # v3.3.3
+      with:
+        path: ~/.cargo/registry
+        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-registry-
+
+    - name: Cache cargo index
+      uses: actions/cache@e12d46a63a90f2fae62d114769bbf2a179198b5c # v3.3.3
+      with:
+        path: ~/.cargo/git
+        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-index-
+
+    - name: Cache cargo build
+      uses: actions/cache@e12d46a63a90f2fae62d114769bbf2a179198b5c # v3.3.3
+      with:
+        path: target
+        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
+        restore-keys: |
+          ${{ runner.os }}-cargo-build-
 
     - name: Init database
       run: make init_db
