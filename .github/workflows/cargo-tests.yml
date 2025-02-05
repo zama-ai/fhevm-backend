@@ -37,12 +37,11 @@ jobs:
         cache-directories: |
           ~/.cargo/registry
           ~/.cargo/git
-        components: protobuf-compiler, sqlx-cli
 
-    # - name: Install protobuf-compiler
-    #   run: |
-    #     sudo apt-get install -y protobuf-compiler && \
-    #     cargo install sqlx-cli
+    - name: Install protobuf-compiler
+      run: |
+        sudo apt-get install -y protobuf-compiler && \
+        cargo install sqlx-cli
 
     - name: Init database
       run: make init_db
