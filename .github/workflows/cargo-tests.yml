@@ -1,12 +1,13 @@
 name: Rust tests
 
 on:
-  push:
-    branches:
-      - main
   pull_request:
     branches:
       - main
+    paths:
+      - .github/workflows/cargo-tests.yml
+      - fhevm-engine/**
+      - proto/**
 
 jobs:
   cargo-tests:
@@ -35,7 +36,7 @@ jobs:
         profile: minimal
         override: true
 
-    - name: Install protobuf-compiler
+    - name: Install cargo dependencies
       run: |
         sudo apt-get install -y protobuf-compiler && \
         cargo install sqlx-cli
