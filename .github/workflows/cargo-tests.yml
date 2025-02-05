@@ -10,56 +10,34 @@ on:
 
 jobs:
   cargo-tests:
+    permissions:
+      contents: "read"
+      id-token: "write"
+      packages: "write"
     runs-on: ubuntu-latest
-
     strategy:
       matrix:
         rust: [1.82.0]
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
       with:
         lfs: true
 
     - name: Checkout LFS objects
       run: git lfs checkout
 
-    - name: Set up Rust
-      uses: actions-rs/toolchain@v1
+    - uses: actions-rust-lang/setup-rust-toolchain@11df97af8e8102fd60b60a77dfbf58d40cd843b8 # v1.10.1
       with:
         toolchain: ${{ matrix.rust }}
-        profile: minimal
-        override: true
+        cache: true
+        cache-on-failure: true
 
     - name: Install protobuf-compiler
       run: |
         sudo apt-get install -y protobuf-compiler && \
         cargo install sqlx-cli
-
-    - name: Cache cargo registry
-      uses: actions/cache@v3
-      with:
-        path: ~/.cargo/registry
-        key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-registry-
-
-    - name: Cache cargo index
-      uses: actions/cache@v3
-      with:
-        path: ~/.cargo/git
-        key: ${{ runner.os }}-cargo-index-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-index-
-
-    - name: Cache cargo build
-      uses: actions/cache@v3
-      with:
-        path: target
-        key: ${{ runner.os }}-cargo-build-${{ hashFiles('**/Cargo.lock') }}
-        restore-keys: |
-          ${{ runner.os }}-cargo-build-
 
     - name: Init database
       run: make init_db
@@ -69,10 +47,3 @@ jobs:
       run: |
         DATABASE_URL=postgresql://postgres:postgres@localhost:5432/coprocessor cargo test --release -- --test-threads=1
       working-directory: fhevm-engine
-
-    # - name: Upload test results
-    #   if: failure()
-    #   uses: actions/upload-artifact@v2
-    #   with:
-    #     name: test-results
-    #     path: target/debug/deps
