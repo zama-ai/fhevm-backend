@@ -15,12 +15,7 @@ concurrency:
 
 jobs:
   cargo-tests:
-    runs-on: ${{ matrix.os }}
-
-    strategy:
-      matrix:
-        os: [large_ubuntu_16]
-      fail-fast: false
+    runs-on: large_ubuntu_16
 
     steps:
     - name: Checkout code
