@@ -11,10 +11,7 @@ cleanup:
 
 .PHONY: init_db
 init_db:
-	docker compose up -d db migration
-	sleep 3
-	$(DB_URL) sqlx db create
-	$(DB_URL) sqlx migrate run
+	docker compose up -d --build --force-recreate --no-deps db migration
 
 .PHONY: recreate_db
 recreate_db:
@@ -24,6 +21,11 @@ recreate_db:
 .PHONY: run
 run:
 	docker compose up -d
+
+.PHONY: rerun
+rerun:
+	$(MAKE) cleanup
+	$(MAKE) run
 
 .PHONY: clean_run
 clean_run:
