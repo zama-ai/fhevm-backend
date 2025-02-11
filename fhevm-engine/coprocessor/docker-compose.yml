@@ -19,23 +19,23 @@ services:
       - db:/var/lib/postgresql/data
 
   migration:
-      container_name: db-migration
-      build:
-        context: ../../.
-        dockerfile: fhevm-engine/fhevm-db/Dockerfile
-        tags:
-        - "fhevm-db-migration:v0.7.0-local"
-      image: fhevm-db-migration:v0.7.0-local
-      environment:
-        DATABASE_URL: postgresql://postgres:postgres@db:5432/coprocessor
-        TENANT_API_KEY: "a1503fb6-d79b-4e9e-826d-44cf262f3e05"
-        ACL_CONTRACT_ADDRESS: "0x339EcE85B9E11a3A3AA557582784a15d7F82AAf2"
-        INPUT_VERIFIER_ADDRESS: "0x69dE3158643e738a0724418b21a35FAA20CBb1c5"
-      volumes:
-        - ../fhevm-keys:/fhevm-keys
-      depends_on:
-        db:
-          condition: service_healthy
+    container_name: db-migration
+    build:
+      context: ../../.
+      dockerfile: fhevm-engine/fhevm-db/Dockerfile
+      tags:
+      - "fhevm-db-migration:v0.7.0-local"
+    image: fhevm-db-migration:v0.7.0-local
+    environment:
+      DATABASE_URL: postgresql://postgres:postgres@db:5432/coprocessor
+      TENANT_API_KEY: "a1503fb6-d79b-4e9e-826d-44cf262f3e05"
+      ACL_CONTRACT_ADDRESS: "0x339EcE85B9E11a3A3AA557582784a15d7F82AAf2"
+      INPUT_VERIFIER_ADDRESS: "0x69dE3158643e738a0724418b21a35FAA20CBb1c5"
+    volumes:
+      - ../fhevm-keys:/fhevm-keys
+    depends_on:
+      db:
+        condition: service_healthy
 
   coprocessor:
     container_name: coprocessor

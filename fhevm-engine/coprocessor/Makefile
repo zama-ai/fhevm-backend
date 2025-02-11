@@ -12,6 +12,8 @@ cleanup:
 .PHONY: init_db
 init_db:
 	docker compose up -d --build --force-recreate --no-deps db migration
+	docker wait db-migration
+	@echo "Database migration completed"
 
 .PHONY: recreate_db
 recreate_db:
