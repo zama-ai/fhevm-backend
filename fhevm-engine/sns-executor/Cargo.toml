@@ -44,3 +44,7 @@ path = "src/bin/sns_worker.rs"
 
 [features]
 decrypt_128 = []
+
+[dev-dependencies.sns-executor]
+path = "." 
+features = ["decrypt_128"]
