@@ -68,7 +68,7 @@ fn install_signal_handlers(cancel_token: CancellationToken) -> anyhow::Result<()
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
     let conf = Conf::parse();
-    let signer = PrivateKeySigner::from_str(&conf.private_key.trim())?;
+    let signer = PrivateKeySigner::from_str(conf.private_key.trim())?;
     let wallet = EthereumWallet::new(signer.clone());
     let provider = Arc::new(
         ProviderBuilder::new()

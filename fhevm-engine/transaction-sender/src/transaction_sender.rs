@@ -27,13 +27,13 @@ impl<P: Provider<Ethereum> + Clone + 'static> TransactionSender<P> {
     ) -> Self {
         let operations: Vec<Arc<dyn ops::TransactionOperation<P>>> = vec![
             Arc::new(ops::verify_proofs::VerifyProofsOperation::new(
-                zkpok_manager_address.clone(),
+                *zkpok_manager_address,
                 provider.clone(),
                 signer.clone(),
                 conf.clone(),
             )),
             Arc::new(ops::add_ciphertexts::AddCiphertextsOperation::new(
-                ciphertext_storage_address.clone(),
+                *ciphertext_storage_address,
                 provider.clone(),
             )),
         ];
