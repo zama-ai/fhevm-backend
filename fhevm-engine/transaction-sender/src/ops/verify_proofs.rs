@@ -2,6 +2,7 @@ use super::TransactionOperation;
 use crate::VERIFY_PROOFS_TARGET;
 use alloy::primitives::{Address, U256};
 use alloy::providers::Provider;
+use alloy::rpc::types::TransactionRequest;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::SignerSync;
 use alloy::sol;
@@ -92,6 +93,59 @@ impl<P: alloy::providers::Provider<Ethereum> + Clone + 'static> VerifyProofsOper
         .await?;
         Ok(())
     }
+
+    async fn process_transaction(
+        &self,
+        db_pool: Pool<Postgres>,
+        provider: std::sync::Arc<P>,
+        txn_request: (i64, impl Into<TransactionRequest>),
+    ) -> anyhow::Result<()> {
+        let txn_req = txn_request.1.into();
+        let transaction = match provider.send_transaction(txn_req).await {
+            Ok(txn) => txn,
+            Err(e) => {
+                error!(target: VERIFY_PROOFS_TARGET, "Transaction sending failed with error {}", e);
+                if let Some(ZKPoKManagerErrors::CoprocessorHasAlreadySigned(_)) = e
+                    .as_error_resp()
+                    .and_then(|payload| payload.as_decoded_error::<ZKPoKManagerErrors>(true))
+                {
+                    info!(target: VERIFY_PROOFS_TARGET, "Coprocessor has already signed, removing proof");
+                    self.remove_proof_by_id(&db_pool, txn_request.0).await?;
+                    return Ok(());
+                } else {
+                    self.update_retry_count_by_proof_id(&db_pool, txn_request.0)
+                        .await?;
+                    return Err(anyhow::Error::new(e));
+                }
+            }
+        };
+
+        let receipt = match transaction.get_receipt().await {
+            Ok(receipt) => receipt,
+            Err(e) => {
+                error!(target: VERIFY_PROOFS_TARGET, "Transaction failed with error {}", e);
+                self.update_retry_count_by_proof_id(&db_pool, txn_request.0)
+                    .await?;
+                return Err(anyhow::Error::new(e));
+            }
+        };
+
+        if receipt.status() {
+            info!(target: VERIFY_PROOFS_TARGET, "Transaction {} succeeded", receipt.transaction_hash);
+            self.remove_proof_by_id(&db_pool, txn_request.0).await?;
+        } else {
+            error!(target: VERIFY_PROOFS_TARGET, "Transaction {} failed with status {}", 
+                receipt.transaction_hash, receipt.status());
+            self.update_retry_count_by_proof_id(&db_pool, txn_request.0)
+                .await?;
+            return Err(anyhow::anyhow!(
+                "Transaction {} failed with status {}",
+                receipt.transaction_hash,
+                receipt.status()
+            ));
+        }
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -169,44 +223,9 @@ where
             let provider = self.provider.clone();
             let self_clone = self.clone();
             join_set.spawn(async move {
-                let transaction = match provider.send_transaction(txn_request.1).await {
-                    Ok(txn) => txn,
-                    Err(e) => {
-                        error!(target: VERIFY_PROOFS_TARGET, "Transaction sending failed with error {}", e);
-                        if let Some(ZKPoKManagerErrors::CoprocessorHasAlreadySigned(_)) = e
-                            .as_error_resp()
-                            .and_then(|payload| payload.as_decoded_error::<ZKPoKManagerErrors>(true))
-                        {
-                            info!(target: VERIFY_PROOFS_TARGET, "Coprocessor has already signed, removing proof");
-                            self_clone.remove_proof_by_id(&db_pool, txn_request.0).await?;
-                            return Ok::<(), anyhow::Error>(());
-                        } else {
-                            self_clone.update_retry_count_by_proof_id(&db_pool, txn_request.0).await?;
-                            return Err(anyhow::Error::new(e));
-                        }
-                    }
-                };
-
-                let receipt = match transaction.get_receipt().await {
-                    Ok(receipt) => receipt,
-                    Err(e) => {
-                        error!(target: VERIFY_PROOFS_TARGET, "Transaction failed with error {}", e);
-                        self_clone.update_retry_count_by_proof_id(&db_pool, txn_request.0).await?;
-                        return Err(anyhow::Error::new(e));
-                    }
-                };
-
-                if receipt.status() {
-                    info!(target: VERIFY_PROOFS_TARGET, "Transaction {} succeeded", receipt.transaction_hash);
-                    self_clone.remove_proof_by_id(&db_pool, txn_request.0).await?;
-                } else {
-                    error!(target: VERIFY_PROOFS_TARGET, "Transaction {} failed with status {}", 
-                        receipt.transaction_hash, receipt.status());
-                    self_clone.update_retry_count_by_proof_id(&db_pool, txn_request.0).await?;
-                    return Err(anyhow::anyhow!("Transaction {} failed with status {}", receipt.transaction_hash, receipt.status()));
-                }
-
-                Ok(())
+                self_clone
+                    .process_transaction(db_pool, provider, txn_request)
+                    .await
             });
         }
         while let Some(res) = join_set.join_next().await {
