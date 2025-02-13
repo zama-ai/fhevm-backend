@@ -57,53 +57,54 @@ async fn schedule_multi_erc20() -> Result<(), Box<dyn std::error::Error>> {
             e
         })?;
     let keys = &keys[0];
-    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
-    let the_list = builder
-        .push(100_u64) // Balance source
-        .push(10_u64) // Transfer amount
-        .push(20_u64) // Balance destination
-        .push(0_u64) // 0
-        .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
-        .unwrap();
-
-    let serialized = safe_serialize(&the_list);
-    println!("Encrypting inputs...");
-    let mut input_request = tonic::Request::new(InputUploadBatch {
-        input_ciphertexts: vec![InputToUpload {
-            input_payload: serialized,
-            signatures: Vec::new(),
-            user_address: test_random_user_address(),
-            contract_address: test_random_contract_address(),
-        }],
-    });
-    input_request.metadata_mut().append(
-        "authorization",
-        MetadataValue::from_str(&api_key_header).unwrap(),
-    );
-    let resp = client.upload_inputs(input_request).await?;
-    let resp = resp.get_ref();
-    assert_eq!(resp.upload_responses.len(), 1);
-    let first_resp = &resp.upload_responses[0];
-    assert_eq!(first_resp.input_handles.len(), 4);
-
-    let handle_bals = first_resp.input_handles[0].handle.clone();
-    let bals = AsyncComputationInput {
-        input: Some(Input::InputHandle(handle_bals.clone())),
-    };
-    let handle_trxa = first_resp.input_handles[1].handle.clone();
-    let trxa = AsyncComputationInput {
-        input: Some(Input::InputHandle(handle_trxa.clone())),
-    };
-    let handle_bald = first_resp.input_handles[2].handle.clone();
-    let bald = AsyncComputationInput {
-        input: Some(Input::InputHandle(handle_bald.clone())),
-    };
-    let handle_zero = first_resp.input_handles[3].handle.clone();
-    let zero = AsyncComputationInput {
-        input: Some(Input::InputHandle(handle_zero.clone())),
-    };
 
     for _ in 0..=(num_samples - 1) as u32 {
+        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+        let the_list = builder
+            .push(100_u64) // Balance source
+            .push(10_u64) // Transfer amount
+            .push(20_u64) // Balance destination
+            .push(0_u64) // 0
+            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .unwrap();
+
+        let serialized = safe_serialize(&the_list);
+        println!("Encrypting inputs...");
+        let mut input_request = tonic::Request::new(InputUploadBatch {
+            input_ciphertexts: vec![InputToUpload {
+                input_payload: serialized,
+                signatures: Vec::new(),
+                user_address: test_random_user_address(),
+                contract_address: test_random_contract_address(),
+            }],
+        });
+        input_request.metadata_mut().append(
+            "authorization",
+            MetadataValue::from_str(&api_key_header).unwrap(),
+        );
+        let resp = client.upload_inputs(input_request).await?;
+        let resp = resp.get_ref();
+        assert_eq!(resp.upload_responses.len(), 1);
+        let first_resp = &resp.upload_responses[0];
+        assert_eq!(first_resp.input_handles.len(), 4);
+
+        let handle_bals = first_resp.input_handles[0].handle.clone();
+        let bals = AsyncComputationInput {
+            input: Some(Input::InputHandle(handle_bals.clone())),
+        };
+        let handle_trxa = first_resp.input_handles[1].handle.clone();
+        let trxa = AsyncComputationInput {
+            input: Some(Input::InputHandle(handle_trxa.clone())),
+        };
+        let handle_bald = first_resp.input_handles[2].handle.clone();
+        let bald = AsyncComputationInput {
+            input: Some(Input::InputHandle(handle_bald.clone())),
+        };
+        let handle_zero = first_resp.input_handles[3].handle.clone();
+        let zero = AsyncComputationInput {
+            input: Some(Input::InputHandle(handle_zero.clone())),
+        };
+
         let le_handle = next_handle();
         output_handles.push(le_handle.clone());
         let ite_handle = next_handle();
