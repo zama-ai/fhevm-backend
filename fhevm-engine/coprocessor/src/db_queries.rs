@@ -8,6 +8,9 @@ use opentelemetry::trace::Span;
 use opentelemetry::KeyValue;
 use sqlx::{query, Postgres};
 
+#[cfg(feature = "gpu")]
+use tfhe::{CompressedServerKey, CudaServerKey};
+
 /// Returns tenant id upon valid authorization request
 pub async fn check_if_api_key_is_valid<T>(
     req: &tonic::Request<T>,
@@ -104,7 +107,7 @@ where
     let mut res = Vec::with_capacity(tenants_to_query.len());
     let keys = query!(
         "
-            SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params
+            SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, cks_key
             FROM tenants
             WHERE tenant_id = ANY($1::INT[])
         ",
@@ -116,15 +119,22 @@ where
     for key in keys {
         let sks: tfhe::ServerKey = safe_deserialize_key(&key.sks_key)
             .expect("We can't deserialize our own validated sks key");
+        #[cfg(feature = "gpu")]
+	let csks: tfhe::CudaServerKey = {
+            let client_key: tfhe::ClientKey = key.cks_key
+            .map(|c| safe_deserialize_key(&c).expect("deserialize client key")).expect("missing client key");
+	    CompressedServerKey::new(&client_key.clone()).decompress_to_gpu()
+	};
         let pks: tfhe::CompactPublicKey = safe_deserialize_key(&key.pks_key)
             .expect("We can't deserialize our own validated pks key");
-        let public_params: tfhe::zk::CompactPkeCrs =
-            safe_deserialize_key(&key.public_params)
-                .expect("We can't deserialize our own validated public params");
+        let public_params: tfhe::zk::CompactPkeCrs = safe_deserialize_key(&key.public_params)
+            .expect("We can't deserialize our own validated public params");
         res.push(TfheTenantKeys {
             tenant_id: key.tenant_id,
             sks,
             pks,
+            #[cfg(feature = "gpu")]
+            csks,
             public_params: Arc::new(public_params),
             chain_id: key.chain_id,
             acl_contract_address: key.acl_contract_address,

@@ -17,6 +17,7 @@ sha3 = { workspace = true }
 tfhe = { workspace = true }
 tokio = { workspace = true }
 tonic = { workspace = true }
+rand = "0.8.5"
 
 # local dependencies
 fhevm-engine-common = { path = "../fhevm-engine-common" }
@@ -24,6 +25,7 @@ scheduler = { path = "../scheduler" }
 
 [features]
 nightly-avx512 = ["tfhe/nightly-avx512"]
+gpu = ["tfhe/gpu", "scheduler/gpu", "fhevm-engine-common/gpu"]
 
 [build-dependencies]
 tonic-build = "0.12"

@@ -21,6 +21,8 @@ use std::{
     collections::HashMap,
     sync::{atomic::AtomicUsize, mpsc::channel},
 };
+#[cfg(feature = "gpu")]
+use tfhe::CudaServerKey;
 use tokio::task::JoinSet;
 
 struct ExecNode {
@@ -51,6 +53,9 @@ pub struct Scheduler<'a> {
     graph: &'a mut Dag<OpNode, OpEdge>,
     edges: Dag<(), OpEdge>,
     rayon_threads: usize,
+    sks: tfhe::ServerKey,
+    #[cfg(feature = "gpu")]
+    csks: tfhe::CudaServerKey,
 }
 
 impl<'a> Scheduler<'a> {
@@ -68,42 +73,79 @@ impl<'a> Scheduler<'a> {
             .load(std::sync::atomic::Ordering::SeqCst)
             == 0
     }
-    pub fn new(graph: &'a mut Dag<OpNode, OpEdge>, rayon_threads: usize) -> Self {
+    pub fn new(
+        graph: &'a mut Dag<OpNode, OpEdge>,
+        rayon_threads: usize,
+        sks: tfhe::ServerKey,
+        #[cfg(feature = "gpu")] csks: tfhe::CudaServerKey,
+    ) -> Self {
         let edges = graph.map(|_, _| (), |_, edge| *edge);
         Self {
             graph,
             edges,
             rayon_threads,
+            sks: sks.clone(),
+            #[cfg(feature = "gpu")]
+            csks: csks.clone(),
         }
     }
 
-    pub async fn schedule(&mut self, server_key: tfhe::ServerKey) -> Result<()> {
+    pub async fn schedule(&mut self) -> Result<()> {
         let schedule_type = std::env::var("FHEVM_DF_SCHEDULE");
+        //let _ = self.decompress_ciphertexts().await;
         match schedule_type {
             Ok(val) => match val.as_str() {
                 "MAX_PARALLELISM" => {
-                    self.schedule_coarse_grain(PartitionStrategy::MaxParallelism, server_key)
+                    self.schedule_coarse_grain(PartitionStrategy::MaxParallelism)
                         .await
                 }
                 "MAX_LOCALITY" => {
-                    self.schedule_coarse_grain(PartitionStrategy::MaxLocality, server_key)
+                    self.schedule_coarse_grain(PartitionStrategy::MaxLocality)
                         .await
                 }
-                "LOOP" => self.schedule_component_loop(server_key).await,
-                "FINE_GRAIN" => self.schedule_fine_grain(server_key).await,
+                "LOOP" => self.schedule_component_loop().await,
+                "FINE_GRAIN" => self.schedule_fine_grain().await,
                 unhandled => panic!("Scheduling strategy {:?} does not exist", unhandled),
             },
-            _ => self.schedule_component_loop(server_key).await,
+            _ => self.schedule_component_loop().await,
         }
     }
 
-    async fn schedule_fine_grain(&mut self, server_key: tfhe::ServerKey) -> Result<()> {
+    async fn decompress_ciphertexts(&mut self) -> Result<()> {
+        let sks = self.sks.clone();
+        tfhe::set_server_key(sks.clone());
+        rayon::broadcast(|_| {
+            tfhe::set_server_key(sks.clone());
+        });
+        self.graph.node_weights_mut().par_bridge().for_each(|node| {
+            let inputs = node
+                .inputs
+                .iter()
+                .map(|i| match i {
+                    DFGTaskInput::Value(i) => DFGTaskInput::Value(i.clone()),
+                    DFGTaskInput::Compressed((t, c)) => DFGTaskInput::Value(
+                        SupportedFheCiphertexts::decompress(*t, c)
+                            .expect("Could not decompress ciphertext"),
+                    ),
+                    DFGTaskInput::Dependence(d) => DFGTaskInput::Dependence(*d),
+                })
+                .collect();
+            node.inputs = inputs;
+        });
+        Ok(())
+    }
+
+    async fn schedule_fine_grain(&mut self) -> Result<()> {
         let mut set: JoinSet<(usize, Result<(SupportedFheCiphertexts, i16, Vec<u8>)>)> =
             JoinSet::new();
-        tfhe::set_server_key(server_key.clone());
+        #[cfg(feature = "gpu")]
+        let sks = self.csks.clone();
+        #[cfg(not(feature = "gpu"))]
+        let sks = self.sks.clone();
+        tfhe::set_server_key(sks.clone());
         // Prime the scheduler with all nodes without dependences
         for idx in 0..self.graph.node_count() {
-            let sks = server_key.clone();
+            let sks = sks.clone();
             let index = NodeIndex::new(idx);
             let node = self
                 .graph
@@ -136,7 +178,7 @@ impl<'a> Scheduler<'a> {
             if let Ok(output) = &result.1 {
                 // Satisfy deps from the executed task
                 for edge in self.edges.edges_directed(node_index, Direction::Outgoing) {
-                    let sks = server_key.clone();
+                    let sks = sks.clone();
                     let child_index = edge.target();
                     let child_node = self
                         .graph
@@ -170,12 +212,12 @@ impl<'a> Scheduler<'a> {
         Ok(())
     }
 
-    async fn schedule_coarse_grain(
-        &mut self,
-        strategy: PartitionStrategy,
-        server_key: tfhe::ServerKey,
-    ) -> Result<()> {
-        tfhe::set_server_key(server_key.clone());
+    async fn schedule_coarse_grain(&mut self, strategy: PartitionStrategy) -> Result<()> {
+        #[cfg(feature = "gpu")]
+        let sks = self.csks.clone();
+        #[cfg(not(feature = "gpu"))]
+        let sks = self.sks.clone();
+        tfhe::set_server_key(sks.clone());
         let mut set: JoinSet<(
             Vec<(usize, Result<(SupportedFheCiphertexts, i16, Vec<u8>)>)>,
             NodeIndex,
@@ -193,7 +235,7 @@ impl<'a> Scheduler<'a> {
 
         // Prime the scheduler with all nodes without dependences
         for idx in 0..execution_graph.node_count() {
-            let sks = server_key.clone();
+            let sks = sks.clone();
             let index = NodeIndex::new(idx);
             let node = execution_graph
                 .node_weight_mut(index)
@@ -243,7 +285,7 @@ impl<'a> Scheduler<'a> {
                 self.graph[node_index].result = Some(node_result);
             }
             for edge in task_dependences.edges_directed(task_index, Direction::Outgoing) {
-                let sks = server_key.clone();
+                let sks = sks.clone();
                 let dependent_task_index = edge.target();
                 let dependent_task = execution_graph
                     .node_weight_mut(dependent_task_index)
@@ -272,11 +314,15 @@ impl<'a> Scheduler<'a> {
         Ok(())
     }
 
-    async fn schedule_component_loop(&mut self, server_key: tfhe::ServerKey) -> Result<()> {
+    async fn schedule_component_loop(&mut self) -> Result<()> {
         let mut execution_graph: Dag<ExecNode, ()> = Dag::default();
         let _ = partition_components(self.graph, &mut execution_graph);
         let mut comps = vec![];
-
+        #[cfg(feature = "gpu")]
+        let sks = self.csks.clone();
+        #[cfg(not(feature = "gpu"))]
+        let sks = self.sks.clone();
+        tfhe::set_server_key(sks.clone());
         // Prime the scheduler with all nodes without dependences
         for idx in 0..execution_graph.node_count() {
             let index = NodeIndex::new(idx);
@@ -302,17 +348,17 @@ impl<'a> Scheduler<'a> {
 
         tokio::task::spawn_blocking(move || {
             rayon::broadcast(|_| {
-                tfhe::set_server_key(server_key.clone());
+                tfhe::set_server_key(sks.clone());
             });
 
-            tfhe::set_server_key(server_key.clone());
+            tfhe::set_server_key(sks.clone());
             comps.par_iter().for_each_with(src, |src, (args, index)| {
                 src.send(execute_partition(
                     args.to_vec(),
                     *index,
                     true,
                     rayon_threads,
-                    server_key.clone(),
+                    sks.clone(),
                 ))
                 .unwrap();
             });
@@ -451,7 +497,8 @@ fn execute_partition(
     task_id: NodeIndex,
     use_global_threadpool: bool,
     rayon_threads: usize,
-    server_key: tfhe::ServerKey,
+    #[cfg(feature = "gpu")] server_key: tfhe::CudaServerKey,
+    #[cfg(not(feature = "gpu"))] server_key: tfhe::ServerKey,
 ) -> (
     Vec<(usize, Result<(SupportedFheCiphertexts, i16, Vec<u8>)>)>,
     NodeIndex,

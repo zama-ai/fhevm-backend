@@ -15,10 +15,18 @@ use tfhe::{
     zk::CompactPkeCrs,
     ClientKey, CompactPublicKey, Config, ConfigBuilder, ServerKey,
 };
+#[cfg(feature = "gpu")]
+use tfhe::{
+    shortint::parameters::PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS,
+    shortint::MultiBitPBSParameters, CompressedServerKey, CudaServerKey,
+};
 
 use crate::utils::{safe_deserialize_key, safe_serialize_key};
 
+#[cfg(not(feature = "gpu"))]
 pub const TFHE_PARAMS: ClassicPBSParameters = PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128;
+#[cfg(feature = "gpu")]
+pub const TFHE_PARAMS: MultiBitPBSParameters = PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS;
 pub const TFHE_COMPRESSION_PARAMS: CompressionParameters =
     V1_0_COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128;
 pub const TFHE_COMPACT_PK_ENCRYPTION_PARAMS: CompactPublicKeyEncryptionParameters =
@@ -34,6 +42,8 @@ pub struct FhevmKeys {
     pub client_key: Option<ClientKey>,
     pub compact_public_key: CompactPublicKey,
     pub public_params: Arc<CompactPkeCrs>,
+    #[cfg(feature = "gpu")]
+    pub compressed_server_key: CompressedServerKey,
 }
 
 pub struct SerializedFhevmKeys {
@@ -50,11 +60,15 @@ impl FhevmKeys {
         let (client_key, server_key) = generate_keys(config);
         let compact_public_key = CompactPublicKey::new(&client_key);
         let crs = CompactPkeCrs::from_config(config, MAX_BITS_TO_PROVE).expect("CRS creation");
+        #[cfg(feature = "gpu")]
+        let compressed_server_key = CompressedServerKey::new(&client_key);
         FhevmKeys {
             server_key,
             client_key: Some(client_key),
             compact_public_key,
             public_params: Arc::new(crs.clone()),
+            #[cfg(feature = "gpu")]
+            compressed_server_key,
         }
     }
 
@@ -69,6 +83,12 @@ impl FhevmKeys {
     }
 
     pub fn set_server_key_for_current_thread(&self) {
+        set_server_key(self.server_key.clone());
+    }
+    pub fn set_gpu_server_key_for_current_thread(&self) {
+        #[cfg(feature = "gpu")]
+        set_server_key(self.compressed_server_key.decompress_to_gpu());
+        #[cfg(not(feature = "gpu"))]
         set_server_key(self.server_key.clone());
     }
 }
@@ -129,15 +149,21 @@ impl From<FhevmKeys> for SerializedFhevmKeys {
 
 impl From<SerializedFhevmKeys> for FhevmKeys {
     fn from(f: SerializedFhevmKeys) -> Self {
+        let client_key = f
+            .client_key
+            .map(|c| safe_deserialize_key(&c).expect("deserialize client key"));
+
         FhevmKeys {
             server_key: safe_deserialize_key(&f.server_key).expect("deserialize server key"),
-            client_key: f
-                .client_key
-                .map(|c| safe_deserialize_key(&c).expect("deserialize client key")),
+            client_key: client_key.clone(),
             compact_public_key: safe_deserialize_key(&f.compact_public_key)
                 .expect("deserialize compact public key"),
             public_params: Arc::new(
                 safe_deserialize_key(&f.public_params).expect("deserialize public params"),
+            ),
+            #[cfg(feature = "gpu")]
+            compressed_server_key: CompressedServerKey::new(
+                &client_key.expect("missing client key"),
             ),
         }
     }

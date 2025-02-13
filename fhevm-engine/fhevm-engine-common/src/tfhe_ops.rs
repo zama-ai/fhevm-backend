@@ -278,7 +278,7 @@ pub fn try_expand_ciphertext_list(
     let the_list: tfhe::ProvenCompactCiphertextList = safe_deserialize_conformant(
         input_ciphertext,
         &IntegerProvenCompactCiphertextListConformanceParams::from_public_key_encryption_parameters_and_crs_parameters(
-            pk_params, public_params,
+            pk_params, &CompactPkeCrs::from(public_params.clone()),
         ),
     )?;
 
