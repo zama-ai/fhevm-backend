@@ -3,6 +3,9 @@ use std::sync::Arc;
 use fhevm_engine_common::types::FhevmError;
 use scheduler::dfg::types::SchedulerError;
 
+#[cfg(feature = "gpu")]
+use tfhe::CudaServerKey;
+
 #[derive(Debug)]
 pub enum CoprocessorError {
     DbError(sqlx::Error),
@@ -192,6 +195,8 @@ pub struct TfheTenantKeys {
     pub verifying_contract_address: String,
     pub acl_contract_address: String,
     pub sks: tfhe::ServerKey,
+    #[cfg(feature = "gpu")]
+    pub csks: tfhe::CudaServerKey,
 
     // only used in tests, that's why we put dead_code
     #[allow(dead_code)]
