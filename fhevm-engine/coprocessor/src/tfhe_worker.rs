@@ -7,12 +7,14 @@ use lazy_static::lazy_static;
 use opentelemetry::trace::{Span, TraceContextExt, Tracer};
 use opentelemetry::KeyValue;
 use prometheus::{register_int_counter, IntCounter};
+use rayon::iter::{IntoParallelRefIterator, ParallelIterator};
 use scheduler::dfg::types::SchedulerError;
 use scheduler::dfg::{scheduler::Scheduler, types::DFGTaskInput, DFGraph};
 use sqlx::{postgres::PgListener, query, Acquire};
 use std::{
     collections::{BTreeSet, HashMap},
     num::NonZeroUsize,
+    sync::mpsc::channel,
 };
 use tracing::{debug, error, info};
 
@@ -229,6 +231,38 @@ async fn tfhe_worker_cycle(
 
         // Process tenants in sequence to avoid switching keys during execution
         for (tenant_id, work) in work_by_tenant.iter() {
+            let (src, dest) = channel();
+            let mut decompressed_ciphertexts: HashMap<&[u8], _> = HashMap::new();
+            {
+                let mut rk = tenant_key_cache.write().await;
+                let keys = rk.get(tenant_id).expect("Can't get tenant key from cache");
+                let sks = keys.sks.clone();
+                tfhe::set_server_key(sks.clone());
+                rayon::broadcast(|_| {
+                    tfhe::set_server_key(sks.clone());
+                });
+                ciphertext_map
+                    .par_iter()
+                    .for_each_with(src, |src, ((tid, handle), row)| {
+                        if *tid == *tenant_id {
+                            src.send((
+                                *handle,
+                                SupportedFheCiphertexts::decompress(
+                                    row.ciphertext_type,
+                                    &row.ciphertext,
+                                )
+                                .expect("Could not decompress ciphertext"),
+                            ))
+                            .unwrap();
+                        }
+                    });
+            }
+
+            let decompressed: Vec<(&[u8], SupportedFheCiphertexts)> = dest.iter().collect();
+            for (h, ct) in decompressed {
+                let _ = decompressed_ciphertexts.insert(h, ct);
+            }
+
             let mut s_schedule = tracer.start_with_context("schedule_fhe_work", &loop_ctx);
             s_schedule.set_attribute(KeyValue::new("work_items", work.len() as i64));
             s_schedule.set_attribute(KeyValue::new("tenant_id", *tenant_id as i64));
@@ -250,7 +284,7 @@ async fn tfhe_worker_cycle(
                         let is_operand_scalar =
                             w.is_scalar && idx == 1 || fhe_op.does_have_more_than_one_scalar();
                         if !is_operand_scalar
-                            && !ciphertext_map.contains_key(&(w.tenant_id, dh))
+                            && !decompressed_ciphertexts.contains_key(dh.as_slice())
                             && !produced_handles.contains_key(dh)
                         {
                             // As this operation is not computable, remove
@@ -289,11 +323,8 @@ async fn tfhe_worker_cycle(
                         input_ciphertexts.push(DFGTaskInput::Value(
                             SupportedFheCiphertexts::Scalar(dh.clone()),
                         ));
-                    } else if let Some(ct_map_val) = ciphertext_map.get(&(w.tenant_id, dh)) {
-                        input_ciphertexts.push(DFGTaskInput::Compressed((
-                            ct_map_val.ciphertext_type,
-                            ct_map_val.ciphertext.clone().to_vec(),
-                        )));
+                    } else if let Some(ct) = decompressed_ciphertexts.get(dh.as_slice()) {
+                        input_ciphertexts.push(DFGTaskInput::Value(ct.clone()));
                     } else if produced_handles.contains_key(dh) {
                         input_ciphertexts.push(DFGTaskInput::Dependence(None));
                     } else {
@@ -360,8 +391,14 @@ async fn tfhe_worker_cycle(
 
                 // Schedule computations in parallel as dependences allow
                 tfhe::set_server_key(keys.sks.clone());
-                let mut sched = Scheduler::new(&mut graph.graph, args.coprocessor_fhe_threads);
-                sched.schedule(keys.sks.clone()).await?;
+                let mut sched = Scheduler::new(
+                    &mut graph.graph,
+                    args.coprocessor_fhe_threads,
+                    keys.sks.clone(),
+                    #[cfg(feature = "gpu")]
+                    keys.csks.clone(),
+                );
+                sched.schedule().await?;
             }
             // Extract the results from the graph
             let mut res = graph.get_results();
