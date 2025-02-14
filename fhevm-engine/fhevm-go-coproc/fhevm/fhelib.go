@@ -56,19 +56,19 @@ func FheLibMethods() []*FheLibMethod {
 			Name:          "fheBitAnd",
 			ArgTypes:      "(uint256,uint256,bytes1)",
 			runFunction:   fheBitAndRun,
-			ScalarSupport: false,
+			ScalarSupport: true,
 		},
 		{
 			Name:          "fheBitOr",
 			ArgTypes:      "(uint256,uint256,bytes1)",
 			runFunction:   fheBitOrRun,
-			ScalarSupport: false,
+			ScalarSupport: true,
 		},
 		{
 			Name:          "fheBitXor",
 			ArgTypes:      "(uint256,uint256,bytes1)",
 			runFunction:   fheBitXorRun,
-			ScalarSupport: false,
+			ScalarSupport: true,
 		},
 		{
 			Name:          "fheShl",
