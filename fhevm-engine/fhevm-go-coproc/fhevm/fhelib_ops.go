@@ -342,36 +342,34 @@ func fheBitAndRun(sess CoprocessorSession, unslicedInput []byte, _ ExtraData, ou
 	}
 
 	operation := FheBitAnd
-	if !isScalar {
-		lhs, rhs, err := get2FheOperands(sess, input)
-		if err != nil {
-			return err
-		}
 
-		err = sess.GetStore().InsertComputation(ComputationToInsert{
-			Operation:    operation,
-			OutputHandle: outputHandle,
-			Operands: []ComputationOperand{
-				{
-					Handle:      lhs,
-					FheUintType: handleType(lhs),
-					IsScalar:    false,
-				},
-				{
-					Handle:      rhs,
-					FheUintType: handleType(rhs),
-					IsScalar:    isScalar,
-				},
-			},
-		})
-		if err != nil {
-			return err
-		}
-
-		return nil
-	} else {
-		return errors.New("scalar fheBitAnd is not supported")
+	lhs, rhs, err := get2FheOperands(sess, input)
+	if err != nil {
+		return err
 	}
+
+	err = sess.GetStore().InsertComputation(ComputationToInsert{
+		Operation:    operation,
+		OutputHandle: outputHandle,
+		Operands: []ComputationOperand{
+			{
+				Handle:      lhs,
+				FheUintType: handleType(lhs),
+				IsScalar:    false,
+			},
+			{
+				Handle:      rhs,
+				FheUintType: handleType(rhs),
+				IsScalar:    isScalar,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+
 }
 
 func fheBitOrRun(sess CoprocessorSession, unslicedInput []byte, _ ExtraData, outputHandle []byte) error {
@@ -386,36 +384,33 @@ func fheBitOrRun(sess CoprocessorSession, unslicedInput []byte, _ ExtraData, out
 	}
 
 	operation := FheBitOr
-	if !isScalar {
-		lhs, rhs, err := get2FheOperands(sess, input)
-		if err != nil {
-			return err
-		}
-
-		err = sess.GetStore().InsertComputation(ComputationToInsert{
-			Operation:    operation,
-			OutputHandle: outputHandle,
-			Operands: []ComputationOperand{
-				{
-					Handle:      lhs,
-					FheUintType: handleType(lhs),
-					IsScalar:    false,
-				},
-				{
-					Handle:      rhs,
-					FheUintType: handleType(rhs),
-					IsScalar:    isScalar,
-				},
-			},
-		})
-		if err != nil {
-			return err
-		}
-
-		return nil
-	} else {
-		return errors.New("scalar fheBitOr is not supported")
+	lhs, rhs, err := get2FheOperands(sess, input)
+	if err != nil {
+		return err
 	}
+
+	err = sess.GetStore().InsertComputation(ComputationToInsert{
+		Operation:    operation,
+		OutputHandle: outputHandle,
+		Operands: []ComputationOperand{
+			{
+				Handle:      lhs,
+				FheUintType: handleType(lhs),
+				IsScalar:    false,
+			},
+			{
+				Handle:      rhs,
+				FheUintType: handleType(rhs),
+				IsScalar:    isScalar,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+
 }
 
 func fheBitXorRun(sess CoprocessorSession, unslicedInput []byte, _ ExtraData, outputHandle []byte) error {
@@ -430,36 +425,33 @@ func fheBitXorRun(sess CoprocessorSession, unslicedInput []byte, _ ExtraData, ou
 	}
 
 	operation := FheBitXor
-	if !isScalar {
-		lhs, rhs, err := get2FheOperands(sess, input)
-		if err != nil {
-			return err
-		}
-
-		err = sess.GetStore().InsertComputation(ComputationToInsert{
-			Operation:    operation,
-			OutputHandle: outputHandle,
-			Operands: []ComputationOperand{
-				{
-					Handle:      lhs,
-					FheUintType: handleType(lhs),
-					IsScalar:    false,
-				},
-				{
-					Handle:      rhs,
-					FheUintType: handleType(rhs),
-					IsScalar:    isScalar,
-				},
-			},
-		})
-		if err != nil {
-			return err
-		}
-
-		return nil
-	} else {
-		return errors.New("scalar fheBitXor is not supported")
+	lhs, rhs, err := get2FheOperands(sess, input)
+	if err != nil {
+		return err
 	}
+
+	err = sess.GetStore().InsertComputation(ComputationToInsert{
+		Operation:    operation,
+		OutputHandle: outputHandle,
+		Operands: []ComputationOperand{
+			{
+				Handle:      lhs,
+				FheUintType: handleType(lhs),
+				IsScalar:    false,
+			},
+			{
+				Handle:      rhs,
+				FheUintType: handleType(rhs),
+				IsScalar:    isScalar,
+			},
+		},
+	})
+	if err != nil {
+		return err
+	}
+
+	return nil
+
 }
 
 func fheShlRun(sess CoprocessorSession, unslicedInput []byte, _ ExtraData, outputHandle []byte) error {
