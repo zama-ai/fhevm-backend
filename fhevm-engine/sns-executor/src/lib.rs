@@ -1,5 +1,9 @@
 mod executor;
+mod keyset;
 mod switch_and_squash;
+
+#[cfg(test)]
+mod tests;
 
 use serde::{Deserialize, Serialize};
 use switch_and_squash::{SnsClientKey, SwitchAndSquashKey};
@@ -7,16 +11,10 @@ use tokio::sync::broadcast;
 use tracing::info;
 
 #[derive(Serialize, Deserialize, Clone)]
-pub struct FhePubKeySet {
-    pub public_key: tfhe::CompactPublicKey,
-    pub server_key: tfhe::ServerKey,
-    pub sns_key: Option<SwitchAndSquashKey>,
-}
-#[derive(Serialize, Deserialize, Clone)]
 pub struct KeySet {
-    pub client_key: tfhe::ClientKey,
-    pub sns_secret_key: SnsClientKey,
-    pub public_keys: FhePubKeySet,
+    pub sns_key: SwitchAndSquashKey,
+    pub sns_secret_key: Option<SnsClientKey>,
+    pub server_key: tfhe::ServerKey,
 }
 
 pub struct DBConfig {
@@ -53,7 +51,7 @@ pub async fn run(
     keys: Option<KeySet>,
     conf: &Config,
     cancel_chan: broadcast::Receiver<()>,
-) -> Result<(), Box<dyn std::error::Error>> {
+) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     info!(target: "sns", "Worker started with {}", conf);
 
     executor::run_loop(keys, conf, cancel_chan).await?;
