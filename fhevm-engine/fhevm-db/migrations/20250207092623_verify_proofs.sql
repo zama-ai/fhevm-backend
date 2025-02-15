@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS verify_proofs (
     contract_address TEXT NOT NULL,
     user_address TEXT NOT NULL,
     input BYTEA,
-    handles BYTEA NOT NULL,
+    handles BYTEA,
     retry_count INTEGER NOT NULL DEFAULT 0,
     verified BOOLEAN NOT NULL DEFAULT false
 );

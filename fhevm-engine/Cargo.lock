@@ -2804,7 +2804,15 @@ name = "gw-listener"
 version = "0.6.1"
 dependencies = [
  "alloy",
+ "anyhow",
  "clap",
+ "foundry-compilers",
+ "serial_test",
+ "sqlx",
+ "tokio",
+ "tokio-util",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]

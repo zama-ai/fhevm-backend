@@ -193,13 +193,15 @@ where
             rows.len() == self.database_conf.verify_proof_resp_batch_limit as usize;
         let mut join_set = JoinSet::new();
         for row in rows.into_iter() {
-            if row.handles.is_empty() || row.handles.len() % 32 != 0 {
-                error!(target: VERIFY_PROOFS_TARGET, "Bad handles field, len {} is 0 or not divisible by 32", row.handles.len());
+            let handles = row
+                .handles
+                .ok_or(anyhow::anyhow!("handles field is None"))?;
+            if handles.is_empty() || handles.len() % 32 != 0 {
+                error!(target: VERIFY_PROOFS_TARGET, "Bad handles field, len {} is 0 or not divisible by 32", handles.len());
                 self.remove_proof_by_id(db_pool, row.zk_proof_id).await?;
                 continue;
             }
-            let handles: Vec<FixedBytes<32>> = row
-                .handles
+            let handles: Vec<FixedBytes<32>> = handles
                 .chunks(32)
                 .map(|chunk| {
                     let array: [u8; 32] = chunk.try_into().expect("chunk size must be 32");
