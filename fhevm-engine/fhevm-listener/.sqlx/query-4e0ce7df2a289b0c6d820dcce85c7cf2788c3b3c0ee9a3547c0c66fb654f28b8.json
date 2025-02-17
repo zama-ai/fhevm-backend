@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "\n            INSERT INTO blocks_seen (chain_id, block_hash, block_number, listener_tfhe)\n            VALUES ($1, $2, $3, true)\n            ON CONFLICT (chain_id, block_hash) DO UPDATE SET listener_tfhe = true;\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int8",
+        "Bytea",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "4e0ce7df2a289b0c6d820dcce85c7cf2788c3b3c0ee9a3547c0c66fb654f28b8"
+}
