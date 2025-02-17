@@ -24,7 +24,7 @@ impl DBInstance {
 ///
 /// # Examples
 ///
-/// ```rust
+/// ```ignore
 /// #[tokio::main]
 /// async fn main() -> Result<(), Box<dyn std::error::Error>> {
 ///     let db_instance = setup_test_db().await?;
