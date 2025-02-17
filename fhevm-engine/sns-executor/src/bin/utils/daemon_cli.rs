@@ -27,7 +27,7 @@ pub struct Args {
     #[arg(long)]
     pub database_url: Option<String>,
 
-    /// KeySet file. If unspecified the the keys are read from the database (not implemented)
+    /// KeySet file. If unspecified the the keys are read from the database
     #[arg(long)]
     pub keys_file_path: Option<String>,
 

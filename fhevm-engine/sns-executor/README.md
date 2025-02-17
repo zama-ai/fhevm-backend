@@ -27,3 +27,22 @@ cargo run --release -- \
 --pg-notify-channel "computed_handles" \
 --keys-file-path "./default_keys.bin"
 ```
+
+## Testing
+
+- Using `Postgres` docker image
+```bash
+# Run Postgres as image, execute migrations and populate the DB instance with keys from fhevm-keys
+cargo test --release -- --nocapture
+```
+
+- Using localhost DB
+
+```bash
+# Use COPROCESSOR_TEST_LOCALHOST_RESET to execute migrations once
+COPROCESSOR_TEST_LOCALHOST_RESET=  cargo test --release -- --nocapture
+
+# Then, on every run
+COPROCESSOR_TEST_LOCALHOST=  cargo test --release
+```
+

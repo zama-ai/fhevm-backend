@@ -1,52 +1,94 @@
 use crate::{keyset::read_sns_sk_from_lo, switch_and_squash::SnsClientKey, Config, DBConfig};
 use anyhow::Ok;
 use serde::{Deserialize, Serialize};
-use sqlx::{pool::PoolConnection, query, Acquire, Postgres, Transaction};
 use std::{
     fs::File,
     io::{Read, Write},
     sync::Arc,
     time::Duration,
 };
+use test_harness::instance::DBInstance;
 use tokio::{sync::broadcast, time::sleep};
 
 const LISTEN_CHANNEL: &str = "sns_worker_chan";
 const TENANT_ID: i32 = 1;
 
-// Poll database until ciphertext128 of the specified handle is available
-pub async fn wait_for_ciphertext(
-    db_txn: &mut Transaction<'_, Postgres>,
-    handle: &[u8],
-    retries: u64,
-) -> anyhow::Result<Vec<u8>> {
-    for retry in 0..retries {
-        let record = sqlx::query!(
-            "SELECT large_ct FROM ciphertexts WHERE tenant_id = $1 AND handle = $2",
-            TENANT_ID,
-            handle
-        )
-        .fetch_one(db_txn.as_mut())
-        .await;
+#[tokio::test]
+#[ignore]
+async fn test_fhe_ciphertext128() {
+    let (conn, sns_client_key, _rx, _test_instance) = setup().await.expect("valid setup");
+    let tf: TestFile = read_test_file("ciphertext64.bin");
 
-        if let Result::Ok(record) = record {
-            if let Some(large_ct) = record.large_ct {
-                return anyhow::Ok(large_ct);
-            }
-        }
+    test_decryptable(
+        &conn,
+        &sns_client_key,
+        &tf.handle.into(),
+        &tf.ciphertext64.clone(),
+        tf.decrypted,
+        true,
+    )
+    .await
+    .expect("test_decryptable, first_fhe_computation = true");
 
-        println!("wait for ciphertext, retry: {}", retry);
-
-        // Wait before retrying
-        sleep(Duration::from_millis(500)).await;
-    }
-
-    Err(sqlx::Error::RowNotFound.into())
+    test_decryptable(
+        &conn,
+        &sns_client_key,
+        &tf.handle.into(),
+        &tf.ciphertext64,
+        tf.decrypted,
+        false,
+    )
+    .await
+    .expect("test_decryptable, first_fhe_computation = false");
 }
 
-async fn setup(db_url: String) -> anyhow::Result<(PoolConnection<Postgres>, SnsClientKey)> {
+async fn test_decryptable(
+    pool: &sqlx::PgPool,
+    sns_secret_key: &SnsClientKey,
+    handle: &Vec<u8>,
+    ciphertext: &Vec<u8>,
+    expected_result: i64,
+    first_fhe_computation: bool, // first insert ciphertext64 in DB
+) -> anyhow::Result<()> {
+    clean_up(pool, handle).await?;
+
+    if first_fhe_computation {
+        // insert into ciphertexts
+        insert_ciphertext64(pool, handle, ciphertext).await?;
+        insert_into_pbs_computations(pool, handle).await?;
+    } else {
+        // insert into pbs_computations
+        insert_into_pbs_computations(pool, handle).await?;
+        insert_ciphertext64(pool, handle, ciphertext).await?;
+    }
+    // wait until ciphertext.large_ct is not NULL
+    let data = test_harness::db_utils::wait_for_ciphertext(pool, TENANT_ID, handle, 10).await?;
+
+    // deserialize ciphertext128
+    let ciphertext128: Vec<tfhe::core_crypto::prelude::LweCiphertext<Vec<u128>>> =
+        bincode::deserialize(&data).expect("serializable ciphertext128");
+
+    let decrypted = sns_secret_key.decrypt_128(&ciphertext128);
+    println!("Decrypted, plaintext {}", decrypted);
+
+    assert!(decrypted == expected_result as u128);
+    anyhow::Result::<()>::Ok(())
+}
+
+async fn setup() -> anyhow::Result<(
+    sqlx::PgPool,
+    SnsClientKey,
+    broadcast::Receiver<()>,
+    DBInstance,
+)> {
+    tracing_subscriber::fmt().json().with_level(true).init();
+    let test_instance = test_harness::instance::setup_test_db()
+        .await
+        .expect("valid db instance");
+
     let conf = Config {
         db: DBConfig {
-            url: db_url,
+            url: test_instance.db_url().to_owned(),
             listen_channel: LISTEN_CHANNEL.to_string(),
             notify_channel: "fhevm".to_string(),
             batch_limit: 10,
@@ -60,9 +102,9 @@ async fn setup(db_url: String) -> anyhow::Result<(PoolConnection<Postgres>, SnsC
         .connect(&conf.db.url)
         .await?;
 
-    let (tx, _rx) = broadcast::channel(1);
+    let (tx, rx) = broadcast::channel(1);
     let cancel_chan = Arc::new(tx);
-    let sns_client_keys = read_sns_sk_from_lo(&pool, 1).await?;
+    let sns_client_keys = read_sns_sk_from_lo(&pool, TENANT_ID).await?;
     tokio::spawn(async move {
         crate::run(None, &conf, cancel_chan.subscribe())
             .await
@@ -70,115 +112,10 @@ async fn setup(db_url: String) -> anyhow::Result<(PoolConnection<Postgres>, SnsC
         anyhow::Result::<()>::Ok(())
     });
 
-    Ok((pool.acquire().await?, sns_client_keys.unwrap()))
-}
+    // TODO: Replace this with notification from the worker when it's in ready-state
+    sleep(Duration::from_secs(5)).await;
 
-async fn insert_ciphertext64(
-    conn: &mut PoolConnection<Postgres>,
-    handle: &Vec<u8>,
-    ciphertext: &Vec<u8>,
-) -> anyhow::Result<()> {
-    let mut db_txn = conn.begin().await?;
-    let _ = query!(
-        "INSERT INTO ciphertexts(tenant_id, handle, ciphertext, ciphertext_version, ciphertext_type) 
-         VALUES ($1, $2, $3, $4, $5)
-         ON CONFLICT DO NOTHING;",
-         TENANT_ID,
-        handle,
-        ciphertext,
-        0,
-        0,
-    )
-    .execute(db_txn.as_mut())
-    .await
-    .expect("insert into ciphertexts");
-
-    // Notify sns_worker
-    sqlx::query("SELECT pg_notify($1, '')")
-        .bind(LISTEN_CHANNEL)
-        .execute(db_txn.as_mut())
-        .await?;
-
-    db_txn.commit().await?;
-
-    Ok(())
-}
-
-async fn insert_into_pbs_computations(
-    conn: &mut PoolConnection<Postgres>,
-    handle: &Vec<u8>,
-) -> Result<(), anyhow::Error> {
-    let mut db_txn = conn.begin().await?;
-    let _ = query!(
-        "INSERT INTO pbs_computations(tenant_id, handle) VALUES($1, $2) 
-             ON CONFLICT DO NOTHING;",
-        TENANT_ID,
-        handle,
-    )
-    .execute(db_txn.as_mut())
-    .await
-    .expect("insert into pbs_computations");
-
-    // Notify sns_worker
-    sqlx::query("SELECT pg_notify($1, '')")
-        .bind(LISTEN_CHANNEL)
-        .execute(db_txn.as_mut())
-        .await?;
-
-    db_txn.commit().await?;
-
-    Ok(())
-}
-
-/// Deletes all records from `pbs_computations` and `ciphertexts` where `handle` matches.
-async fn clean_up(conn: &mut PoolConnection<Postgres>, handle: &Vec<u8>) -> anyhow::Result<()> {
-    let mut db_txn = conn.begin().await?;
-
-    sqlx::query!("DELETE FROM pbs_computations WHERE handle = $1", handle)
-        .execute(db_txn.as_mut())
-        .await?;
-
-    sqlx::query!("DELETE FROM ciphertexts WHERE handle = $1", handle)
-        .execute(db_txn.as_mut())
-        .await?;
-
-    db_txn.commit().await?;
-
-    Ok(())
-}
-
-async fn test_decryptable(
-    conn: &mut PoolConnection<Postgres>,
-    sns_secret_key: &SnsClientKey,
-    handle: &Vec<u8>,
-    ciphertext: &Vec<u8>,
-    expected_result: i64,
-    first_fhe_computation: bool, // first insert ciphertext64 in DB
-) -> anyhow::Result<()> {
-    clean_up(conn, handle).await?;
-
-    if first_fhe_computation {
-        // insert into ciphertexts
-        insert_ciphertext64(conn, handle, ciphertext).await?;
-        insert_into_pbs_computations(conn, handle).await?;
-    } else {
-        // insert into pbs_computations
-        insert_into_pbs_computations(conn, handle).await?;
-        insert_ciphertext64(conn, handle, ciphertext).await?;
-    }
-    // wait until ciphertext.large_ct is not NULL
-    let mut db_txn = conn.begin().await?;
-    let data = wait_for_ciphertext(&mut db_txn, handle, 10).await?;
-
-    // deserialize ciphertext128
-    let ciphertext128: Vec<tfhe::core_crypto::prelude::LweCiphertext<Vec<u128>>> =
-        bincode::deserialize(&data).expect("serializable ciphertext128");
-
-    let decrypted = sns_secret_key.decrypt_128(&ciphertext128);
-    println!("Decrypted, plaintext {}", decrypted);
-
-    assert!(decrypted == expected_result as u128);
-    anyhow::Result::<()>::Ok(())
+    Ok((pool, sns_client_keys.unwrap(), rx, test_instance))
 }
 
 #[derive(Serialize, Deserialize)]
@@ -216,35 +153,46 @@ fn read_test_file(filename: &str) -> TestFile {
     bincode::deserialize(&buffer).expect("Failed to deserialize")
 }
 
-#[tokio::test]
-async fn test_fhe_ciphertext128() {
-    tracing_subscriber::fmt().json().with_level(true).init();
-    // TODO: DB Setup
-    let db_url = "postgres://postgres:postgres@localhost:5432/coprocessor".to_string();
+async fn insert_ciphertext64(
+    pool: &sqlx::PgPool,
+    handle: &Vec<u8>,
+    ciphertext: &Vec<u8>,
+) -> anyhow::Result<()> {
+    test_harness::db_utils::insert_ciphertext64(pool, TENANT_ID, handle, ciphertext).await?;
 
-    let (mut conn, sns_client_key) = setup(db_url).await.expect("valid setup");
+    // Notify sns_worker
+    sqlx::query("SELECT pg_notify($1, '')")
+        .bind(LISTEN_CHANNEL)
+        .execute(pool)
+        .await?;
 
-    let tf: TestFile = read_test_file("ciphertext64.bin");
+    Ok(())
+}
 
-    test_decryptable(
-        &mut conn,
-        &sns_client_key,
-        &tf.handle.into(),
-        &tf.ciphertext64.clone(),
-        tf.decrypted,
-        true,
-    )
-    .await
-    .expect("test_decryptable, first_fhe_computation = true");
+async fn insert_into_pbs_computations(
+    pool: &sqlx::PgPool,
+    handle: &Vec<u8>,
+) -> Result<(), anyhow::Error> {
+    test_harness::db_utils::insert_into_pbs_computations(pool, TENANT_ID, handle).await?;
 
-    test_decryptable(
-        &mut conn,
-        &sns_client_key,
-        &tf.handle.into(),
-        &tf.ciphertext64,
-        tf.decrypted,
-        false,
-    )
-    .await
-    .expect("test_decryptable, first_fhe_computation = false");
+    // Notify sns_worker
+    sqlx::query("SELECT pg_notify($1, '')")
+        .bind(LISTEN_CHANNEL)
+        .execute(pool)
+        .await?;
+
+    Ok(())
+}
+
+/// Deletes all records from `pbs_computations` and `ciphertexts` where `handle` matches.
+async fn clean_up(pool: &sqlx::PgPool, handle: &Vec<u8>) -> anyhow::Result<()> {
+    sqlx::query!("DELETE FROM pbs_computations WHERE handle = $1", handle)
+        .execute(pool)
+        .await?;
+
+    sqlx::query!("DELETE FROM ciphertexts WHERE handle = $1", handle)
+        .execute(pool)
+        .await?;
+
+    Ok(())
 }

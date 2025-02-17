@@ -25,7 +25,7 @@ sqlx = { workspace = true }
 hex = "0.4"
 aligned-vec = "0.5.0"
 num-traits = "=0.2.19"
-
+thiserror = "2.0"
 serde_json = "=1.0"
 
 # local dependencies
@@ -44,6 +44,10 @@ path = "src/bin/sns_worker.rs"
 
 [features]
 decrypt_128 = []
+
+[dev-dependencies]
+test-harness = { path = "../test-harness" }
+
 
 [dev-dependencies.sns-executor]
 path = "." 
