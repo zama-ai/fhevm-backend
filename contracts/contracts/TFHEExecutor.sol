@@ -3,12 +3,6 @@ pragma solidity ^0.8.24;
 
 import {TFHEExecutorNoEvents} from "./TFHEExecutorNoEvents.sol";
 
-/**
- * @title    TFHEExecutor
- * @notice   This contract inherits TFHEExecutorNoEvents and overrides its functions to emit
- *           events for all TFHE operations.
- * @dev      This contract is deployed using an UUPS proxy.
- */
 contract TFHEExecutor is TFHEExecutorNoEvents {
     event FheAdd(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result);
     event FheSub(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result);
