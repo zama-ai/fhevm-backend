@@ -5,8 +5,10 @@ mod switch_and_squash;
 #[cfg(test)]
 mod tests;
 
+use fhevm_engine_common::types::FhevmError;
 use serde::{Deserialize, Serialize};
 use switch_and_squash::{SnsClientKey, SwitchAndSquashKey};
+use thiserror::Error;
 use tokio::sync::broadcast;
 use tracing::info;
 
@@ -39,6 +41,21 @@ impl std::fmt::Display for Config {
             self.db.url, self.db.listen_channel, self.db.notify_channel, self.db.batch_limit
         )
     }
+}
+
+#[derive(Error, Debug)]
+pub enum ExecutionError {
+    #[error("Conversion error: {0}")]
+    ConversionError(#[from] anyhow::Error),
+
+    #[error("Database error: {0}")]
+    DbError(#[from] sqlx::Error),
+
+    #[error("CtType error: {0}")]
+    CtType(#[from] FhevmError),
+
+    #[error("Serialization error: {0}")]
+    SerializationError(#[from] bincode::Error),
 }
 
 /// Starts the worker loop

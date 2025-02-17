@@ -1,14 +1,15 @@
 use fhevm_engine_common::utils::safe_deserialize_key;
+use sqlx::postgres::types::Oid;
 use sqlx::postgres::PgRow;
 use sqlx::{PgPool, Row};
 
 use tracing::info;
 
 use crate::switch_and_squash::{SnsClientKey, SwitchAndSquashKey};
-use crate::KeySet;
+use crate::{ExecutionError, KeySet};
 
 /// Retrieve the keyset from the database
-pub(crate) async fn fetch_keyset(pool: &PgPool, tenant_id: i32) -> anyhow::Result<KeySet> {
+pub(crate) async fn fetch_keyset(pool: &PgPool, tenant_id: i32) -> Result<KeySet, ExecutionError> {
     let server_key = read_sks_key(pool, tenant_id).await?;
     let sns_key = read_sns_pk_from_lo(pool, tenant_id).await?;
     let sns_secret_key = read_sns_sk_from_lo(pool, tenant_id).await?;
@@ -19,7 +20,7 @@ pub(crate) async fn fetch_keyset(pool: &PgPool, tenant_id: i32) -> anyhow::Resul
         server_key,
     };
 
-    anyhow::Ok(key_set)
+    Ok(key_set)
 }
 
 /// Retrieve the SwitchAndSquashKey from the large object table
@@ -58,19 +59,26 @@ async fn read_keys_from_lo(
 ) -> anyhow::Result<Vec<u8>> {
     // Query the sns_pk column for the given tenant ID
     let query = format!(
-        "SELECT {}::INT4 FROM tenants WHERE tenant_id = $1",
+        "SELECT {} FROM tenants WHERE tenant_id = $1",
         keys_column_name
     );
-    let row: PgRow = sqlx::query(&query).bind(tenant_id).fetch_one(pool).await?;
-    let oid: i32 = row.try_get(0)?;
 
-    info!(target: "sns", "Retrieved oid: {}", oid);
+    println!("read_keys_from_lo {}", keys_column_name);
+
+    let row: PgRow = sqlx::query(&query).bind(tenant_id).fetch_one(pool).await?;
+    let oid: Oid = row.try_get(0)?;
+
+    println!("read_keys_from_lo 2 {}", keys_column_name);
+
+    info!(target: "sns", "Retrieved oid: {:?}", oid);
 
     // Retrieve the large object data
     let bytes: Vec<u8> = sqlx::query_scalar("SELECT lo_get($1)")
-        .bind(oid as i32)
+        .bind(oid)
         .fetch_one(pool)
         .await?;
+
+    println!("read_keys_from_lo 3 {}", keys_column_name);
 
     anyhow::Ok(bytes)
 }
