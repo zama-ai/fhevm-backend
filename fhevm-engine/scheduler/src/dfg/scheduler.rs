@@ -92,7 +92,7 @@ impl<'a> Scheduler<'a> {
 
     pub async fn schedule(&mut self) -> Result<()> {
         let schedule_type = std::env::var("FHEVM_DF_SCHEDULE");
-        let _ = self.decompress_ciphertexts().await;
+        //let _ = self.decompress_ciphertexts().await;
         match schedule_type {
             Ok(val) => match val.as_str() {
                 "MAX_PARALLELISM" => {
@@ -212,10 +212,7 @@ impl<'a> Scheduler<'a> {
         Ok(())
     }
 
-    async fn schedule_coarse_grain(
-        &mut self,
-        strategy: PartitionStrategy,
-    ) -> Result<()> {
+    async fn schedule_coarse_grain(&mut self, strategy: PartitionStrategy) -> Result<()> {
         #[cfg(feature = "gpu")]
         let sks = self.csks.clone();
         #[cfg(not(feature = "gpu"))]
