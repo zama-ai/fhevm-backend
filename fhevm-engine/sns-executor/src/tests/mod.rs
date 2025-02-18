@@ -14,7 +14,7 @@ const LISTEN_CHANNEL: &str = "sns_worker_chan";
 const TENANT_ID: i32 = 1;
 
 #[tokio::test]
-#[ignore]
+#[ignore = "requires valid SnS keys in CI"]
 async fn test_fhe_ciphertext128() {
     let (conn, sns_client_key, _rx, _test_instance) = setup().await.expect("valid setup");
     let tf: TestFile = read_test_file("ciphertext64.bin");
