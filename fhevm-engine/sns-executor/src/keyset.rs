@@ -63,12 +63,8 @@ async fn read_keys_from_lo(
         keys_column_name
     );
 
-    println!("read_keys_from_lo {}", keys_column_name);
-
     let row: PgRow = sqlx::query(&query).bind(tenant_id).fetch_one(pool).await?;
     let oid: Oid = row.try_get(0)?;
-
-    println!("read_keys_from_lo 2 {}", keys_column_name);
 
     info!(target: "sns", "Retrieved oid: {:?}", oid);
 
@@ -77,8 +73,6 @@ async fn read_keys_from_lo(
         .bind(oid)
         .fetch_one(pool)
         .await?;
-
-    println!("read_keys_from_lo 3 {}", keys_column_name);
 
     anyhow::Ok(bytes)
 }
