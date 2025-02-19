@@ -87,6 +87,7 @@ async fn setup() -> anyhow::Result<(
         .expect("valid db instance");
 
     let conf = Config {
+        tenant_id: TENANT_ID,
         db: DBConfig {
             url: test_instance.db_url().to_owned(),
             listen_channel: LISTEN_CHANNEL.to_string(),

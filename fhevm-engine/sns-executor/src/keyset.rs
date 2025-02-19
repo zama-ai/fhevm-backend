@@ -2,6 +2,7 @@ use fhevm_engine_common::utils::safe_deserialize_key;
 use sqlx::postgres::types::Oid;
 use sqlx::postgres::PgRow;
 use sqlx::{PgPool, Row};
+use tokio::join;
 
 use tracing::info;
 
@@ -10,9 +11,15 @@ use crate::{ExecutionError, KeySet};
 
 /// Retrieve the keyset from the database
 pub(crate) async fn fetch_keyset(pool: &PgPool, tenant_id: i32) -> Result<KeySet, ExecutionError> {
-    let server_key = read_sks_key(pool, tenant_id).await?;
-    let sns_key = read_sns_pk_from_lo(pool, tenant_id).await?;
-    let sns_secret_key = read_sns_sk_from_lo(pool, tenant_id).await?;
+    let (server_key, sns_key, sns_secret_key) = join!(
+        read_sks_key(pool, tenant_id),
+        read_sns_pk_from_lo(pool, tenant_id),
+        read_sns_sk_from_lo(pool, tenant_id)
+    );
+
+    let server_key = server_key?;
+    let sns_key = sns_key?;
+    let sns_secret_key = sns_secret_key?;
 
     let key_set = KeySet {
         sns_key,

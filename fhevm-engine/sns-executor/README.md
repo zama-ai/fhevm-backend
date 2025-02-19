@@ -37,6 +37,7 @@ WHERE tenant_id = 1;
 # Run a single instance of the worker
 DATABASE_URL=postgresql://postgres:postgres@localhost:5432/coprocessor \
 cargo run --release -- \
+--tenant-id 1 \
 --pg-listen-channel "event_pbs_new_work" \
 --pg-notify-channel "event_pbs_computed" \
 ```
@@ -53,9 +54,9 @@ cargo test --release -- --nocapture
 
 ```bash
 # Use COPROCESSOR_TEST_LOCALHOST_RESET to execute migrations once
-COPROCESSOR_TEST_LOCALHOST_RESET=  cargo test --release -- --nocapture
+COPROCESSOR_TEST_LOCALHOST_RESET=1  cargo test --release -- --nocapture
 
 # Then, on every run
-COPROCESSOR_TEST_LOCALHOST=  cargo test --release
+COPROCESSOR_TEST_LOCALHOST=1  cargo test --release
 ```
 

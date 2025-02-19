@@ -43,7 +43,7 @@ path = "src/bin/sns_worker.rs"
  
 
 [features]
-decrypt_128 = []
+test_decrypt_128 = []
 
 [dev-dependencies]
 test-harness = { path = "../test-harness" }
@@ -51,4 +51,4 @@ test-harness = { path = "../test-harness" }
 
 [dev-dependencies.sns-executor]
 path = "." 
-features = ["decrypt_128"]
+features = ["test_decrypt_128"]

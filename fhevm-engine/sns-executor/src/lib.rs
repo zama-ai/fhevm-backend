@@ -29,6 +29,7 @@ pub struct DBConfig {
 }
 
 pub struct Config {
+    pub tenant_id: i32,
     pub db: DBConfig,
 }
 

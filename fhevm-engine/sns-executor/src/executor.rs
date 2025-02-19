@@ -14,9 +14,6 @@ use fhevm_engine_common::types::{get_ct_type, SupportedFheCiphertexts};
 
 const RETRY_DB_CONN_INTERVAL: Duration = Duration::from_secs(5);
 
-// TODO: Hard-coded tenant ID
-const TENANT_ID: i32 = 1;
-
 enum ConnStatus {
     Established(sqlx::pool::PoolConnection<sqlx::Postgres>),
     Failed,
@@ -35,6 +32,7 @@ pub(crate) async fn run_loop(
     conf: &Config,
     mut cancel_chan: broadcast::Receiver<()>,
 ) -> Result<(), ExecutionError> {
+    let tenant_id = conf.tenant_id;
     let conf = &conf.db;
 
     let pool = sqlx::postgres::PgPoolOptions::new()
@@ -48,7 +46,7 @@ pub(crate) async fn run_loop(
 
     let keys: KeySet = match keys {
         Some(keys) => keys,
-        None => fetch_keyset(&pool, TENANT_ID).await?,
+        None => fetch_keyset(&pool, tenant_id).await?,
     };
 
     loop {
@@ -62,22 +60,24 @@ pub(crate) async fn run_loop(
         };
 
         loop {
-            let res = fetch_and_execute_sns_tasks(&mut conn, &keys, conf).await;
-            if let Err(ExecutionError::DbError(err)) = res {
-                error!(target: "worker", "Failed to fetch and execute tasks: {err}");
-                break; // Break to reacquire a connection
-            }
-
-            if res.is_ok() {
-                // Check if more tasks are available
-                let count = get_remaining_tasks(&mut conn).await?;
-                if count > 0 {
-                    if cancel_chan.try_recv().is_ok() {
-                        return Ok(());
+            match fetch_and_execute_sns_tasks(&mut conn, &keys, conf).await {
+                Ok(_) => {
+                    // Check if more tasks are available
+                    let count = get_remaining_tasks(&mut conn).await?;
+                    if count > 0 {
+                        if cancel_chan.try_recv().is_ok() {
+                            return Ok(());
+                        }
+                        info!(target: "worker", {count}, "SnS tasks available");
+                        continue;
                     }
-                    info!(target: "worker", {count}, "SnS tasks available");
-                    // Continue to fetch_and_execute to process the remaining tasks
-                    continue;
+                }
+                Err(ExecutionError::DbError(err)) => {
+                    error!(target: "worker", "Failed to proceed due to DB error: {err}");
+                    break; // Break to reacquire a connection
+                }
+                Err(err) => {
+                    error!(target: "worker", "Failed to process SnS tasks: {err}");
                 }
             }
 
@@ -231,7 +231,7 @@ fn process_tasks(tasks: &mut [SnSTask], keys: &KeySet) -> Result<(), ExecutionEr
         info!(target: "sns",  { handle }, "Ciphertext converted");
 
         // Optional: Decrypt and log for debugging
-        #[cfg(feature = "decrypt_128")]
+        #[cfg(feature = "test_decrypt_128")]
         {
             if let Some(sns_secret_key) = &keys.sns_secret_key {
                 let decrypted = sns_secret_key.decrypt_128(&large_ct);
