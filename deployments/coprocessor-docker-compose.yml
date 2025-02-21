@@ -44,13 +44,13 @@ services:
       dockerfile: fhevm-engine/coprocessor/Dockerfile
       tags:
         - "ghcr.io/zama-ai/fhevm-coprocessor:v0.7.0-local"
-    image: ghcr.io/zama-ai/fhevm-coprocessor:a741a94
+    image: ghcr.io/zama-ai/fhevm-coprocessor:cd47ca8
     environment:
       DATABASE_URL: ${DATABASE_URL}
     ports:
       - '50051:50051'
     volumes:
-      - ./config/coprocessor.key:/usr/share/coprocessor.key
+      - ./config/coprocessor/coprocessor.key:/usr/share/coprocessor.key
     command:
       - coprocessor
       - --run-server
@@ -67,7 +67,7 @@ services:
       dockerfile: fhevm-engine/coprocessor/Dockerfile
       tags:
         - "ghcr.io/zama-ai/fhevm-coprocessor:v0.7.0-local"
-    image: ghcr.io/zama-ai/fhevm-coprocessor:a741a94
+    image: ghcr.io/zama-ai/fhevm-coprocessor:cd47ca8
     environment:
       DATABASE_URL: ${DATABASE_URL}
       TENANT_API_KEY: ${TENANT_API_KEY}
@@ -88,7 +88,7 @@ services:
       dockerfile: fhevm-engine/coprocessor/Dockerfile
       tags:
         - "ghcr.io/zama-ai/fhevm-coprocessor:v0.7.0-local"
-    # image: ghcr.io/zama-ai/fhevm-coprocessor:a741a94
+    image: ghcr.io/zama-ai/fhevm-coprocessor:cd47ca8
     environment:
       DATABASE_URL: ${DATABASE_URL}
       GATEWAY_URL: ${GATEWAY_URL}

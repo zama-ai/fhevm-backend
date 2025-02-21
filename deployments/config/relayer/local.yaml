@@ -1,0 +1,60 @@
+
+# config/local.yaml.example
+# Example local configuration - Copy this file to local.yaml and adjust values as needed
+# Command to copy: cp config/local.yaml.example config/local.yaml
+
+environment: staging
+
+networks:
+  fhevm:
+    ws_url: "ws://layer1-node:8545"
+    http_url: "http://layer1-node:8545"
+    chain_id: 12345
+    retry_delay: 1000
+    max_reconnection_attempts: 3
+  rollup:
+    ws_url: "ws://layer2-node:8546"
+    http_url: "http://layer2-node:8546"
+    chain_id: 54321
+    retry_delay: 1000
+    max_reconnection_attempts: 3
+
+transaction:
+  private_key_env: ETHEREUM_PRIVATE_KEY
+  gas_limit: 150000
+  max_priority_fee: 2000000000 
+  timeout_secs: 30
+  confirmations: 1
+
+contracts:
+  # Example local contract addresses - Update these after deployment
+  decryption_oracle_address: "0xAb30999D17FAAB8c95B2eCD500cFeFc8f658f15d"
+  tfhe_executor_address: "0x12B064FB845C1cc05e9493856a1D637a73e944bE"
+  decryption_manager_address: "0x2Fb4341027eb1d2aD8B5D9708187df8633cAFA92"
+  zkpok_manager_address: "0x812b06e1CDCE800494b79fFE4f925A504a9A9810"
+
+log:
+  # Set log level for development
+  level: "info"
+  # Choose format: compact, pretty, or json
+  format: "pretty"
+  # Show source code location for debugging
+  show_file_line: false
+  # Show thread IDs for concurrency debugging
+  show_thread_ids: false
+  # Include timestamps in logs
+  show_timestamp: true
+  # Optional: Set specific log levels for different modules
+
+
+# Development-specific settings
+staging:
+  # Enable for detailed error messages
+  verbose_errors: true
+
+
+# Instructions:
+# 1. Copy this file to local.yaml: cp config/local.yaml.example config/local.yaml
+# 2. Update the contract addresses after deploying your contracts
+# 3. Adjust the ws_url to match your local Ethereum node
+# 4. Modify log settings based on your debugging needs
