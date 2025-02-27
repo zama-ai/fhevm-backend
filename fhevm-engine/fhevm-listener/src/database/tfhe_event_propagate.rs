@@ -1,23 +1,24 @@
 use std::time::Duration;
 
 use alloy_primitives::FixedBytes;
-use alloy_primitives::Uint;
 use alloy_primitives::Log;
-use sqlx::Error as SqlxError;
-use sqlx::{Postgres, PgPool};
+use alloy_primitives::Uint;
 use sqlx::postgres::PgConnectOptions;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::types::Uuid;
+use sqlx::Error as SqlxError;
+use sqlx::{PgPool, Postgres};
 
 use fhevm_engine_common::types::SupportedFheOperations;
 
 use crate::contracts::TfheContract;
 use crate::contracts::TfheContract::TfheContractEvents;
 
-type CoprocessorApiKey = Uuid;
+pub type CoprocessorApiKey = Uuid;
 type FheOperation = i32;
 pub type Handle = Uint<256, 4>;
 pub type TenantId = i32;
+pub type ChainId = u64;
 pub type ToType = FixedBytes<1>;
 pub type ScalarByte = FixedBytes<1>;
 
@@ -40,15 +41,17 @@ pub struct Database {
     url: String,
     pool: sqlx::Pool<Postgres>,
     tenant_id: TenantId,
+    chain_id: ChainId,
 }
 
 impl Database {
-    pub async fn new(url: &str, coprocessor_api_key: &CoprocessorApiKey) -> Self {
+    pub async fn new(url: &str, coprocessor_api_key: &CoprocessorApiKey, chain_id: ChainId) -> Self {
         let pool = Self::new_pool(&url).await;
         let tenant_id = Self::find_tenant_id_or_panic(&pool, coprocessor_api_key).await;
         Database {
             url: url.into(),
             tenant_id,
+            chain_id,
             pool,
         }
     }
@@ -156,7 +159,7 @@ impl Database {
                 is_scalar
             )
             VALUES ($1, $2, $3, $4, $5)
-            ON CONFLICT (tenant_id, output_handle) DO NOTHING
+            ON CONFLICT (tenant_id, output_handle) DO NOTHING;
             "#,
                 tenant_id as i32,
                 output_handle,
@@ -271,6 +274,43 @@ impl Database {
                     }
                 }
             }
+        }
+    }
+
+    pub async fn mark_block_as_seen(&mut self, event: &alloy_rpc_types::Log) {
+        let Some(block_number) = event.block_number else {
+            return;
+        };
+        let Some(block_hash) = event.block_hash else {
+            return;
+        };
+        let _ = sqlx::query!(
+            r#"
+            INSERT INTO blocks_seen (chain_id, block_hash, block_number, listener_tfhe)
+            VALUES ($1, $2, $3, true)
+            ON CONFLICT (chain_id, block_hash) DO UPDATE SET listener_tfhe = true;
+            "#,
+            self.chain_id as i64,
+            block_hash.to_vec(),
+            block_number as i64,
+        )
+        .execute(&self.pool)
+        .await;
+    }
+
+    pub async fn read_last_seen_block(&mut self) -> Option<i64> {
+        let query = || {
+            sqlx::query!(
+                r#"
+            SELECT block_number FROM blocks_seen WHERE chain_id = $1 ORDER BY block_number DESC LIMIT 1;
+            "#,
+                self.chain_id as i64,
+            )
+            .fetch_one(&self.pool)
+        };
+        match query().await {
+            Ok(record) => Some(record.block_number),
+            Err(_err) => None, // table could be empty
         }
     }
 }
