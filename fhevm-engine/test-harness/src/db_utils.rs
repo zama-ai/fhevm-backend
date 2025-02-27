@@ -5,7 +5,7 @@ use tokio::fs;
 use tokio::io::AsyncReadExt;
 use tokio::time::sleep;
 
-pub const ACL_CONTRACT_ADDR: &str = "0x339EcE85B9E11a3A3AA557582784a15d7F82AAf2";
+pub const ACL_CONTRACT_ADDR: &str = "0x05fD9B5EFE0a996095f42Ed7e77c390810CF660c";
 
 pub async fn upload_large_object(pool: &PgPool, file_path: &str) -> Result<Oid, sqlx::Error> {
     // Read file asynchronously
