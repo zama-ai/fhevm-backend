@@ -1,5 +1,16 @@
 use std::{fs::read, sync::Arc};
 
+#[cfg(feature = "gpu")]
+use tfhe::shortint::{
+    parameters::{
+        v0_11::compact_public_key_only::p_fail_2_minus_64::ks_pbs::V0_11_PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+        v0_11::key_switching::p_fail_2_minus_64::ks_pbs::V0_11_PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+        v0_11::list_compression::V0_11_COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+        PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS,
+        PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64,
+    },
+    CompressedServerKey, CudaServerKey, MultiBitPBSParameters,
+};
 use tfhe::{
     generate_keys, set_server_key,
     shortint::{
@@ -15,24 +26,32 @@ use tfhe::{
     zk::CompactPkeCrs,
     ClientKey, CompactPublicKey, Config, ConfigBuilder, ServerKey,
 };
-#[cfg(feature = "gpu")]
-use tfhe::{
-    shortint::parameters::PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS,
-    shortint::MultiBitPBSParameters, CompressedServerKey, CudaServerKey,
-};
 
 use crate::utils::{safe_deserialize_key, safe_serialize_key};
 
 #[cfg(not(feature = "gpu"))]
 pub const TFHE_PARAMS: ClassicPBSParameters = PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128;
-#[cfg(feature = "gpu")]
-pub const TFHE_PARAMS: MultiBitPBSParameters = PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS;
+#[cfg(not(feature = "gpu"))]
 pub const TFHE_COMPRESSION_PARAMS: CompressionParameters =
     V1_0_COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128;
+#[cfg(not(feature = "gpu"))]
 pub const TFHE_COMPACT_PK_ENCRYPTION_PARAMS: CompactPublicKeyEncryptionParameters =
     V1_0_PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128;
+#[cfg(not(feature = "gpu"))]
 pub const TFHE_KS_PARAMS: ShortintKeySwitchingParameters =
     V1_0_PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128;
+
+#[cfg(feature = "gpu")]
+pub const TFHE_PARAMS: MultiBitPBSParameters = PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS;
+#[cfg(feature = "gpu")]
+pub const TFHE_COMPRESSION_PARAMS: CompressionParameters =
+    V0_11_COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
+#[cfg(feature = "gpu")]
+pub const TFHE_COMPACT_PK_ENCRYPTION_PARAMS: CompactPublicKeyEncryptionParameters =
+    V0_11_PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
+#[cfg(feature = "gpu")]
+pub const TFHE_KS_PARAMS: ShortintKeySwitchingParameters =
+    V0_11_PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M64;
 
 pub const MAX_BITS_TO_PROVE: usize = 2048;
 
