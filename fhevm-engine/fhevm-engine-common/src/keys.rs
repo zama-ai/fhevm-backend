@@ -1,5 +1,7 @@
 use std::{fs::read, sync::Arc};
 
+#[cfg(feature = "gpu")]
+use tfhe::CudaServerKey;
 use tfhe::{
     generate_keys, set_server_key,
     shortint::{
@@ -7,32 +9,29 @@ use tfhe::{
             v1_0::compact_public_key_only::p_fail_2_minus_128::ks_pbs::V1_0_PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128,
             v1_0::key_switching::p_fail_2_minus_128::ks_pbs::V1_0_PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128,
             v1_0::list_compression::V1_0_COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128,
-            CompactPublicKeyEncryptionParameters, CompressionParameters,
-            ShortintKeySwitchingParameters, PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128,
+            CompactPublicKeyEncryptionParameters, CompressionParameters, MultiBitPBSParameters,
+            ShortintKeySwitchingParameters, PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS,
+            PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128,
         },
         ClassicPBSParameters,
     },
     zk::CompactPkeCrs,
     ClientKey, CompactPublicKey, Config, ConfigBuilder, ServerKey,
 };
-#[cfg(feature = "gpu")]
-use tfhe::{
-    shortint::parameters::PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS,
-    shortint::MultiBitPBSParameters, CompressedServerKey, CudaServerKey,
-};
 
 use crate::utils::{safe_deserialize_key, safe_serialize_key};
 
-#[cfg(not(feature = "gpu"))]
-pub const TFHE_PARAMS: ClassicPBSParameters = PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128;
-#[cfg(feature = "gpu")]
-pub const TFHE_PARAMS: MultiBitPBSParameters = PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS;
 pub const TFHE_COMPRESSION_PARAMS: CompressionParameters =
     V1_0_COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128;
 pub const TFHE_COMPACT_PK_ENCRYPTION_PARAMS: CompactPublicKeyEncryptionParameters =
     V1_0_PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128;
 pub const TFHE_KS_PARAMS: ShortintKeySwitchingParameters =
     V1_0_PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128;
+
+#[cfg(not(feature = "gpu"))]
+pub const TFHE_PARAMS: ClassicPBSParameters = PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128;
+#[cfg(feature = "gpu")]
+pub const TFHE_PARAMS: MultiBitPBSParameters = PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS;
 
 pub const MAX_BITS_TO_PROVE: usize = 2048;
 
