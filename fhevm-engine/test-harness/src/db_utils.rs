@@ -125,10 +125,27 @@ pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::err
     let public_params = tokio::fs::read("../fhevm-keys/pp")
         .await
         .expect("can't read public params");
+    #[cfg(feature = "gpu")]
+    let gpu_csks = tokio::fs::read("../fhevm-keys/gpu-csks")
+        .await
+        .expect("can't read compressed sks key for gpu");
+    #[cfg(feature = "gpu")]
+    let gpu_pks = tokio::fs::read("../fhevm-keys/gpu-pks")
+        .await
+        .expect("can't read pks key for gpu");
+    #[cfg(feature = "gpu")]
+    let gpu_cks = tokio::fs::read("../fhevm-keys/gpu-cks")
+        .await
+        .expect("can't read cks key for gpu");
+    #[cfg(feature = "gpu")]
+    let gpu_public_params = tokio::fs::read("../fhevm-keys/gpu-pp")
+        .await
+        .expect("can't read public params for gpu");
 
     let sns_sk_oid = upload_large_object(pool, "../fhevm-keys/sns_sk").await?;
     let sns_pk_oid = upload_large_object(pool, "../fhevm-keys/sns_pk").await?;
 
+    #[cfg(not(feature = "gpu"))]
     sqlx::query!(
         "
             INSERT INTO tenants(tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, cks_key, sns_sk, sns_pk)
@@ -152,6 +169,42 @@ pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::err
         &cks,
         sns_sk_oid,
         sns_pk_oid,
+    )
+    .execute(pool)
+    .await?;
+
+    #[cfg(feature = "gpu")]
+    sqlx::query!(
+        "
+            INSERT INTO tenants(tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, cks_key, sns_sk, sns_pk, gpu_pks_key, gpu_csks_key, gpu_public_params, gpu_cks_key)
+            VALUES (
+                'a1503fb6-d79b-4e9e-826d-44cf262f3e05',
+                12345,
+                $1,
+                '0x69dE3158643e738a0724418b21a35FAA20CBb1c5',
+                $2,
+                $3,
+                $4,
+                $5,
+                $6,
+                $7,
+                $8,
+                $9,
+                $10,
+                $11
+            )
+        ",
+        ACL_CONTRACT_ADDR.to_string(),
+        &pks,
+        &sks,
+        &public_params,
+        &cks,
+        sns_sk_oid,
+        sns_pk_oid,
+	&gpu_pks,
+	&gpu_csks,
+	&gpu_public_params,
+	&gpu_cks,
     )
     .execute(pool)
     .await?;
