@@ -38,6 +38,18 @@ pub enum Args {
         /// Chain id
         #[arg(long)]
         chain_id: u32,
+        /// PKS file path for GPU
+        #[cfg(feature = "gpu")]
+        #[arg(long)]
+        gpu_pks_file: String,
+        /// SKS file path for GPU
+        #[cfg(feature = "gpu")]
+        #[arg(long)]
+        gpu_csks_file: String,
+        /// Public params file path for GPU
+        #[cfg(feature = "gpu")]
+        #[arg(long)]
+        gpu_public_params_file: String,
     },
     /// Coprocessor smoke test
     SmokeTest {
@@ -61,6 +73,12 @@ fn main() {
             acl_contract_address,
             verifying_contract_address,
             chain_id,
+            #[cfg(feature = "gpu")]
+            gpu_pks_file,
+            #[cfg(feature = "gpu")]
+            gpu_csks_file,
+            #[cfg(feature = "gpu")]
+            gpu_public_params_file,
         } => {
             insert_tenant(
                 pks_file,
@@ -70,6 +88,12 @@ fn main() {
                 acl_contract_address,
                 verifying_contract_address,
                 chain_id,
+                #[cfg(feature = "gpu")]
+                gpu_pks_file,
+                #[cfg(feature = "gpu")]
+                gpu_csks_file,
+                #[cfg(feature = "gpu")]
+                gpu_public_params_file,
             );
         }
         Args::SmokeTest {
@@ -204,6 +228,9 @@ fn insert_tenant(
     acl_contract_address: String,
     verifying_contract_address: String,
     chain_id: u32,
+    #[cfg(feature = "gpu")] gpu_pks_file: String,
+    #[cfg(feature = "gpu")] gpu_csks_file: String,
+    #[cfg(feature = "gpu")] gpu_public_params_file: String,
 ) {
     let db_url =
         std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable is undefined");
@@ -211,6 +238,13 @@ fn insert_tenant(
     let sks_file = std::fs::read(&sks_file).expect("Can't read pks file");
     let public_params_file =
         std::fs::read(&public_params_file).expect("Can't read public params file");
+    #[cfg(feature = "gpu")]
+    let gpu_pks_file = std::fs::read(&gpu_pks_file).expect("Can't read pks file for GPU");
+    #[cfg(feature = "gpu")]
+    let gpu_csks_file = std::fs::read(&gpu_csks_file).expect("Can't read pks file for GPU");
+    #[cfg(feature = "gpu")]
+    let gpu_public_params_file =
+        std::fs::read(&gpu_public_params_file).expect("Can't read public params file for GPU");
     let _ = alloy::primitives::Address::from_str(&acl_contract_address)
         .expect("Can't parse acl contract adddress");
     let _ = alloy::primitives::Address::from_str(&verifying_contract_address)
@@ -228,6 +262,7 @@ fn insert_tenant(
                 .await
                 .expect("Can't connect to postgres instance");
 
+            #[cfg(not(feature = "gpu"))]
             sqlx::query!(
                 "
                     INSERT INTO tenants(
@@ -256,6 +291,49 @@ fn insert_tenant(
                 &pks_file,
                 &sks_file,
                 &public_params_file
+            )
+            .execute(&pool)
+            .await
+            .expect("Can't insert new tenant");
+
+            #[cfg(feature = "gpu")]
+            sqlx::query!(
+                "
+                    INSERT INTO tenants(
+                        tenant_api_key,
+                        chain_id,
+                        acl_contract_address,
+                        verifying_contract_address,
+                        pks_key,
+                        sks_key,
+                        public_params,
+                        gpu_pks_key,
+                        gpu_csks_key,
+                        gpu_public_params
+                    )
+                    VALUES (
+                        $1,
+                        $2,
+                        $3,
+                        $4,
+                        $5,
+                        $6,
+                        $7,
+                        $8,
+                        $9,
+                        $10
+                    )
+                ",
+                tenant_api_key,
+                chain_id as i32,
+                &acl_contract_address,
+                &verifying_contract_address,
+                &pks_file,
+                &sks_file,
+                &public_params_file,
+                &gpu_pks_file,
+                &gpu_csks_file,
+                &gpu_public_params_file
             )
             .execute(&pool)
             .await
