@@ -311,7 +311,6 @@ async fn test_fhe_binary_operands_events() -> Result<(), Box<dyn std::error::Err
         listener_event_to_db
             .insert_tfhe_event(&tfhe_event(op_event))
             .await?;
-        listener_event_to_db.notify_scheduler().await;
 
         cases.push((op, output_handle));
     }
@@ -416,7 +415,6 @@ async fn test_fhe_unary_operands_events() -> Result<(), Box<dyn std::error::Erro
         listener_event_to_db
             .insert_tfhe_event(&tfhe_event(op_event))
             .await?;
-        listener_event_to_db.notify_scheduler().await;
         wait_until_all_ciphertexts_computed(&app).await?;
 
         let decrypt_request = vec![output_handle.to_be_bytes_vec()];
@@ -538,7 +536,6 @@ async fn test_fhe_if_then_else_events() -> Result<(), Box<dyn std::error::Error>
                     },
                 )))
                 .await?;
-            listener_event_to_db.notify_scheduler().await;
             wait_until_all_ciphertexts_computed(&app).await?;
             let decrypt_request = vec![output_handle.to_be_bytes_vec()];
             let resp = decrypt_ciphertexts(&pool, 1, decrypt_request).await?;
@@ -613,7 +610,6 @@ async fn test_fhe_cast_events() -> Result<(), Box<dyn std::error::Error>> {
                 })))
                 .await?;
 
-            listener_event_to_db.notify_scheduler().await;
             wait_until_all_ciphertexts_computed(&app).await?;
             let decrypt_request = vec![output_handle.to_be_bytes_vec()];
             let resp = decrypt_ciphertexts(&pool, 1, decrypt_request).await?;
@@ -700,7 +696,6 @@ async fn test_fhe_rand_events() -> Result<(), Box<dyn std::error::Error>> {
             )))
             .await?;
 
-        listener_event_to_db.notify_scheduler().await;
         wait_until_all_ciphertexts_computed(&app).await?;
 
         let decrypt_request = vec![
