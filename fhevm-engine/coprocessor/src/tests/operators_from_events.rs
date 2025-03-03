@@ -153,7 +153,6 @@ async fn test_fhe_binary_operands_events() -> Result<(), Box<dyn std::error::Err
         let op_event = binary_op_to_event(&op, &lhs_handle, &rhs_handle, &op.rhs, &output_handle);
         eprintln!("op_event: {:?}", &op_event);
         listener_event_to_db.insert_tfhe_event(&tfhe_event(op_event)).await?;
-        listener_event_to_db.notify_scheduler().await;
 
         cases.push((op, output_handle));
     }
@@ -240,7 +239,6 @@ async fn test_fhe_unary_operands_events() -> Result<(), Box<dyn std::error::Erro
         let op_event = unary_op_to_event(&op, &input_handle, &output_handle);
         eprintln!("op_event: {:?}", &op_event);
         listener_event_to_db.insert_tfhe_event(&tfhe_event(op_event)).await?;
-        listener_event_to_db.notify_scheduler().await;
         wait_until_all_ciphertexts_computed(&app).await?;
 
         let decrypt_request = vec![output_handle.to_be_bytes_vec()];
@@ -348,7 +346,6 @@ async fn test_fhe_if_then_else_events() -> Result<(), Box<dyn std::error::Error>
                     result: output_handle.clone()
                 })
             )).await?;
-            listener_event_to_db.notify_scheduler().await;
             wait_until_all_ciphertexts_computed(&app).await?;
             let decrypt_request = vec![output_handle.to_be_bytes_vec()];
             let resp = decrypt_ciphertexts(&pool, 1, decrypt_request).await?;
@@ -420,7 +417,6 @@ async fn test_fhe_cast_events() -> Result<(), Box<dyn std::error::Error>> {
                 })
             )).await?;
 
-            listener_event_to_db.notify_scheduler().await;
             wait_until_all_ciphertexts_computed(&app).await?;
             let decrypt_request = vec![output_handle.to_be_bytes_vec()];
             let resp = decrypt_ciphertexts(&pool, 1, decrypt_request).await?;
@@ -493,7 +489,6 @@ async fn test_fhe_rand_events() -> Result<(), Box<dyn std::error::Error>> {
             })
         )).await?;
 
-        listener_event_to_db.notify_scheduler().await;
         wait_until_all_ciphertexts_computed(&app).await?;
 
         let decrypt_request = vec![output1_handle.to_be_bytes_vec(), output2_handle.to_be_bytes_vec(), output3_handle.to_be_bytes_vec()];

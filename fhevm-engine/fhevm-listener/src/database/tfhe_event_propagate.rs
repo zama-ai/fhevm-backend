@@ -22,8 +22,6 @@ pub type ChainId = u64;
 pub type ToType = FixedBytes<1>;
 pub type ScalarByte = FixedBytes<1>;
 
-const MAX_RETRIES_FOR_NOTIFY: usize = 5;
-
 pub fn retry_on_sqlx_error(err: &SqlxError) -> bool {
     match err {
         SqlxError::Io(_)
@@ -255,25 +253,6 @@ impl Database {
             | E::Upgraded(_)
             | E::VerifyCiphertext(_)
             => Ok(()),
-        }
-    }
-
-    pub async fn notify_scheduler(&mut self) {
-        let query = || sqlx::query!("NOTIFY work_available;");
-        for i in (0..=MAX_RETRIES_FOR_NOTIFY).rev() {
-            match query().execute(&self.pool).await {
-                Ok(_) => return (),
-                Err(err) if retry_on_sqlx_error(&err) => {
-                    eprintln!("\tDatabase I/O error: {}, will retry indefinitely", err);
-                    self.reconnect().await;
-                }
-                Err(sqlx_err) => {
-                    if i > 0 {
-                        eprintln!("\tDatabase logic error: {}, will retry a few time ({i}) just in case", sqlx_err);
-                        tokio::time::sleep(Duration::from_secs(1)).await;
-                    }
-                }
-            }
         }
     }
 
