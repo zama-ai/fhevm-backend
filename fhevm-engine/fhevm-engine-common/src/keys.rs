@@ -83,7 +83,7 @@ impl FhevmKeys {
         let compressed_server_key = CompressedServerKey::new(&client_key);
         FhevmKeys {
             server_key: compressed_server_key.decompress(),
-            compressed_server_key,
+            compressed_server_key: compressed_server_key.clone(),
             client_key: Some(client_key),
             compact_public_key,
             public_params: Arc::new(crs.clone()),
@@ -179,7 +179,7 @@ impl From<SerializedFhevmKeys> for FhevmKeys {
 
         FhevmKeys {
             server_key: compressed_server_key.decompress(),
-            compressed_server_key,
+            compressed_server_key: compressed_server_key.clone(),
             client_key: client_key.clone(),
             compact_public_key: safe_deserialize_key(&f.compact_public_key)
                 .expect("deserialize compact public key"),
