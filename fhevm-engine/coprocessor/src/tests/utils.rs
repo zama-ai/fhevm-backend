@@ -202,9 +202,9 @@ pub struct DecryptionResult {
 }
 
 pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::error::Error>> {
-    let sks = tokio::fs::read("../fhevm-keys/sks")
+    let csks = tokio::fs::read("../fhevm-keys/csks")
         .await
-        .expect("can't read sks key");
+        .expect("can't read compressed sks key");
     let pks = tokio::fs::read("../fhevm-keys/pks")
         .await
         .expect("can't read pks key");
@@ -216,7 +216,7 @@ pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::err
         .expect("can't read public params");
     sqlx::query!(
         "
-            INSERT INTO tenants(tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, cks_key)
+            INSERT INTO tenants(tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, csks_key, public_params, cks_key)
             VALUES (
                 'a1503fb6-d79b-4e9e-826d-44cf262f3e05',
                 12345,
@@ -229,7 +229,7 @@ pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::err
             )
         ",
         &pks,
-        &sks,
+        &csks,
         &public_params,
         &cks,
     )
@@ -246,7 +246,7 @@ pub async fn decrypt_ciphertexts(
 ) -> Result<Vec<DecryptionResult>, Box<dyn std::error::Error>> {
     let mut keys = sqlx::query!(
         "
-            SELECT cks_key, sks_key
+            SELECT cks_key, csks_key
             FROM tenants
             WHERE tenant_id = $1
         ",
@@ -289,8 +289,11 @@ pub async fn decrypt_ciphertexts(
 
     let mut values = tokio::task::spawn_blocking(move || {
         let client_key: tfhe::ClientKey = safe_deserialize(&keys.cks_key.clone().unwrap()).unwrap();
-        let sks: tfhe::ServerKey = safe_deserialize_key(&keys.sks_key).unwrap();
-        tfhe::set_server_key(sks);
+        let csks: tfhe::CompressedServerKey = safe_deserialize_key(&keys.csks_key.expect("missing compressed key in DB")).unwrap();
+        #[cfg(feature = "gpu")]
+        tfhe::set_server_key(csks.decompress_to_gpu());
+	#[cfg(not(feature = "gpu"))]
+        tfhe::set_server_key(csks.decompress());
 
         let mut decrypted: Vec<(Vec<u8>, DecryptionResult)> = Vec::with_capacity(cts.len());
         for ct in cts {

@@ -107,7 +107,7 @@ where
     let mut res = Vec::with_capacity(tenants_to_query.len());
     let keys = query!(
         "
-            SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, cks_key
+            SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, pks_key, csks_key, public_params, cks_key
             FROM tenants
             WHERE tenant_id = ANY($1::INT[])
         ",
@@ -117,14 +117,11 @@ where
     .await?;
 
     for key in keys {
-        let sks: tfhe::ServerKey = safe_deserialize_key(&key.sks_key)
-            .expect("We can't deserialize our own validated sks key");
+        let csks: tfhe::CompressedServerKey = safe_deserialize_key(&key.csks_key.expect("missing compressed key in DB"))
+            .expect("We can't deserialize our own validated compressed sks key");
+	let sks: tfhe::ServerKey = csks.decompress();
         #[cfg(feature = "gpu")]
-	let csks: tfhe::CudaServerKey = {
-            let client_key: tfhe::ClientKey = key.cks_key
-            .map(|c| safe_deserialize_key(&c).expect("deserialize client key")).expect("missing client key");
-	    CompressedServerKey::new(&client_key.clone()).decompress_to_gpu()
-	};
+	let csks: tfhe::CudaServerKey = csks.decompress_to_gpu();
         let pks: tfhe::CompactPublicKey = safe_deserialize_key(&key.pks_key)
             .expect("We can't deserialize our own validated pks key");
         let public_params: tfhe::zk::CompactPkeCrs = safe_deserialize_key(&key.public_params)

@@ -111,9 +111,9 @@ pub async fn wait_for_ciphertext(
 }
 
 pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::error::Error>> {
-    let sks = tokio::fs::read("../fhevm-keys/sks")
+    let csks = tokio::fs::read("../fhevm-keys/csks")
         .await
-        .expect("can't read sks key");
+        .expect("can't read compressed sks key");
     let pks = tokio::fs::read("../fhevm-keys/pks")
         .await
         .expect("can't read pks key");
@@ -129,7 +129,7 @@ pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::err
 
     sqlx::query!(
         "
-            INSERT INTO tenants(tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, cks_key, sns_sk, sns_pk)
+            INSERT INTO tenants(tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, csks_key, public_params, cks_key, sns_sk, sns_pk)
             VALUES (
                 'a1503fb6-d79b-4e9e-826d-44cf262f3e05',
                 12345,
@@ -145,7 +145,7 @@ pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::err
         ",
         ACL_CONTRACT_ADDR.to_string(),
         &pks,
-        &sks,
+        &csks,
         &public_params,
         &cks,
         sns_sk_oid,
