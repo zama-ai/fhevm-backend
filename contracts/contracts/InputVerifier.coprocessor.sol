@@ -50,7 +50,7 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
     struct CiphertextVerificationForCopro {
         address aclAddress;
         bytes32 hashOfCiphertext;
-        uint256[] handlesList;
+        bytes32[] handlesList;
         address userAddress;
         address contractAddress;
     }
@@ -66,7 +66,7 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
 
     /// @notice Ciphertext verification type.
     string public constant CIPHERTEXT_VERIFICATION_COPRO_TYPE =
-        "CiphertextVerificationForCopro(address aclAddress,bytes32 hashOfCiphertext,uint256[] handlesList,address userAddress,address contractAddress)";
+        "CiphertextVerificationForCopro(address aclAddress,bytes32 hashOfCiphertext,bytes32[] handlesList,address userAddress,address contractAddress)";
 
     /// @notice Ciphertext verification typehash.
     bytes32 public constant CIPHERTEXT_VERIFICATION_COPRO_TYPEHASH =
@@ -128,13 +128,14 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
         TFHEExecutor.ContextUserInputs memory context,
         bytes32 inputHandle,
         bytes memory inputProof
-    ) public virtual returns (uint256) {
+    ) public virtual returns (bytes32) {
         (bool isProofCached, bytes32 cacheKey) = _checkProofCache(
             inputProof,
             context.userAddress,
             context.contractAddress,
             context.aclAddress
         );
+
         uint256 result = uint256(inputHandle);
         uint256 indexHandle = (result & 0x0000000000000000000000000000000000000000000000000000000000ff0000) >> 16;
 
