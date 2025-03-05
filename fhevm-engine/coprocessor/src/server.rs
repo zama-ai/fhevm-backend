@@ -752,9 +752,9 @@ impl CoprocessorService {
         }
 
         let mut span = tracer.child_span("db_query_server_key");
-        let mut sks = sqlx::query!(
+        let mut csks = sqlx::query!(
             "
-                SELECT sks_key
+                SELECT csks_key
                 FROM tenants
                 WHERE tenant_id = $1
             ",
@@ -765,16 +765,19 @@ impl CoprocessorService {
         .map_err(Into::<CoprocessorError>::into)?;
         span.end();
 
-        assert_eq!(sks.len(), 1);
+        assert_eq!(csks.len(), 1);
 
-        let sks = sks.pop().unwrap();
+        let csks = csks.pop().unwrap();
         let cloned = req.values.clone();
         let inner_tracer = tracer.clone();
         let mut outer_span = tracer.child_span("blocking_trivial_encrypt");
         let out_cts = tokio::task::spawn_blocking(move || {
             let mut span = inner_tracer.child_span("deserialize_and_set_sks");
-            let server_key: tfhe::ServerKey = safe_deserialize_key(&sks.sks_key).unwrap();
-            tfhe::set_server_key(server_key);
+               let csks: tfhe::CompressedServerKey = safe_deserialize_key(&csks.csks_key.expect("missing compressed key in DB")).unwrap();
+               #[cfg(feature = "gpu")]
+               tfhe::set_server_key(csks.decompress_to_gpu());
+	       #[cfg(not(feature = "gpu"))]
+               tfhe::set_server_key(csks.decompress());
             span.end();
 
             // single threaded implementation, we can optimize later

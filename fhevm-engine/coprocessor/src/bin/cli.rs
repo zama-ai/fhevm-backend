@@ -22,7 +22,7 @@ pub enum Args {
         pks_file: String,
         /// SKS file path
         #[arg(long)]
-        sks_file: String,
+        csks_file: String,
         /// Public params file path
         #[arg(long)]
         public_params_file: String,
@@ -55,7 +55,7 @@ fn main() {
     match args {
         Args::InsertTenant {
             pks_file,
-            sks_file,
+            csks_file,
             public_params_file,
             tenant_api_key,
             acl_contract_address,
@@ -64,7 +64,7 @@ fn main() {
         } => {
             insert_tenant(
                 pks_file,
-                sks_file,
+                csks_file,
                 public_params_file,
                 tenant_api_key,
                 acl_contract_address,
@@ -198,7 +198,7 @@ fn smoke_test(tenant_api_key: String, coprocessor_url: String) {
 
 fn insert_tenant(
     pks_file: String,
-    sks_file: String,
+    csks_file: String,
     public_params_file: String,
     tenant_api_key: String,
     acl_contract_address: String,
@@ -208,7 +208,7 @@ fn insert_tenant(
     let db_url =
         std::env::var("DATABASE_URL").expect("DATABASE_URL environment variable is undefined");
     let pks_file = std::fs::read(&pks_file).expect("Can't read pks file");
-    let sks_file = std::fs::read(&sks_file).expect("Can't read pks file");
+    let csks_file = std::fs::read(&csks_file).expect("Can't read csks file");
     let public_params_file =
         std::fs::read(&public_params_file).expect("Can't read public params file");
     let _ = alloy::primitives::Address::from_str(&acl_contract_address)
@@ -236,7 +236,7 @@ fn insert_tenant(
                         acl_contract_address,
                         verifying_contract_address,
                         pks_key,
-                        sks_key,
+                        csks_key,
                         public_params
                     )
                     VALUES (
@@ -254,7 +254,7 @@ fn insert_tenant(
                 &acl_contract_address,
                 &verifying_contract_address,
                 &pks_file,
-                &sks_file,
+                &csks_file,
                 &public_params_file
             )
             .execute(&pool)

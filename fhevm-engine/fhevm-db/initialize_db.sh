@@ -15,11 +15,11 @@ echo "Start preparing tenant query..."
 # Settings
 CHAIN_ID=${CHAIN_ID:-"12345"}
 PKS_FILE=${PKS_FILE:-"/fhevm-keys/pks"}
-SKS_FILE=${SKS_FILE:-"/fhevm-keys/sks"}
+CSKS_FILE=${CSKS_FILE:-"/fhevm-keys/csks"}
 PUBLIC_PARAMS_FILE=${PUBLIC_PARAMS_FILE:-"/fhevm-keys/pp"}
 
 # Verify key files
-for file in "$PKS_FILE" "$SKS_FILE" "$PUBLIC_PARAMS_FILE"; do
+for file in "$PKS_FILE" "$CSKS_FILE" "$PUBLIC_PARAMS_FILE"; do
     if [[ ! -f $file ]]; then
         echo "Error: Key file $file not found."; exit 1;
     fi
@@ -39,12 +39,12 @@ if [ "$TENANT_EXISTS" = "1" ]; then
 fi
 
 TMP_CSV="/tmp/tenant_data.csv"
-echo "tenant_api_key,chain_id,acl_contract_address,verifying_contract_address,pks_key,sks_key,public_params" > $TMP_CSV
+echo "tenant_api_key,chain_id,acl_contract_address,verifying_contract_address,pks_key,csks_key,public_params" > $TMP_CSV
 
-echo "$TENANT_API_KEY,$CHAIN_ID,$ACL_CONTRACT_ADDRESS,$INPUT_VERIFIER_ADDRESS,\"\\x$(< "$PKS_FILE" xxd -p | tr -d '\n')\",\"\\x$(< "$SKS_FILE" xxd -p | tr -d '\n')\",\"\\x$(< "$PUBLIC_PARAMS_FILE" xxd -p | tr -d '\n')\"" >> $TMP_CSV
+echo "$TENANT_API_KEY,$CHAIN_ID,$ACL_CONTRACT_ADDRESS,$INPUT_VERIFIER_ADDRESS,\"\\x$(< "$PKS_FILE" xxd -p | tr -d '\n')\",\"\\x$(< "$CSKS_FILE" xxd -p | tr -d '\n')\",\"\\x$(< "$PUBLIC_PARAMS_FILE" xxd -p | tr -d '\n')\"" >> $TMP_CSV
 
 echo "Inserting tenant data using \COPY..."
-psql "$DATABASE_URL" -c "\COPY tenants (tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params) FROM '$TMP_CSV' CSV HEADER;" || {
+psql "$DATABASE_URL" -c "\COPY tenants (tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, csks_key, public_params) FROM '$TMP_CSV' CSV HEADER;" || {
     echo "Error: Failed to insert tenant data."; exit 1;
 }
 
