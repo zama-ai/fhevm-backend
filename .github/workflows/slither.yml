@@ -20,7 +20,7 @@ jobs:
         uses: crytic/slither-action@v0.4.0
         with:
           node-version: 20
-          ignore-compile: true
+          ignore-compile: false
           solc-version: "0.8.24"
           slither-config: ".slither.config.json"
           sarif: results.sarif
