@@ -25,7 +25,7 @@ jobs:
           slither-config: ".slither.config.json"
           sarif: results.sarif
           fail-on: none
-          target: "contracts/"
+          target: "./contracts/"
       - name: Upload SARIF file
         uses: github/codeql-action/upload-sarif@v3
         with:
