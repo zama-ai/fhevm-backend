@@ -50,7 +50,7 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
     struct CiphertextVerificationForCopro {
         address aclAddress;
         bytes32 hashOfCiphertext;
-        uint256[] handlesList;
+        bytes32[] handlesList;
         address userAddress;
         address contractAddress;
     }
@@ -66,7 +66,7 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
 
     /// @notice Ciphertext verification type.
     string public constant CIPHERTEXT_VERIFICATION_COPRO_TYPE =
-        "CiphertextVerificationForCopro(address aclAddress,bytes32 hashOfCiphertext,uint256[] handlesList,address userAddress,address contractAddress)";
+        "CiphertextVerificationForCopro(address aclAddress,bytes32 hashOfCiphertext,bytes32[] handlesList,address userAddress,address contractAddress)";
 
     /// @notice Ciphertext verification typehash.
     bytes32 public constant CIPHERTEXT_VERIFICATION_COPRO_TYPEHASH =
@@ -128,15 +128,16 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
         TFHEExecutor.ContextUserInputs memory context,
         bytes32 inputHandle,
         bytes memory inputProof
-    ) public virtual returns (uint256) {
+    ) public virtual returns (bytes32) {
         (bool isProofCached, bytes32 cacheKey) = _checkProofCache(
             inputProof,
             context.userAddress,
             context.contractAddress,
             context.aclAddress
         );
-        uint256 result = uint256(inputHandle);
-        uint256 indexHandle = (result & 0x0000000000000000000000000000000000000000000000000000000000ff0000) >> 16;
+
+        bytes32 result = inputHandle;
+        uint256 indexHandle = (uint256(result) & 0x0000000000000000000000000000000000000000000000000000000000ff0000) >> 16;
 
         if (!isProofCached) {
             /// @dev bundleCiphertext is compressedPackedCT+ZKPOK
@@ -160,7 +161,7 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
             }
 
             /// @dev Deserialize handle and check that they are from the correct version.
-            uint256[] memory listHandles = new uint256[](numHandles);
+            bytes32[] memory listHandles = new bytes32[](numHandles);
             for (uint256 i = 0; i < numHandles; i++) {
                 uint256 element;
                 assembly {
@@ -168,7 +169,7 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
                 }
                 /// @dev Check that all handles are from the correct version.
                 if (uint8(element) != HANDLE_VERSION) revert InvalidHandleVersion();
-                listHandles[i] = element;
+                listHandles[i] = bytes32(element);
             }
 
             {
@@ -213,9 +214,9 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
             for (uint256 j = 0; j < 32; j++) {
                 element |= uint256(uint8(inputProof[34 + indexHandle * 32 + j])) << (8 * (31 - j));
             }
-            if (element != result) revert InvalidInputHandle();
+            if (bytes32(element) != result) revert InvalidInputHandle();
         }
-        return result;
+        return inputHandle;
     }
 
     /**
