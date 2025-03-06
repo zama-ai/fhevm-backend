@@ -84,7 +84,12 @@ impl FhevmExecutor for FhevmExecutorService {
         let public_params = self.keys.public_params.clone();
         let sks = self.keys.server_key.clone();
         #[cfg(feature = "gpu")]
-        let csks = self.keys.compressed_server_key.decompress_to_gpu();
+        let csks = self
+            .keys
+            .compressed_server_key
+            .clone()
+            .expect("missing compressed server key")
+            .decompress_to_gpu();
         let resp = spawn_blocking(move || {
             let req = req.get_ref();
             let mut state = ComputationState::default();

@@ -38,7 +38,7 @@ pub const MAX_BITS_TO_PROVE: usize = 2048;
 #[derive(Clone)]
 pub struct FhevmKeys {
     pub server_key: ServerKey,
-    pub compressed_server_key: CompressedServerKey,
+    pub compressed_server_key: Option<CompressedServerKey>,
     pub client_key: Option<ClientKey>,
     pub compact_public_key: CompactPublicKey,
     pub public_params: Arc<CompactPkeCrs>,
@@ -47,7 +47,8 @@ pub struct FhevmKeys {
 }
 
 pub struct SerializedFhevmKeys {
-    pub compressed_server_key: Vec<u8>,
+    pub server_key: Vec<u8>,
+    pub gpu_compressed_server_key: Option<Vec<u8>>,
     pub client_key: Option<Vec<u8>>,
     pub compact_public_key: Vec<u8>,
     pub public_params: Vec<u8>,
@@ -63,7 +64,7 @@ impl FhevmKeys {
         let compressed_server_key = CompressedServerKey::new(&client_key);
         FhevmKeys {
             server_key: compressed_server_key.decompress(),
-            compressed_server_key: compressed_server_key.clone(),
+            compressed_server_key: Some(compressed_server_key.clone()),
             client_key: Some(client_key),
             compact_public_key,
             public_params: Arc::new(crs.clone()),
@@ -95,7 +96,8 @@ impl FhevmKeys {
 
 impl SerializedFhevmKeys {
     const DIRECTORY: &'static str = "../fhevm-keys";
-    const CSKS: &'static str = "../fhevm-keys/csks";
+    const SKS: &'static str = "../fhevm-keys/sks";
+    const GPU_CSKS: &'static str = "../fhevm-keys/gpu-csks";
     const CKS: &'static str = "../fhevm-keys/cks";
     const PKS: &'static str = "../fhevm-keys/pks";
     const PUBLIC_PARAMS: &'static str = "../fhevm-keys/pp";
@@ -105,9 +107,13 @@ impl SerializedFhevmKeys {
         println!("Creating directory {}", Self::DIRECTORY);
         std::fs::create_dir_all(Self::DIRECTORY).expect("create keys directory");
 
-        println!("Creating file {}", Self::CSKS);
-        std::fs::write(format!("{}", Self::CSKS), self.compressed_server_key).expect("write csks");
+        println!("Creating file {}", Self::SKS);
+        std::fs::write(format!("{}", Self::SKS), self.server_key).expect("write sks");
 
+        if let Some(gpu_csks) = self.gpu_compressed_server_key {
+            println!("Creating file {}", Self::GPU_CSKS);
+            std::fs::write(format!("{}", Self::GPU_CSKS), gpu_csks).expect("write gpu csks");
+        }
         if self.client_key.is_some() {
             println!("Creating file {}", Self::CKS);
             std::fs::write(format!("{}", Self::CKS), self.client_key.unwrap()).expect("write cks");
@@ -123,13 +129,14 @@ impl SerializedFhevmKeys {
 
     pub fn load_from_disk(keys_directory: &str) -> Self {
         let keys_dir = std::path::Path::new(&keys_directory);
-        let compressed_server_key =
-            read(keys_dir.join("csks")).expect("read compressed server key");
+        let server_key = read(keys_dir.join("sks")).expect("read server key");
+        let gpu_compressed_server_key = read(keys_dir.join("gpu-csks")).ok();
         let client_key = read(keys_dir.join("cks")).ok();
         let compact_public_key = read(keys_dir.join("pks")).expect("read compact public key");
         let public_params = read(keys_dir.join("pp")).expect("read public params");
         SerializedFhevmKeys {
-            compressed_server_key,
+            server_key,
+            gpu_compressed_server_key,
             client_key,
             compact_public_key,
             public_params,
@@ -140,7 +147,8 @@ impl SerializedFhevmKeys {
 impl From<FhevmKeys> for SerializedFhevmKeys {
     fn from(f: FhevmKeys) -> Self {
         SerializedFhevmKeys {
-            compressed_server_key: safe_serialize_key(&f.compressed_server_key),
+            server_key: safe_serialize_key(&f.server_key),
+            gpu_compressed_server_key: f.compressed_server_key.map(|k| safe_serialize_key(&k)),
             client_key: f.client_key.map(|c| safe_serialize_key(&c)),
             compact_public_key: safe_serialize_key(&f.compact_public_key),
             public_params: safe_serialize_key(f.public_params.as_ref()),
@@ -153,12 +161,12 @@ impl From<SerializedFhevmKeys> for FhevmKeys {
         let client_key = f
             .client_key
             .map(|c| safe_deserialize_key(&c).expect("deserialize client key"));
-        let compressed_server_key: CompressedServerKey =
-            safe_deserialize_key(&f.compressed_server_key)
-                .expect("deserialize compressed server key");
+        let compressed_server_key: Option<CompressedServerKey> = f
+            .gpu_compressed_server_key
+            .map(|k| safe_deserialize_key(&k).expect("deserialize compressed server key"));
 
         FhevmKeys {
-            server_key: compressed_server_key.decompress(),
+            server_key: safe_deserialize_key(&f.server_key).expect("deserialize server key"),
             compressed_server_key: compressed_server_key.clone(),
             client_key: client_key.clone(),
             compact_public_key: safe_deserialize_key(&f.compact_public_key)
@@ -167,7 +175,9 @@ impl From<SerializedFhevmKeys> for FhevmKeys {
                 safe_deserialize_key(&f.public_params).expect("deserialize public params"),
             ),
             #[cfg(feature = "gpu")]
-            gpu_server_key: compressed_server_key.decompress_to_gpu(),
+            gpu_server_key: compressed_server_key
+                .expect("missing gpu compressed server key")
+                .decompress_to_gpu(),
         }
     }
 }
