@@ -32,7 +32,7 @@ contract KMSVerifierTest is Test {
     }
 
     function _computeDigest(
-        uint256[] memory handlesList,
+        bytes32[] memory handlesList,
         bytes memory decryptedResult
     ) internal view returns (bytes32) {
         bytes32 structHash = keccak256(
@@ -230,10 +230,10 @@ contract KMSVerifierTest is Test {
     function test_verifyInputEIP712KMSSignaturesWork() public {
         _setSigners();
         address emptyAddress = address(42);
-        uint256[] memory handlesList = new uint256[](3);
-        handlesList[0] = 4;
-        handlesList[1] = 5;
-        handlesList[2] = 323;
+        bytes32[] memory handlesList = new bytes32[](3);
+        handlesList[0] = bytes32(uint256(4));
+        handlesList[1] = bytes32(uint256(5));
+        handlesList[2] = bytes32(uint256(323));
 
         bytes memory decryptedResult = abi.encodePacked(keccak256("test"), keccak256("test"), keccak256("test"));
         bytes[] memory signatures = new bytes[](3);
@@ -252,10 +252,10 @@ contract KMSVerifierTest is Test {
     function test_verifyInputEIP712KMSSignaturesFailAsExpectedIfDigestIsInvalid() public {
         _setSigners();
         address emptyAddress = address(42);
-        uint256[] memory handlesList = new uint256[](3);
-        handlesList[0] = 4;
-        handlesList[1] = 5;
-        handlesList[2] = 323;
+        bytes32[] memory handlesList = new bytes32[](3);
+        handlesList[0] = bytes32(uint256(4));
+        handlesList[1] = bytes32(uint256(5));
+        handlesList[2] = bytes32(uint256(323));
 
         bytes memory decryptedResult = abi.encodePacked(keccak256("test"), keccak256("test"), keccak256("test"));
         bytes[] memory signatures = new bytes[](3);
@@ -272,10 +272,10 @@ contract KMSVerifierTest is Test {
 
     function test_verifyInputEIP712KMSSignaturesFailAsExpectedIfNoSignerAdded() public {
         address emptyAddress = address(42);
-        uint256[] memory handlesList = new uint256[](3);
-        handlesList[0] = 4;
-        handlesList[1] = 5;
-        handlesList[2] = 323;
+        bytes32[] memory handlesList = new bytes32[](3);
+        handlesList[0] = bytes32(uint256(4));
+        handlesList[1] = bytes32(uint256(5));
+        handlesList[2] = bytes32(uint256(323));
 
         bytes memory decryptedResult = abi.encodePacked(keccak256("test"), keccak256("test"), keccak256("test"));
         bytes[] memory signatures = new bytes[](3);
@@ -294,10 +294,10 @@ contract KMSVerifierTest is Test {
         _setSigners();
 
         address emptyAddress = address(42);
-        uint256[] memory handlesList = new uint256[](3);
-        handlesList[0] = 4;
-        handlesList[1] = 5;
-        handlesList[2] = 323;
+        bytes32[] memory handlesList = new bytes32[](3);
+        handlesList[0] = bytes32(uint256(4));
+        handlesList[1] = bytes32(uint256(5));
+        handlesList[2] = bytes32(uint256(323));
 
         bytes memory decryptedResult = abi.encodePacked(keccak256("test"), keccak256("test"), keccak256("test"));
         bytes[] memory signatures = new bytes[](0);
@@ -314,10 +314,10 @@ contract KMSVerifierTest is Test {
         vm.prank(owner);
         kmsVerifier.addSigner(randomNewSigner);
         address emptyAddress = address(42);
-        uint256[] memory handlesList = new uint256[](3);
-        handlesList[0] = 4;
-        handlesList[1] = 5;
-        handlesList[2] = 323;
+        bytes32[] memory handlesList = new bytes32[](3);
+        handlesList[0] = bytes32(uint256(4));
+        handlesList[1] = bytes32(uint256(5));
+        handlesList[2] = bytes32(uint256(323));
 
         bytes memory decryptedResult = abi.encodePacked(keccak256("test"), keccak256("test"), keccak256("test"));
         bytes[] memory signatures = new bytes[](1);
