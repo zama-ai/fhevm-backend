@@ -134,10 +134,10 @@ impl SerializedFhevmKeys {
         }
         #[cfg(feature = "gpu")]
         {
-            if let Some(gpu_csks) = self.compressed_server_key {
-                println!("Creating file {}", Self::GPU_CSKS);
-                std::fs::write(format!("{}", Self::GPU_CSKS), gpu_csks).expect("write gpu csks");
-            }
+            println!("Creating file {}", Self::GPU_CSKS);
+            std::fs::write(format!("{}", Self::GPU_CSKS), self.compressed_server_key)
+                .expect("write gpu csks");
+
             if self.client_key.is_some() {
                 println!("Creating file {}", Self::GPU_CKS);
                 std::fs::write(format!("{}", Self::GPU_CKS), self.client_key.unwrap())
