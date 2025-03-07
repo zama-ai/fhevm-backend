@@ -154,14 +154,17 @@ where
         {
             let csks: tfhe::CompressedServerKey = safe_deserialize_key(
                 &key.gpu_csks_key
-                    .expect("missing compressed gpu server key in DB"),
+                    .expect("missing compressed server key for GPU in DB"),
             )
             .expect("We can't deserialize the gpu compressed sks key");
-            let pks: tfhe::CompactPublicKey = safe_deserialize_key(&key.gpu_pks_key)
-                .expect("We can't deserialize our own validated pks key");
-            let public_params: tfhe::zk::CompactPkeCrs =
-                safe_deserialize_key(&key.gpu_public_params)
-                    .expect("We can't deserialize our own validated public params");
+            let pks: tfhe::CompactPublicKey =
+                safe_deserialize_key(&key.gpu_pks_key.expect("missing pks key for GPU in DB"))
+                    .expect("We can't deserialize our own validated pks key");
+            let public_params: tfhe::zk::CompactPkeCrs = safe_deserialize_key(
+                &key.gpu_public_params
+                    .expect("missing public params for GPU in DB"),
+            )
+            .expect("We can't deserialize our own validated public params");
             res.push(TfheTenantKeys {
                 tenant_id: key.tenant_id,
                 pks,
