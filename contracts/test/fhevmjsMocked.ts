@@ -4,6 +4,7 @@ import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { Wallet, ethers } from 'ethers';
 import * as fs from 'fs';
+import { network } from 'hardhat';
 import { Keccak } from 'sha3';
 import { isAddress } from 'web3-validator';
 
@@ -315,13 +316,15 @@ export const createEncryptedInputMocked = (contractAddress: string, userAddress:
 
         const listHandlesStr = handles.map((i) => uint8ArrayToHexString(i));
         listHandlesStr.map((handle) => (inputProof += handle));
-        const listHandles = listHandlesStr.map((i) => BigInt('0x' + i));
+        // @dev Adds 0x prefix to format as BytesLike value
+        const listHandles = listHandlesStr.map((i) => '0x' + i);
         const sigCoproc = await computeInputSignatureCopro(
           '0x' + hash.toString('hex'),
           listHandles,
           userAddress,
           contractAddress,
         );
+
         inputProof += sigCoproc.slice(2);
 
         const signaturesKMS = await computeInputSignaturesKMS(
@@ -396,7 +399,7 @@ export const ENCRYPTION_TYPES = {
 
 async function computeInputSignatureCopro(
   hash: string,
-  handlesList: bigint[],
+  handlesList: string[],
   userAddress: string,
   contractAddress: string,
 ): Promise<string> {
@@ -433,7 +436,7 @@ async function computeInputSignaturesKMS(
 
 async function coprocSign(
   hashOfCiphertext: string,
-  handlesList: bigint[],
+  handlesList: string[],
   userAddress: string,
   contractAddress: string,
   signer: Wallet,
@@ -461,7 +464,7 @@ async function coprocSign(
       },
       {
         name: 'handlesList',
-        type: 'uint256[]',
+        type: 'bytes32[]',
       },
       {
         name: 'userAddress',
@@ -483,6 +486,7 @@ async function coprocSign(
 
   const signature = await signer.signTypedData(domain, types, message);
   const sigRSV = ethers.Signature.from(signature);
+
   const v = 27 + sigRSV.yParity;
   const r = sigRSV.r;
   const s = sigRSV.s;
