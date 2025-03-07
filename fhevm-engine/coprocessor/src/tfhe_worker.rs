@@ -365,7 +365,7 @@ async fn tfhe_worker_cycle(
                     args.coprocessor_fhe_threads,
                     keys.sks.clone(),
                     #[cfg(feature = "gpu")]
-                    keys.csks.clone(),
+                    keys.gpu_sks.clone(),
                 );
                 sched.schedule().await?;
             }
