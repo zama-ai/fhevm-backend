@@ -202,19 +202,21 @@ pub struct DecryptionResult {
 }
 
 pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::error::Error>> {
-    let sks = tokio::fs::read("../fhevm-keys/sks")
-        .await
-        .expect("can't read sks key");
-    let pks = tokio::fs::read("../fhevm-keys/pks")
-        .await
-        .expect("can't read pks key");
-    let cks = tokio::fs::read("../fhevm-keys/cks")
-        .await
-        .expect("can't read cks key");
-    let public_params = tokio::fs::read("../fhevm-keys/pp")
-        .await
-        .expect("can't read public params");
-    sqlx::query!(
+    #[cfg(not(feature = "gpu"))]
+    {
+        let sks = tokio::fs::read("../fhevm-keys/sks")
+            .await
+            .expect("can't read sks key");
+        let pks = tokio::fs::read("../fhevm-keys/pks")
+            .await
+            .expect("can't read pks key");
+        let cks = tokio::fs::read("../fhevm-keys/cks")
+            .await
+            .expect("can't read cks key");
+        let public_params = tokio::fs::read("../fhevm-keys/pp")
+            .await
+            .expect("can't read public params");
+        sqlx::query!(
         "
             INSERT INTO tenants(tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, cks_key)
             VALUES (
@@ -235,6 +237,44 @@ pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::err
     )
     .execute(pool)
     .await?;
+    }
+
+    #[cfg(feature = "gpu")]
+    {
+        let csks = tokio::fs::read("../fhevm-keys/gpu-csks")
+            .await
+            .expect("can't read csks key for gpu");
+        let pks = tokio::fs::read("../fhevm-keys/gpu-pks")
+            .await
+            .expect("can't read pks key for gpu");
+        let cks = tokio::fs::read("../fhevm-keys/gpu-cks")
+            .await
+            .expect("can't read cks key for gpu");
+        let public_params = tokio::fs::read("../fhevm-keys/gpu-pp")
+            .await
+            .expect("can't read public params for gpu");
+        sqlx::query!(
+        "
+            INSERT INTO tenants(tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, gpu_pks_key, gpu_csks_key, gpu_public_params, gpu_cks_key)
+            VALUES (
+                'a1503fb6-d79b-4e9e-826d-44cf262f3e05',
+                12345,
+                '0x339EcE85B9E11a3A3AA557582784a15d7F82AAf2',
+                '0x69dE3158643e738a0724418b21a35FAA20CBb1c5',
+                $1,
+                $2,
+                $3,
+                $4
+            )
+        ",
+        &pks,
+        &csks,
+        &public_params,
+        &cks,
+    )
+    .execute(pool)
+    .await?;
+    }
 
     Ok(())
 }
