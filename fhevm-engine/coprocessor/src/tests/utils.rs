@@ -202,20 +202,19 @@ pub struct DecryptionResult {
 }
 
 pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::error::Error>> {
+    let sks = tokio::fs::read("../fhevm-keys/sks")
+        .await
+        .expect("can't read sks key");
+    let pks = tokio::fs::read("../fhevm-keys/pks")
+        .await
+        .expect("can't read pks key");
+    let cks = tokio::fs::read("../fhevm-keys/cks")
+        .await
+        .expect("can't read cks key");
+    let public_params = tokio::fs::read("../fhevm-keys/pp")
+        .await
+        .expect("can't read public params");
     #[cfg(not(feature = "gpu"))]
-    {
-        let sks = tokio::fs::read("../fhevm-keys/sks")
-            .await
-            .expect("can't read sks key");
-        let pks = tokio::fs::read("../fhevm-keys/pks")
-            .await
-            .expect("can't read pks key");
-        let cks = tokio::fs::read("../fhevm-keys/cks")
-            .await
-            .expect("can't read cks key");
-        let public_params = tokio::fs::read("../fhevm-keys/pp")
-            .await
-            .expect("can't read public params");
         sqlx::query!(
         "
             INSERT INTO tenants(tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, cks_key)
@@ -237,25 +236,24 @@ pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::err
     )
     .execute(pool)
     .await?;
-    }
 
     #[cfg(feature = "gpu")]
     {
-        let csks = tokio::fs::read("../fhevm-keys/gpu-csks")
+        let gpu_csks = tokio::fs::read("../fhevm-keys/gpu-csks")
             .await
             .expect("can't read csks key for gpu");
-        let pks = tokio::fs::read("../fhevm-keys/gpu-pks")
+        let gpu_pks = tokio::fs::read("../fhevm-keys/gpu-pks")
             .await
             .expect("can't read pks key for gpu");
-        let cks = tokio::fs::read("../fhevm-keys/gpu-cks")
+        let gpu_cks = tokio::fs::read("../fhevm-keys/gpu-cks")
             .await
             .expect("can't read cks key for gpu");
-        let public_params = tokio::fs::read("../fhevm-keys/gpu-pp")
+        let gpu_public_params = tokio::fs::read("../fhevm-keys/gpu-pp")
             .await
             .expect("can't read public params for gpu");
         sqlx::query!(
         "
-            INSERT INTO tenants(tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, gpu_pks_key, gpu_csks_key, gpu_public_params, gpu_cks_key)
+            INSERT INTO tenants(tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, cks_key, gpu_pks_key, gpu_csks_key, gpu_public_params, gpu_cks_key)
             VALUES (
                 'a1503fb6-d79b-4e9e-826d-44cf262f3e05',
                 12345,
@@ -265,12 +263,20 @@ pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::err
                 $2,
                 $3,
                 $4
+                $5,
+                $6,
+                $7,
+                $8
             )
         ",
         &pks,
-        &csks,
+        &sks,
         &public_params,
         &cks,
+        &gpu_pks,
+        &gpu_csks,
+        &gpu_public_params,
+        &gpu_cks,
     )
     .execute(pool)
     .await?;
