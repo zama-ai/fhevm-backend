@@ -109,6 +109,9 @@ impl<'a> Scheduler<'a> {
 
     #[allow(dead_code)]
     async fn decompress_ciphertexts(&mut self) -> Result<()> {
+        #[cfg(feature = "gpu")]
+        let sks = self.csks.clone();
+        #[cfg(not(feature = "gpu"))]
         let sks = self.sks.clone();
         tfhe::set_server_key(sks.clone());
         rayon::broadcast(|_| {
@@ -249,7 +252,7 @@ impl<'a> Scheduler<'a> {
                 }
                 set.spawn_blocking(move || {
                     tfhe::set_server_key(sks.clone());
-                    execute_partition(args, index, sks)
+                    execute_partition(args, index)
                 });
             }
         }
@@ -301,7 +304,7 @@ impl<'a> Scheduler<'a> {
                     }
                     set.spawn_blocking(move || {
                         tfhe::set_server_key(sks.clone());
-                        execute_partition(args, dependent_task_index, sks)
+                        execute_partition(args, dependent_task_index)
                     });
                 }
             }
@@ -318,6 +321,10 @@ impl<'a> Scheduler<'a> {
         #[cfg(not(feature = "gpu"))]
         let sks = self.sks.clone();
         tfhe::set_server_key(sks.clone());
+        rayon::broadcast(|_| {
+            tfhe::set_server_key(sks.clone());
+        });
+
         // Prime the scheduler with all nodes without dependences
         for idx in 0..execution_graph.node_count() {
             let index = NodeIndex::new(idx);
@@ -340,13 +347,9 @@ impl<'a> Scheduler<'a> {
 
         let (src, dest) = channel();
         tokio::task::spawn_blocking(move || {
-            rayon::broadcast(|_| {
-                tfhe::set_server_key(sks.clone());
-            });
             tfhe::set_server_key(sks.clone());
             comps.par_iter().for_each_with(src, |src, (args, index)| {
-                src.send(execute_partition(args.to_vec(), *index, sks.clone()))
-                    .unwrap();
+                src.send(execute_partition(args.to_vec(), *index)).unwrap();
             });
         })
         .await?;
@@ -480,8 +483,6 @@ fn partition_components(
 fn execute_partition(
     computations: Vec<(i32, Vec<DFGTaskInput>, NodeIndex)>,
     task_id: NodeIndex,
-    #[cfg(feature = "gpu")] server_key: tfhe::CudaServerKey,
-    #[cfg(not(feature = "gpu"))] server_key: tfhe::ServerKey,
 ) -> (
     Vec<(usize, Result<(SupportedFheCiphertexts, i16, Vec<u8>)>)>,
     NodeIndex,
