@@ -119,21 +119,12 @@ const fulfillAllPastRequestsIds = async (mocked: boolean) => {
         throw new Error('Some handle is not authorized for decryption');
       }
       const types = typesList.map((num: string | number) => CiphertextType[num]);
-      console.log('TYPES');
-      console.log(types);
       const values = await Promise.all(handles.map(async (handle: string) => await getClearText(handle)));
 
-      console.log(values);
-
-      // TODO: investigate failing test TestAsyncDecrypt
-      const valuesFormatted = values.map(
-        (value, index) => (types[index] === 'address' ? value : value),
-        // types[index] === 'address' ? value : value,
+      // TODO: investigate failing tests with the below lines
+      const valuesFormatted = values.map((value, index) =>
+        types[index] === 'address' ? '0x' + value.toString(16).padStart(40, '0') : value,
       );
-
-      console.log('FAIL');
-
-      console.log(valuesFormatted[0].padStart(40, 0));
 
       const valuesFormatted2 = valuesFormatted.map((value, index) =>
         typesList[index] === 9 ? '0x' + value.toString(16).padStart(128, '0') : value,
