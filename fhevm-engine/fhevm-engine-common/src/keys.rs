@@ -9,9 +9,8 @@ use tfhe::{
             v1_0::compact_public_key_only::p_fail_2_minus_128::ks_pbs::V1_0_PARAM_PKE_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128,
             v1_0::key_switching::p_fail_2_minus_128::ks_pbs::V1_0_PARAM_KEYSWITCH_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128,
             v1_0::list_compression::V1_0_COMP_PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128,
-            CompactPublicKeyEncryptionParameters, CompressionParameters, MultiBitPBSParameters,
-            ShortintKeySwitchingParameters, PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS,
-            PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128,
+            CompactPublicKeyEncryptionParameters, CompressionParameters,
+            ShortintKeySwitchingParameters, PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128,
         },
         ClassicPBSParameters,
     },
@@ -31,7 +30,8 @@ pub const TFHE_KS_PARAMS: ShortintKeySwitchingParameters =
 #[cfg(not(feature = "gpu"))]
 pub const TFHE_PARAMS: ClassicPBSParameters = PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128;
 #[cfg(feature = "gpu")]
-pub const TFHE_PARAMS: MultiBitPBSParameters = PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS;
+pub const TFHE_PARAMS: tfhe::shortint::parameters::MultiBitPBSParameters =
+    tfhe::shortint::parameters::PARAM_GPU_MULTI_BIT_MESSAGE_2_CARRY_2_GROUP_3_KS_PBS;
 
 pub const MAX_BITS_TO_PROVE: usize = 2048;
 
@@ -100,14 +100,22 @@ impl FhevmKeys {
 
 impl SerializedFhevmKeys {
     const DIRECTORY: &'static str = "../fhevm-keys";
+    #[cfg(not(feature = "gpu"))]
     const SKS: &'static str = "../fhevm-keys/sks";
+    #[cfg(not(feature = "gpu"))]
     const CKS: &'static str = "../fhevm-keys/cks";
+    #[cfg(not(feature = "gpu"))]
     const PKS: &'static str = "../fhevm-keys/pks";
+    #[cfg(not(feature = "gpu"))]
     const PUBLIC_PARAMS: &'static str = "../fhevm-keys/pp";
 
+    #[cfg(feature = "gpu")]
     const GPU_CSKS: &'static str = "../fhevm-keys/gpu-csks";
+    #[cfg(feature = "gpu")]
     const GPU_CKS: &'static str = "../fhevm-keys/gpu-cks";
+    #[cfg(feature = "gpu")]
     const GPU_PKS: &'static str = "../fhevm-keys/gpu-pks";
+    #[cfg(feature = "gpu")]
     const GPU_PUBLIC_PARAMS: &'static str = "../fhevm-keys/gpu-pp";
 
     // generating keys is only for testing, so it is okay these are hardcoded

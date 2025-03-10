@@ -31,20 +31,14 @@ pub mod executor {
     tonic::include_proto!("fhevm.executor");
 }
 
-thread_local! {
-    pub static LOCAL_RAYON_THREADS: Cell<usize> = const {Cell::new(8)};
-}
-
 pub fn start(args: &crate::cli::Args) -> Result<()> {
     let keys: FhevmKeys = SerializedFhevmKeys::load_from_disk(&args.fhe_keys_directory).into();
-    let num_threads = args.policy_fhe_compute_threads;
-    LOCAL_RAYON_THREADS.set(num_threads);
     let executor = FhevmExecutorService::new(keys.clone());
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .worker_threads(args.tokio_threads)
         .max_blocking_threads(args.fhe_compute_threads)
         .on_thread_start(move || {
-            LOCAL_RAYON_THREADS.set(num_threads);
+            set_server_key(keys.server_key.clone());
         })
         .enable_all()
         .build()?;
@@ -90,6 +84,7 @@ impl FhevmExecutor for FhevmExecutorService {
             let mut state = ComputationState::default();
 
             // Exapnd compact ciphertext lists for the whole request.
+            // For now this must be done on CPU
             set_server_key(sks.clone());
             if Self::expand_compact_lists(&req.compact_ciphertext_lists, &mut state, &public_params)
                 .is_err()
@@ -100,13 +95,15 @@ impl FhevmExecutor for FhevmExecutorService {
             }
 
             // Decompress compressed ciphertexts for the whole request.
+            #[cfg(not(feature = "gpu"))]
+            let lsks = sks.clone();
             #[cfg(feature = "gpu")]
-            set_server_key(csks.clone());
-            let now = std::time::SystemTime::now();
+            let lsks = csks.clone();
+            set_server_key(lsks.clone());
             if Self::decompress_compressed_ciphertexts(
                 &req.compressed_ciphertexts,
                 &mut state,
-                sks.clone(),
+                lsks.clone(),
             )
             .is_err()
             {
@@ -114,7 +111,6 @@ impl FhevmExecutor for FhevmExecutorService {
                     resp: Some(Resp::Error(SyncComputeError::BadInputCiphertext.into())),
                 };
             }
-            println!("Decomp time (): {}", now.elapsed().unwrap().as_millis());
 
             // Run the request's computations in an async block
             let handle = tokio::runtime::Handle::current();
@@ -126,7 +122,6 @@ impl FhevmExecutor for FhevmExecutorService {
                     return Some(Resp::Error((e as SyncComputeError).into()));
                 }
                 // Schedule computations in parallel as dependences allow
-                let now = std::time::SystemTime::now();
                 let mut sched = Scheduler::new(
                     &mut graph.graph,
                     sks,
@@ -137,10 +132,6 @@ impl FhevmExecutor for FhevmExecutorService {
                 if sched.schedule().await.is_err() {
                     return Some(Resp::Error(SyncComputeError::ComputationFailed.into()));
                 }
-                println!(
-                    "Execution time (sched): {}",
-                    now.elapsed().unwrap().as_millis()
-                );
                 // Extract the results from the graph
                 let results = graph.get_results();
                 let outputs: Result<Vec<(Handle, (i16, Vec<u8>))>> = results
@@ -231,8 +222,10 @@ impl FhevmExecutorService {
     fn decompress_compressed_ciphertexts(
         cts: &Vec<CompressedCiphertext>,
         state: &mut ComputationState,
-        sks: ServerKey,
+        #[cfg(not(feature = "gpu"))] sks: ServerKey,
+        #[cfg(feature = "gpu")] sks: CudaServerKey,
     ) -> Result<()> {
+        tfhe::set_server_key(sks.clone());
         rayon::broadcast(|_| {
             tfhe::set_server_key(sks.clone());
         });
@@ -396,18 +389,5 @@ pub fn build_taskgraph_from_request(
             }
         }
     }
-    // println!(
-    //     "Pre-partition graph: {:?}",
-    //     daggy::petgraph::dot::Dot::with_config(dfg.graph.graph(), &[])
-    // );
     Ok(())
-}
-
-fn get_handle(h: u32) -> Vec<u8> {
-    let mut res: Vec<u8> = Vec::with_capacity(HANDLE_LEN);
-    let slice: [u8; 4] = h.to_be_bytes();
-    for _i in 0..HANDLE_LEN / 4 {
-        res.extend_from_slice(&slice);
-    }
-    res.to_vec()
 }
