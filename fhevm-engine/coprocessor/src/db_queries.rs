@@ -8,6 +8,9 @@ use opentelemetry::trace::Span;
 use opentelemetry::KeyValue;
 use sqlx::{query, Postgres};
 
+#[cfg(feature = "gpu")]
+use tfhe::{CompressedServerKey, CudaServerKey};
+
 /// Returns tenant id upon valid authorization request
 pub async fn check_if_api_key_is_valid<T>(
     req: &tonic::Request<T>,
@@ -57,12 +60,13 @@ pub async fn check_if_api_key_is_valid<T>(
     }
 }
 
-
 pub struct FetchTenantKeyResult {
     pub chain_id: i32,
     pub verifying_contract_address: String,
     pub acl_contract_address: String,
     pub server_key: tfhe::ServerKey,
+    #[cfg(feature = "gpu")]
+    pub gpu_server_key: tfhe::CudaServerKey,
     pub public_params: Arc<tfhe::zk::CompactPkeCrs>,
 }
 
@@ -85,6 +89,8 @@ where
                     verifying_contract_address: key.verifying_contract_address.clone(),
                     acl_contract_address: key.acl_contract_address.clone(),
                     server_key: key.sks.clone(),
+                    #[cfg(feature = "gpu")]
+                    gpu_server_key: key.gpu_sks.clone(),
                     public_params: key.public_params.clone(),
                 });
             }
@@ -102,6 +108,7 @@ where
     T: sqlx::PgExecutor<'a>,
 {
     let mut res = Vec::with_capacity(tenants_to_query.len());
+    #[cfg(not(feature = "gpu"))]
     let keys = query!(
         "
             SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params
@@ -112,24 +119,64 @@ where
     )
     .fetch_all(conn)
     .await?;
+    #[cfg(feature = "gpu")]
+    let keys = query!(
+        "
+            SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, gpu_pks_key, gpu_csks_key, gpu_public_params
+            FROM tenants
+            WHERE tenant_id = ANY($1::INT[])
+        ",
+        &tenants_to_query
+    )
+    .fetch_all(conn)
+    .await?;
 
     for key in keys {
-        let sks: tfhe::ServerKey = safe_deserialize_key(&key.sks_key)
-            .expect("We can't deserialize our own validated sks key");
-        let pks: tfhe::CompactPublicKey = safe_deserialize_key(&key.pks_key)
-            .expect("We can't deserialize our own validated pks key");
-        let public_params: tfhe::zk::CompactPkeCrs =
-            safe_deserialize_key(&key.public_params)
+        #[cfg(not(feature = "gpu"))]
+        {
+            let sks: tfhe::ServerKey = safe_deserialize_key(&key.sks_key)
+                .expect("We can't deserialize our own validated sks key");
+            let pks: tfhe::CompactPublicKey = safe_deserialize_key(&key.pks_key)
+                .expect("We can't deserialize our own validated pks key");
+            let public_params: tfhe::zk::CompactPkeCrs = safe_deserialize_key(&key.public_params)
                 .expect("We can't deserialize our own validated public params");
-        res.push(TfheTenantKeys {
-            tenant_id: key.tenant_id,
-            sks,
-            pks,
-            public_params: Arc::new(public_params),
-            chain_id: key.chain_id,
-            acl_contract_address: key.acl_contract_address,
-            verifying_contract_address: key.verifying_contract_address,
-        });
+            res.push(TfheTenantKeys {
+                tenant_id: key.tenant_id,
+                sks,
+                pks,
+                public_params: Arc::new(public_params),
+                chain_id: key.chain_id,
+                acl_contract_address: key.acl_contract_address,
+                verifying_contract_address: key.verifying_contract_address,
+            });
+        }
+        #[cfg(feature = "gpu")]
+        {
+            let csks: tfhe::CompressedServerKey = safe_deserialize_key(
+                &key.gpu_csks_key
+                    .expect("missing compressed server key for GPU in DB"),
+            )
+            .expect("We can't deserialize the gpu compressed sks key");
+            let pks: tfhe::CompactPublicKey =
+                safe_deserialize_key(&key.gpu_pks_key.expect("missing pks key for GPU in DB"))
+                    .expect("We can't deserialize our own validated pks key");
+            let public_params: tfhe::zk::CompactPkeCrs = safe_deserialize_key(
+                &key.gpu_public_params
+                    .expect("missing public params for GPU in DB"),
+            )
+            .expect("We can't deserialize our own validated public params");
+            res.push(TfheTenantKeys {
+                tenant_id: key.tenant_id,
+                pks,
+                sks: csks.clone().decompress(),
+                csks: csks.clone(),
+                gpu_sks: csks.decompress_to_gpu(),
+                public_params: Arc::new(public_params),
+                chain_id: key.chain_id,
+                acl_contract_address: key.acl_contract_address,
+                verifying_contract_address: key.verifying_contract_address,
+            });
+        }
     }
 
     Ok(res)
