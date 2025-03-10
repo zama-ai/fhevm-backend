@@ -1,4 +1,4 @@
-use crate::dfg::{types::*, OpEdge, OpNode, THREAD_POOL};
+use crate::dfg::{types::*, OpEdge, OpNode};
 use anyhow::Result;
 use daggy::{
     petgraph::{
@@ -17,7 +17,6 @@ use fhevm_engine_common::{
 };
 use rayon::prelude::*;
 use std::{
-    borrow::Borrow,
     collections::HashMap,
     sync::{atomic::AtomicUsize, mpsc::channel},
 };
@@ -52,7 +51,6 @@ impl std::fmt::Debug for ExecNode {
 pub struct Scheduler<'a> {
     graph: &'a mut Dag<OpNode, OpEdge>,
     edges: Dag<(), OpEdge>,
-    rayon_threads: usize,
     sks: tfhe::ServerKey,
     #[cfg(feature = "gpu")]
     csks: tfhe::CudaServerKey,
@@ -75,7 +73,6 @@ impl<'a> Scheduler<'a> {
     }
     pub fn new(
         graph: &'a mut Dag<OpNode, OpEdge>,
-        rayon_threads: usize,
         sks: tfhe::ServerKey,
         #[cfg(feature = "gpu")] csks: tfhe::CudaServerKey,
     ) -> Self {
@@ -83,7 +80,6 @@ impl<'a> Scheduler<'a> {
         Self {
             graph,
             edges,
-            rayon_threads,
             sks: sks.clone(),
             #[cfg(feature = "gpu")]
             csks: csks.clone(),
@@ -111,6 +107,7 @@ impl<'a> Scheduler<'a> {
         }
     }
 
+    #[allow(dead_code)]
     async fn decompress_ciphertexts(&mut self) -> Result<()> {
         let sks = self.sks.clone();
         tfhe::set_server_key(sks.clone());
@@ -250,10 +247,9 @@ impl<'a> Scheduler<'a> {
                     let opcode = n.opcode;
                     args.push((opcode, std::mem::take(&mut n.inputs), *nidx));
                 }
-                let rayon_threads = self.rayon_threads;
                 set.spawn_blocking(move || {
                     tfhe::set_server_key(sks.clone());
-                    execute_partition(args, index, false, rayon_threads, sks)
+                    execute_partition(args, index, sks)
                 });
             }
         }
@@ -303,10 +299,9 @@ impl<'a> Scheduler<'a> {
                         let opcode = n.opcode;
                         args.push((opcode, std::mem::take(&mut n.inputs), *nidx));
                     }
-                    let rayon_threads = self.rayon_threads;
                     set.spawn_blocking(move || {
                         tfhe::set_server_key(sks.clone());
-                        execute_partition(args, dependent_task_index, false, rayon_threads, sks)
+                        execute_partition(args, dependent_task_index, sks)
                     });
                 }
             }
@@ -344,27 +339,17 @@ impl<'a> Scheduler<'a> {
         }
 
         let (src, dest) = channel();
-        let rayon_threads = self.rayon_threads;
-
         tokio::task::spawn_blocking(move || {
             rayon::broadcast(|_| {
                 tfhe::set_server_key(sks.clone());
             });
-
             tfhe::set_server_key(sks.clone());
             comps.par_iter().for_each_with(src, |src, (args, index)| {
-                src.send(execute_partition(
-                    args.to_vec(),
-                    *index,
-                    true,
-                    rayon_threads,
-                    sks.clone(),
-                ))
-                .unwrap();
+                src.send(execute_partition(args.to_vec(), *index, sks.clone()))
+                    .unwrap();
             });
         })
         .await?;
-
         let results: Vec<_> = dest.iter().collect();
         for mut result in results {
             while let Some(o) = result.0.pop() {
@@ -495,8 +480,6 @@ fn partition_components(
 fn execute_partition(
     computations: Vec<(i32, Vec<DFGTaskInput>, NodeIndex)>,
     task_id: NodeIndex,
-    use_global_threadpool: bool,
-    rayon_threads: usize,
     #[cfg(feature = "gpu")] server_key: tfhe::CudaServerKey,
     #[cfg(not(feature = "gpu"))] server_key: tfhe::ServerKey,
 ) -> (
@@ -536,32 +519,8 @@ fn execute_partition(
                 }
             }
         }
-        if use_global_threadpool {
-            let (node_index, result) = run_computation(opcode, Ok(cts), nidx.index());
-            res.insert(node_index, result);
-        } else {
-            let thread_pool = THREAD_POOL
-                .borrow()
-                .take()
-                .or_else(|| {
-                    Some(
-                        rayon::ThreadPoolBuilder::new()
-                            .num_threads(rayon_threads)
-                            .build()
-                            .unwrap(),
-                    )
-                })
-                .unwrap();
-            thread_pool.broadcast(|_| {
-                tfhe::set_server_key(server_key.clone());
-            });
-            let _ = thread_pool.install(|| -> Result<()> {
-                let (node_index, result) = run_computation(opcode, Ok(cts), nidx.index());
-                res.insert(node_index, result);
-                Ok(())
-            });
-            THREAD_POOL.set(Some(thread_pool));
-        }
+        let (node_index, result) = run_computation(opcode, Ok(cts), nidx.index());
+        res.insert(node_index, result);
     }
     (Vec::from_iter(res), task_id)
 }

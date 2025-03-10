@@ -129,7 +129,6 @@ impl FhevmExecutor for FhevmExecutorService {
                 let now = std::time::SystemTime::now();
                 let mut sched = Scheduler::new(
                     &mut graph.graph,
-                    LOCAL_RAYON_THREADS.get(),
                     sks,
                     #[cfg(feature = "gpu")]
                     csks,

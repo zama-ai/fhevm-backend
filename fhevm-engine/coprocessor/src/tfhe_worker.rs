@@ -364,7 +364,6 @@ async fn tfhe_worker_cycle(
                 tfhe::set_server_key(keys.sks.clone());
                 let mut sched = Scheduler::new(
                     &mut graph.graph,
-                    args.coprocessor_fhe_threads,
                     keys.sks.clone(),
                     #[cfg(feature = "gpu")]
                     keys.gpu_sks.clone(),
