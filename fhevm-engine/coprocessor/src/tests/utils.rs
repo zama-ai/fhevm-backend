@@ -215,7 +215,7 @@ pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::err
         .await
         .expect("can't read public params");
     #[cfg(not(feature = "gpu"))]
-        sqlx::query!(
+    sqlx::query!(
         "
             INSERT INTO tenants(tenant_api_key, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, cks_key)
             VALUES (
