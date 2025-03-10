@@ -19,7 +19,7 @@ let chainId: number;
 //const db = new Database('./sql.db'); // on-disk db for debugging
 const db = new Database(':memory:');
 
-export function insertSQL(handle: string, clearText: BigInt, replace: boolean = false) {
+export function insertSQL(handle: string, clearText: any, replace: boolean = false) {
   if (replace) {
     // this is useful if using snapshots while sampling different random numbers on each revert
     db.run('INSERT OR REPLACE INTO ciphertexts (handle, clearText) VALUES (?, ?)', [handle, clearText.toString()]);
@@ -30,8 +30,9 @@ export function insertSQL(handle: string, clearText: BigInt, replace: boolean = 
 
 // Decrypt any handle, bypassing ACL
 // WARNING : only for testing or internal use
-export const getClearText = async (handle: BigInt): Promise<string> => {
-  const handleStr = '0x' + handle.toString(16).padStart(64, '0');
+export const getClearText = async (handle: string): Promise<string> => {
+  const handleStr = handle;
+  // '0x' + handle.toString(16).padStart(64, '0');
 
   return new Promise((resolve, reject) => {
     let attempts = 0;
@@ -123,37 +124,37 @@ export const awaitCoprocessor = async (): Promise<void> => {
 };
 
 const abi = [
-  'event FheAdd(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheSub(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheMul(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheDiv(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheRem(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheBitAnd(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheBitOr(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheBitXor(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheShl(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheShr(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheRotl(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheRotr(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheEq(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheEqBytes(address indexed caller, uint256 lhs, bytes rhs, bytes1 scalarByte, uint256 result)',
-  'event FheNe(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheNeBytes(address indexed caller, uint256 lhs, bytes rhs, bytes1 scalarByte, uint256 result)',
-  'event FheGe(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheGt(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheLe(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheLt(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheMin(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheMax(address indexed caller, uint256 lhs, uint256 rhs, bytes1 scalarByte, uint256 result)',
-  'event FheNeg(address indexed caller, uint256 ct, uint256 result)',
-  'event FheNot(address indexed caller, uint256 ct, uint256 result)',
-  'event VerifyCiphertext(address indexed caller, bytes32 inputHandle,address userAddress,bytes inputProof,bytes1 inputType,uint256 result)',
-  'event Cast(address indexed caller, uint256 ct, bytes1 toType, uint256 result)',
-  'event TrivialEncrypt(address indexed caller, uint256 pt, bytes1 toType, uint256 result)',
-  'event TrivialEncryptBytes(address indexed caller, bytes pt, bytes1 toType, uint256 result)',
-  'event FheIfThenElse(address indexed caller, uint256 control, uint256 ifTrue, uint256 ifFalse, uint256 result)',
-  'event FheRand(address indexed caller, bytes1 randType, bytes16 seed, uint256 result)',
-  'event FheRandBounded(address indexed caller, uint256 upperBound, bytes1 randType, bytes16 seed, uint256 result)',
+  'event FheAdd(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheSub(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheMul(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheDiv(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheRem(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheBitAnd(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheBitOr(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheBitXor(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheShl(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheShr(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheRotl(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheRotr(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheEq(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheEqBytes(address indexed caller, bytes32 lhs, bytes rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheNe(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheNeBytes(address indexed caller, bytes32 lhs, bytes rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheGe(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheGt(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheLe(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheLt(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheMin(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheMax(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result)',
+  'event FheNeg(address indexed caller, bytes32 ct, bytes32 result)',
+  'event FheNot(address indexed caller, bytes32 ct, bytes32 result)',
+  'event VerifyCiphertext(address indexed caller, bytes32 inputHandle,address userAddress,bytes inputProof,bytes1 inputType,bytes32 result)',
+  'event Cast(address indexed caller, bytes32 ct, bytes1 toType, bytes32 result)',
+  'event TrivialEncrypt(address indexed caller, bytes32 pt, bytes1 toType, bytes32 result)',
+  'event TrivialEncryptBytes(address indexed caller, bytes pt, bytes1 toType, bytes32 result)',
+  'event FheIfThenElse(address indexed caller, bytes32 control, bytes32 ifTrue, bytes32 ifFalse, bytes32 result)',
+  'event FheRand(address indexed caller, bytes1 randType, bytes16 seed, bytes32 result)',
+  'event FheRandBounded(address indexed caller, uint256 upperBound, bytes1 randType, bytes16 seed, bytes32 result)',
 ];
 
 async function processAllPastTFHEExecutorEvents() {
@@ -229,13 +230,14 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) + event.args[2];
+        clearText = BigInt(clearLHS) + BigInt(event.args[2]);
         clearText = clearText % 2n ** NumBits[resultType];
       } else {
         clearRHS = await getClearText(event.args[2]);
         clearText = BigInt(clearLHS) + BigInt(clearRHS);
         clearText = clearText % 2n ** NumBits[resultType];
       }
+
       insertSQL(ethers.toBeHex(handle, 32), clearText);
       break;
 
@@ -244,7 +246,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) - event.args[2];
+        clearText = BigInt(clearLHS) - BigInt(event.args[2]);
         if (clearText < 0n) clearText = clearText + 2n ** NumBits[resultType];
         clearText = clearText % 2n ** NumBits[resultType];
       } else {
