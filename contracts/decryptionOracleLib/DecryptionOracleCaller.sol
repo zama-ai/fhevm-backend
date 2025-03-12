@@ -39,7 +39,7 @@ abstract contract DecryptionOracleCaller {
     mapping(uint256 => euint64[]) private paramsEUint64;
     mapping(uint256 => eaddress[]) private paramsEAddress;
     mapping(uint256 => address[]) private paramsAddress;
-    mapping(uint256 => bytes32[]) private paramsUint256;
+    mapping(uint256 => bytes32[]) private paramsBytes32;
 
     event DecryptionFulfilled(uint256 indexed requestID);
 
@@ -75,8 +75,8 @@ abstract contract DecryptionOracleCaller {
         paramsAddress[requestID].push(_address);
     }
 
-    function addParamsUint256(uint256 requestID, uint256 _uint) internal {
-        paramsUint256[requestID].push(bytes32(_uint));
+    function addParamBytes32(uint256 requestID, uint256 _uint) internal {
+        paramsBytes32[requestID].push(bytes32(_uint));
     }
 
     function saveRequestedHandles(uint256 requestID, bytes32[] memory handlesList) internal {
@@ -125,8 +125,8 @@ abstract contract DecryptionOracleCaller {
         return paramsAddress[requestID];
     }
 
-    function getParamsUint256(uint256 requestID) internal view returns (bytes32[] memory) {
-        return paramsUint256[requestID];
+    function getParamsBytes32(uint256 requestID) internal view returns (bytes32[] memory) {
+        return paramsBytes32[requestID];
     }
 
     // keccak256(abi.encode(uint256(keccak256("fhevm.storage.DecryptionOracleConfig")) - 1)) & ~bytes32(uint256(0xff))
