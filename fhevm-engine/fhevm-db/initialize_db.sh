@@ -38,22 +38,63 @@ fi
 TMP_CSV="/tmp/tenant_data.csv"
 echo "tenant_api_key,chain_id,acl_contract_address,verifying_contract_address,pks_key,sks_key,public_params,sns_pk" > $TMP_CSV
 
+
 import_large_file() {
   local file="$1"
   local db_url="$2"
-
-  local oid
-  oid=$(psql "$db_url" -t -c "SELECT lo_create(0)")
-  oid=$(echo "$oid" | tr -d ' ')
-  >&2 echo "Created large object with OID: $oid"
-
-  # Use psql's \lo_import with specified OID (runs client-side)
-  psql "$db_url" > /dev/null 2>&1 <<EOF
-  BEGIN;
-  \lo_import $file $oid
-  COMMIT;
+  local chunk_size=8388608  # 8MB chunks
+  local total_size
+  total_size=$(stat -c %s "$file")
+  
+  echo "Creating large object and importing file ($total_size bytes)..." >&2
+  
+  # Create temp file for sending commands
+  local tmpfile
+  tmpfile=$(mktemp)
+  
+  # Generate PostgreSQL script with all commands in a single session
+  cat > "$tmpfile" <<EOF
+BEGIN;
+-- Create large object
+SELECT lo_create(0) AS oid \gset
+-- Open large object for writing
+SELECT lo_open(:'oid', 131072) AS fd \gset
 EOF
+  
+  # Split the file into chunks and add commands for each
+  local bytes_read=0
+  local chunk_file
+  while [ "$bytes_read" -lt "$total_size" ]; do
+    chunk_file=$(mktemp)
+    dd if="$file" bs=$chunk_size skip=$((bytes_read / chunk_size)) count=1 status=none > "$chunk_file"
+    
+    # Encode chunk to hex to safely embed in SQL
+    echo "SELECT lowrite(:'fd', decode('$(xxd -p -c 0 "$chunk_file")', 'hex'));" >> "$tmpfile"
+    rm "$chunk_file"
+    
+    bytes_read=$((bytes_read + chunk_size))
+    if [ $bytes_read -gt $total_size ]; then bytes_read=$total_size; fi
+    echo "Processed: $bytes_read / $total_size bytes ($(( (bytes_read * 100) / total_size ))%)" >&2
+  done
+  
+  # Finish the transaction
+  cat >> "$tmpfile" <<EOF
+-- Close the file descriptor
+SELECT lo_close(:'fd');
+COMMIT;
+-- Print the OID separately AFTER the transaction is committed
+\echo 'OID_MARKER:'
+\echo :oid
+EOF
+  
+  # Execute the entire script and extract just the OID
+  local oid=$(psql "$db_url" -f "$tmpfile" -t | grep -A 1 'OID_MARKER:' | tail -n 1 | tr -d ' ')
+  rm "$tmpfile"
 
+  # Verify
+  local size=$(psql "$db_url" -t -c "SELECT pg_size_pretty(SUM(octet_length(data))) FROM pg_largeobject WHERE loid = $oid" | tr -d ' ')
+  echo "Imported file. Size: $size" >&2
+  
   echo "$oid"
 }
 

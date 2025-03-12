@@ -7,7 +7,7 @@ build:
 
 .PHONY: cleanup
 cleanup:
-	docker compose down -v
+	docker compose down -v --remove-orphans
 
 .PHONY: init_db
 init_db:
