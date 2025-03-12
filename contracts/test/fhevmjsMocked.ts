@@ -4,7 +4,6 @@ import crypto from 'crypto';
 import dotenv from 'dotenv';
 import { Wallet, ethers } from 'ethers';
 import * as fs from 'fs';
-import { network } from 'hardhat';
 import { Keccak } from 'sha3';
 import { isAddress } from 'web3-validator';
 
@@ -365,8 +364,7 @@ export const ENCRYPTION_TYPES = {
   2048: 11,
 };
 
-async function computeInputSignatureCopro(
-  hash: string,
+async function computeInputSignaturesCopro(
   handlesList: string[],
   userAddress: string,
   contractAddress: string,
