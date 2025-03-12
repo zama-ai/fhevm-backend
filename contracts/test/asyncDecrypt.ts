@@ -121,19 +121,18 @@ const fulfillAllPastRequestsIds = async (mocked: boolean) => {
       const types = typesList.map((num: string | number) => CiphertextType[num]);
       const values = await Promise.all(handles.map(async (handle: string) => await getClearText(handle)));
 
-      // TODO: investigate failing tests with the below lines
       const valuesFormatted = values.map((value, index) =>
-        types[index] === 'address' ? '0x' + value.toString(16).padStart(40, '0') : value,
+        types[index] === 'address' ? '0x' + BigInt(value).toString(16).padStart(40, '0') : value,
       );
 
       const valuesFormatted2 = valuesFormatted.map((value, index) =>
-        typesList[index] === 9 ? '0x' + value.toString(16).padStart(128, '0') : value,
+        typesList[index] === 9 ? '0x' + BigInt(value).toString(16).padStart(128, '0') : value,
       );
       const valuesFormatted3 = valuesFormatted2.map((value, index) =>
-        typesList[index] === 10 ? '0x' + value.toString(16).padStart(256, '0') : value,
+        typesList[index] === 10 ? '0x' + BigInt(value).toString(16).padStart(256, '0') : value,
       );
       const valuesFormatted4 = valuesFormatted3.map((value, index) =>
-        typesList[index] === 11 ? '0x' + value.toString(16).padStart(512, '0') : value,
+        typesList[index] === 11 ? '0x' + BigInt(value).toString(16).padStart(512, '0') : value,
       );
 
       const abiCoder = new ethers.AbiCoder();

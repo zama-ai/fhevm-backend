@@ -31,14 +31,12 @@ export function insertSQL(handle: string, clearText: any, replace: boolean = fal
 // Decrypt any handle, bypassing ACL
 // WARNING : only for testing or internal use
 export const getClearText = async (handle: string): Promise<string> => {
-  const handleStr = '0x' + BigInt(handle).toString(16).padStart(64, '0');
-
   return new Promise((resolve, reject) => {
     let attempts = 0;
     const maxRetries = 100;
 
     function executeQuery() {
-      db.get('SELECT clearText FROM ciphertexts WHERE handle = ?', [handleStr], (err, row) => {
+      db.get('SELECT clearText FROM ciphertexts WHERE handle = ?', [handle], (err, row) => {
         if (err) {
           reject(new Error(`Error querying database: ${err.message}`));
         } else if (row) {
@@ -262,7 +260,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) * event.args[2];
+        clearText = BigInt(clearLHS) * BigInt(event.args[2]);
         clearText = clearText % 2n ** NumBits[resultType];
       } else {
         clearRHS = await getClearText(event.args[2]);
@@ -277,7 +275,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) / event.args[2];
+        clearText = BigInt(clearLHS) / BigInt(event.args[2]);
       } else {
         throw new Error('Non-scalar div not implemented yet');
       }
@@ -289,7 +287,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) % event.args[2];
+        clearText = BigInt(clearLHS) % BigInt(event.args[2]);
       } else {
         throw new Error('Non-scalar rem not implemented yet');
       }
@@ -301,7 +299,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) & event.args[2];
+        clearText = BigInt(clearLHS) & BigInt(event.args[2]);
         clearText = clearText % 2n ** NumBits[resultType];
       } else {
         clearRHS = await getClearText(event.args[2]);
@@ -316,7 +314,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) | event.args[2];
+        clearText = BigInt(clearLHS) | BigInt(event.args[2]);
         clearText = clearText % 2n ** NumBits[resultType];
       } else {
         clearRHS = await getClearText(event.args[2]);
@@ -331,7 +329,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) ^ event.args[2];
+        clearText = BigInt(clearLHS) ^ BigInt(event.args[2]);
         clearText = clearText % 2n ** NumBits[resultType];
       } else {
         clearRHS = await getClearText(event.args[2]);
@@ -346,7 +344,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) << event.args[2] % NumBits[resultType];
+        clearText = BigInt(clearLHS) << BigInt(event.args[2]) % NumBits[resultType];
         clearText = clearText % 2n ** NumBits[resultType];
       } else {
         clearRHS = await getClearText(event.args[2]);
@@ -361,7 +359,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) >> event.args[2] % NumBits[resultType];
+        clearText = BigInt(clearLHS) >> BigInt(event.args[2]) % NumBits[resultType];
         clearText = clearText % 2n ** NumBits[resultType];
       } else {
         clearRHS = await getClearText(event.args[2]);
@@ -376,7 +374,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        shift = event.args[2] % NumBits[resultType];
+        shift = BigInt(event.args[2]) % NumBits[resultType];
         clearText = (BigInt(clearLHS) << shift) | (BigInt(clearLHS) >> (NumBits[resultType] - shift));
         clearText = clearText % 2n ** NumBits[resultType];
       } else {
@@ -393,7 +391,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        shift = event.args[2] % NumBits[resultType];
+        shift = BigInt(event.args[2]) % NumBits[resultType];
         clearText = (BigInt(clearLHS) >> shift) | (BigInt(clearLHS) << (NumBits[resultType] - shift));
         clearText = clearText % 2n ** NumBits[resultType];
       } else {
@@ -411,7 +409,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       clearLHS = await getClearText(event.args[1]);
 
       if (event.args[3] === '0x01') {
-        clearText = clearLHS === event.args[2] ? 1n : 0n;
+        clearText = BigInt(clearLHS) === BigInt(event.args[2]) ? 1n : 0n;
       } else {
         clearRHS = await getClearText(event.args[2]);
         clearText = clearLHS === clearRHS ? 1n : 0n;
@@ -438,7 +436,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) !== event.args[2] ? 1n : 0n;
+        clearText = BigInt(clearLHS) !== BigInt(event.args[2]) ? 1n : 0n;
       } else {
         clearRHS = await getClearText(event.args[2]);
         clearText = BigInt(clearLHS) !== BigInt(clearRHS) ? 1n : 0n;
@@ -464,7 +462,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) >= event.args[2] ? 1n : 0n;
+        clearText = BigInt(clearLHS) >= BigInt(event.args[2]) ? 1n : 0n;
       } else {
         clearRHS = await getClearText(event.args[2]);
         clearText = BigInt(clearLHS) >= BigInt(clearRHS) ? 1n : 0n;
@@ -477,7 +475,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) > event.args[2] ? 1n : 0n;
+        clearText = BigInt(clearLHS) > BigInt(event.args[2]) ? 1n : 0n;
       } else {
         clearRHS = await getClearText(event.args[2]);
         clearText = BigInt(clearLHS) > BigInt(clearRHS) ? 1n : 0n;
@@ -490,7 +488,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) <= event.args[2] ? 1n : 0n;
+        clearText = BigInt(clearLHS) <= BigInt(event.args[2]) ? 1n : 0n;
       } else {
         clearRHS = await getClearText(event.args[2]);
         clearText = BigInt(clearLHS) <= BigInt(clearRHS) ? 1n : 0n;
@@ -503,7 +501,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) < event.args[2] ? 1n : 0n;
+        clearText = BigInt(clearLHS) < BigInt(event.args[2]) ? 1n : 0n;
       } else {
         clearRHS = await getClearText(event.args[2]);
         clearText = BigInt(clearLHS) < BigInt(clearRHS) ? 1n : 0n;
@@ -516,7 +514,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) > event.args[2] ? clearLHS : event.args[2];
+        clearText = BigInt(clearLHS) > BigInt(event.args[2]) ? clearLHS : BigInt(event.args[2]);
       } else {
         clearRHS = await getClearText(event.args[2]);
         clearText = BigInt(clearLHS) > BigInt(clearRHS) ? clearLHS : clearRHS;
@@ -529,7 +527,7 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) < event.args[2] ? clearLHS : event.args[2];
+        clearText = BigInt(clearLHS) < BigInt(event.args[2]) ? clearLHS : BigInt(event.args[2]);
       } else {
         clearRHS = await getClearText(event.args[2]);
         clearText = BigInt(clearLHS) < BigInt(clearRHS) ? clearLHS : clearRHS;
