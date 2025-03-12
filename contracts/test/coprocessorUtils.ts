@@ -31,8 +31,7 @@ export function insertSQL(handle: string, clearText: any, replace: boolean = fal
 // Decrypt any handle, bypassing ACL
 // WARNING : only for testing or internal use
 export const getClearText = async (handle: string): Promise<string> => {
-  const handleStr = handle;
-  // '0x' + handle.toString(16).padStart(64, '0');
+  const handleStr = '0x' + BigInt(handle).toString(16).padStart(64, '0');
 
   return new Promise((resolve, reject) => {
     let attempts = 0;
@@ -150,7 +149,7 @@ const abi = [
   'event FheNot(address indexed caller, bytes32 ct, bytes32 result)',
   'event VerifyCiphertext(address indexed caller, bytes32 inputHandle,address userAddress,bytes inputProof,bytes1 inputType,bytes32 result)',
   'event Cast(address indexed caller, bytes32 ct, bytes1 toType, bytes32 result)',
-  'event TrivialEncrypt(address indexed caller, bytes32 pt, bytes1 toType, bytes32 result)',
+  'event TrivialEncrypt(address indexed caller, uint256 pt, bytes1 toType, bytes32 result)',
   'event TrivialEncryptBytes(address indexed caller, bytes pt, bytes1 toType, bytes32 result)',
   'event FheIfThenElse(address indexed caller, bytes32 control, bytes32 ifTrue, bytes32 ifFalse, bytes32 result)',
   'event FheRand(address indexed caller, bytes1 randType, bytes16 seed, bytes32 result)',
@@ -410,12 +409,14 @@ async function insertHandleFromEvent(event: FHEVMEvent) {
       handle = ethers.toBeHex(event.args[4], 32);
       resultType = parseInt(handle.slice(-4, -2), 16);
       clearLHS = await getClearText(event.args[1]);
+
       if (event.args[3] === '0x01') {
-        clearText = BigInt(clearLHS) === event.args[2] ? 1n : 0n;
+        clearText = clearLHS === event.args[2] ? 1n : 0n;
       } else {
         clearRHS = await getClearText(event.args[2]);
-        clearText = BigInt(clearLHS) === BigInt(clearRHS) ? 1n : 0n;
+        clearText = clearLHS === clearRHS ? 1n : 0n;
       }
+
       insertSQL(handle, clearText);
       break;
 
