@@ -19,7 +19,7 @@ interface IInputVerifier {
         TFHEExecutorNoEvents.ContextUserInputs memory context,
         bytes32 inputHandle,
         bytes memory inputProof
-    ) external returns (uint256);
+    ) external returns (bytes32);
 }
 
 /**
@@ -360,6 +360,7 @@ contract TFHEExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
             (1 << 9) +
             (1 << 10) +
             (1 << 11);
+
         _requireType(lhs, supportedTypes);
         uint8 lhsType = _typeOf(lhs);
         bytes1 scalar = scalarByte & 0x01;
@@ -648,7 +649,7 @@ contract TFHEExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
      * @param toType    Target type.
      * @return result   Result value of the target type.
      */
-    function trivialEncrypt(bytes32 pt, bytes1 toType) public virtual returns (bytes32 result) {
+    function trivialEncrypt(uint256 pt, bytes1 toType) public virtual returns (bytes32 result) {
         uint256 supportedTypes = (1 << 0) +
             (1 << 1) +
             (1 << 2) +
@@ -705,7 +706,6 @@ contract TFHEExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
         });
         uint8 typeCt = _typeOf(inputHandle);
         if (uint8(inputType) != typeCt) revert InvalidType();
-        /// TODO: Fix InputVerifier return type
         result = bytes32(inputVerifier.verifyCiphertext(contextUserInputs, inputHandle, inputProof));
         acl.allowTransient(result, msg.sender);
     }
