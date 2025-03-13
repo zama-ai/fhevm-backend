@@ -703,7 +703,7 @@ contract TFHEExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
         });
         uint8 typeCt = _typeOf(inputHandle);
         if (uint8(inputType) != typeCt) revert InvalidType();
-        result = bytes32(inputVerifier.verifyCiphertext(contextUserInputs, inputHandle, inputProof));
+        result = inputVerifier.verifyCiphertext(contextUserInputs, inputHandle, inputProof);
         acl.allowTransient(result, msg.sender);
     }
 
