@@ -385,7 +385,7 @@ contract TFHEExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
         fheGasLimit.payForFheEq(lhsType, scalar);
 
         if (!acl.isAllowed(lhs, msg.sender)) revert ACLNotAllowed(lhs, msg.sender);
-        _checkByteLengthForTypeOfAbove8(rhs.length, lhsType);
+        _checkByteLengthForEbytesTypes(rhs.length, lhsType);
 
         result = keccak256(abi.encodePacked(Operators.fheEq, lhs, rhs, scalar, acl, block.chainid));
         result = _appendType(result, 0);
@@ -438,7 +438,7 @@ contract TFHEExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
         if (scalar != 0x01) revert SecondOperandIsNotScalar();
         fheGasLimit.payForFheNe(lhsType, scalar);
         if (!acl.isAllowed(lhs, msg.sender)) revert ACLNotAllowed(lhs, msg.sender);
-        _checkByteLengthForTypeOfAbove8(rhs.length, lhsType);
+        _checkByteLengthForEbytesTypes(rhs.length, lhsType);
         result = keccak256(abi.encodePacked(Operators.fheNe, lhs, rhs, scalar, acl, block.chainid));
         result = _appendType(result, 0);
         acl.allowTransient(result, msg.sender);
@@ -677,7 +677,7 @@ contract TFHEExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
         uint8 toT = uint8(toType);
         if ((1 << toT) & supportedTypes == 0) revert UnsupportedType();
         fheGasLimit.payForTrivialEncrypt(toT);
-        _checkByteLengthForTypeOfAbove8(pt.length, toT);
+        _checkByteLengthForEbytesTypes(pt.length, toT);
         result = keccak256(abi.encodePacked(Operators.trivialEncrypt, pt, toType, acl, block.chainid));
         result = _appendType(result, toT);
         acl.allowTransient(result, msg.sender);
@@ -766,7 +766,7 @@ contract TFHEExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
     /**
      * @dev Checks the length for typeOf >= 9.
      */
-    function _checkByteLengthForTypeOfAbove8(uint256 byteLength, uint8 typeOf) internal pure virtual {
+    function _checkByteLengthForEbytesTypes(uint256 byteLength, uint8 typeOf) internal pure virtual {
         if (typeOf == 9) {
             if (byteLength != 64) revert InvalidByteLength(typeOf, byteLength);
         } else if (typeOf == 10) {
