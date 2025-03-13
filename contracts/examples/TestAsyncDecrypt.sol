@@ -208,8 +208,8 @@ contract TestAsyncDecrypt is DecryptionOracleCaller {
         bytes32[] memory cts = new bytes32[](1);
         cts[0] = toBytes32(xUint32);
         uint256 requestID = requestDecryption(cts, this.callbackUint32.selector);
-        addParamBytes32(requestID, input1);
-        addParamBytes32(requestID, input2);
+        addParamsUint256(requestID, input1);
+        addParamsUint256(requestID, input2);
     }
 
     /// @notice Attempt to request decryption of a fake 32-bit unsigned integer (should revert)

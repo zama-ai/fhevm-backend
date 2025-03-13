@@ -75,7 +75,7 @@ abstract contract DecryptionOracleCaller {
         paramsAddress[requestID].push(_address);
     }
 
-    function addParamBytes32(uint256 requestID, uint256 _uint) internal {
+    function addParamsUint256(uint256 requestID, uint256 _uint) internal {
         paramsUint256[requestID].push(_uint);
     }
 
