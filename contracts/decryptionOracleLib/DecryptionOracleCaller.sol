@@ -39,7 +39,7 @@ abstract contract DecryptionOracleCaller {
     mapping(uint256 => euint64[]) private paramsEUint64;
     mapping(uint256 => eaddress[]) private paramsEAddress;
     mapping(uint256 => address[]) private paramsAddress;
-    mapping(uint256 => bytes32[]) private paramsBytes32;
+    mapping(uint256 => uint256[]) private paramsUint256;
 
     event DecryptionFulfilled(uint256 indexed requestID);
 
@@ -76,7 +76,7 @@ abstract contract DecryptionOracleCaller {
     }
 
     function addParamBytes32(uint256 requestID, uint256 _uint) internal {
-        paramsBytes32[requestID].push(bytes32(_uint));
+        paramsUint256[requestID].push(_uint);
     }
 
     function saveRequestedHandles(uint256 requestID, bytes32[] memory handlesList) internal {
@@ -125,8 +125,8 @@ abstract contract DecryptionOracleCaller {
         return paramsAddress[requestID];
     }
 
-    function getParamsBytes32(uint256 requestID) internal view returns (bytes32[] memory) {
-        return paramsBytes32[requestID];
+    function getParamsUint256(uint256 requestID) internal view returns (uint256[] memory) {
+        return paramsUint256[requestID];
     }
 
     // keccak256(abi.encode(uint256(keccak256("fhevm.storage.DecryptionOracleConfig")) - 1)) & ~bytes32(uint256(0xff))
@@ -149,51 +149,51 @@ abstract contract DecryptionOracleCaller {
         return $.DecryptionOracleAddress;
     }
 
-    function toUint256(ebool newCT) internal pure returns (bytes32 ct) {
+    function toBytes32(ebool newCT) internal pure returns (bytes32 ct) {
         ct = ebool.unwrap(newCT);
     }
 
-    function toUint256(euint4 newCT) internal pure returns (bytes32 ct) {
+    function toBytes32(euint4 newCT) internal pure returns (bytes32 ct) {
         ct = euint4.unwrap(newCT);
     }
 
-    function toUint256(euint8 newCT) internal pure returns (bytes32 ct) {
+    function toBytes32(euint8 newCT) internal pure returns (bytes32 ct) {
         ct = euint8.unwrap(newCT);
     }
 
-    function toUint256(euint16 newCT) internal pure returns (bytes32 ct) {
+    function toBytes32(euint16 newCT) internal pure returns (bytes32 ct) {
         ct = euint16.unwrap(newCT);
     }
 
-    function toUint256(euint32 newCT) internal pure returns (bytes32 ct) {
+    function toBytes32(euint32 newCT) internal pure returns (bytes32 ct) {
         ct = euint32.unwrap(newCT);
     }
 
-    function toUint256(euint64 newCT) internal pure returns (bytes32 ct) {
+    function toBytes32(euint64 newCT) internal pure returns (bytes32 ct) {
         ct = euint64.unwrap(newCT);
     }
 
-    function toUint256(euint128 newCT) internal pure returns (bytes32 ct) {
+    function toBytes32(euint128 newCT) internal pure returns (bytes32 ct) {
         ct = euint128.unwrap(newCT);
     }
 
-    function toUint256(eaddress newCT) internal pure returns (bytes32 ct) {
+    function toBytes32(eaddress newCT) internal pure returns (bytes32 ct) {
         ct = eaddress.unwrap(newCT);
     }
 
-    function toUint256(euint256 newCT) internal pure returns (bytes32 ct) {
+    function toBytes32(euint256 newCT) internal pure returns (bytes32 ct) {
         ct = euint256.unwrap(newCT);
     }
 
-    function toUint256(ebytes64 newCT) internal pure returns (bytes32 ct) {
+    function toBytes32(ebytes64 newCT) internal pure returns (bytes32 ct) {
         ct = ebytes64.unwrap(newCT);
     }
 
-    function toUint256(ebytes128 newCT) internal pure returns (bytes32 ct) {
+    function toBytes32(ebytes128 newCT) internal pure returns (bytes32 ct) {
         ct = ebytes128.unwrap(newCT);
     }
 
-    function toUint256(ebytes256 newCT) internal pure returns (bytes32 ct) {
+    function toBytes32(ebytes256 newCT) internal pure returns (bytes32 ct) {
         ct = ebytes256.unwrap(newCT);
     }
 
