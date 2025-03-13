@@ -758,9 +758,8 @@ contract TFHEExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
 
     function _appendType(bytes32 prehandle, uint8 handleType) internal pure virtual returns (bytes32 result) {
         result = prehandle & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000;
-        uint256 resultUint256 = uint256(result) | (uint256(handleType) << 8); /// @dev Appends the type.
-        resultUint256 = resultUint256 | HANDLE_VERSION;
-        result = bytes32(resultUint256);
+        result = result | (bytes32(uint256(handleType)) << 8);
+        result = result | bytes32(uint256(HANDLE_VERSION));
     }
 
     /**
