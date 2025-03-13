@@ -752,14 +752,13 @@ contract TFHEExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
      *      Other handles format (fhe ops results) is: keccak256(keccak256(rawCiphertextFHEList)||index_handle)[0:30] || handle_type || handle_version
      *      The CiphertextFHEList actually contains: 1 byte (= N) for size of handles_list, N bytes for the handles_types : 1 per handle, then the original fhe160list raw ciphertext
      */
-    function _typeOf(bytes32 handle) internal pure virtual returns (uint8) {
-        uint8 typeCt = uint8(uint256(handle) >> 8);
-        return typeCt;
+    function _typeOf(bytes32 handle) internal pure virtual returns (uint8 typeCt) {
+        typeCt = uint8(handle[30]);
     }
 
     function _appendType(bytes32 prehandle, uint8 handleType) internal pure virtual returns (bytes32 result) {
-        uint256 resultUint256 = uint256(prehandle) & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000;
-        resultUint256 = resultUint256 | (uint256(handleType) << 8); /// @dev Appends the type.
+        result = prehandle & 0xffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0000;
+        uint256 resultUint256 = uint256(result) | (uint256(handleType) << 8); /// @dev Appends the type.
         resultUint256 = resultUint256 | HANDLE_VERSION;
         result = bytes32(resultUint256);
     }

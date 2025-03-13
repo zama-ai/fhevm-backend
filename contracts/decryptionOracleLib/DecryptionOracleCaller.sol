@@ -231,7 +231,7 @@ abstract contract DecryptionOracleCaller {
         uint256 handlesListlen = handlesList.length;
         uint256 signedDataLength;
         for (uint256 i = 0; i < handlesListlen; i++) {
-            uint8 typeCt = uint8(uint256(handlesList[i]) >> 8);
+            uint8 typeCt = uint8(handlesList[i][30]);
             if (typeCt < 9) {
                 signedDataLength += 32;
             } else if (typeCt == 9) {
