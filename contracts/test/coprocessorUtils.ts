@@ -19,7 +19,7 @@ let chainId: number;
 //const db = new Database('./sql.db'); // on-disk db for debugging
 const db = new Database(':memory:');
 
-export function insertSQL(handle: string, clearText: any, replace: boolean = false) {
+export function insertSQL(handle: string, clearText: BigInt, replace: boolean = false) {
   if (replace) {
     // this is useful if using snapshots while sampling different random numbers on each revert
     db.run('INSERT OR REPLACE INTO ciphertexts (handle, clearText) VALUES (?, ?)', [handle, clearText.toString()]);
