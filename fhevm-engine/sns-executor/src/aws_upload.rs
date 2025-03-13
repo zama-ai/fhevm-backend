@@ -13,7 +13,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 
 // TODO: Use a config TOML to set these values
-pub const EVENT_ADD_CIPHERTEXTS: &str = "event_adds_ciphertexts";
+pub const EVENT_CIPHERTEXTS_UPLOADED: &str = "event_ciphertexts_uploaded";
 pub const RETRY_SEND_LIMIT: i32 = 10;
 pub const UPLOAD_TIMEOUT_DURATION: Duration = Duration::from_secs(10);
 
@@ -178,7 +178,7 @@ async fn upload_ciphertexts(
     // If both uploads are successful, notify the Transaction Sender
     if ct128_uploaded && ct64_uploaded {
         sqlx::query("SELECT pg_notify($1, '')")
-            .bind(EVENT_ADD_CIPHERTEXTS)
+            .bind(EVENT_CIPHERTEXTS_UPLOADED)
             .execute(trx.as_mut())
             .await?;
 
