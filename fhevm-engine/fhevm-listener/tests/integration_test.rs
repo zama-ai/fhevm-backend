@@ -1,3 +1,6 @@
+use std::sync::atomic::AtomicU32;
+use std::sync::atomic::Ordering;
+
 use alloy::network::EthereumWallet;
 use alloy::node_bindings::Anvil;
 use alloy::signers::local::PrivateKeySigner;
@@ -6,6 +9,7 @@ use alloy::sol;
 use alloy_primitives::U256;
 use alloy_provider::{Provider, ProviderBuilder, WsConnect};
 
+use alloy_rpc_types::TransactionRequest;
 use serial_test::serial;
 use sqlx::postgres::PgPoolOptions;
 
@@ -19,6 +23,41 @@ sol!(
     TFHEExecutorTest,
     "artifacts/TFHEExecutorTest.sol/TFHEExecutorTest.json"
 );
+
+use crate::TFHEExecutorTest::TFHEExecutorTestInstance;
+
+const NB_EVENTS: i64 = 30;
+
+async fn emit_events<P, N>(wallet: &EthereumWallet, url: &String, tfhe_contract: TFHEExecutorTestInstance<(), P, N>)
+where
+      P: Clone + alloy_provider::Provider<N> + 'static,
+      N: Clone + alloy_provider::Network<TransactionRequest = TransactionRequest> + 'static,
+{
+    static UNIQUE_INT: AtomicU32 = AtomicU32::new(1); // to counter avoid idempotency
+    let url_clone = url.clone();
+    let wallet_clone = wallet.clone();
+    tokio::spawn(async move {
+        let provider = ProviderBuilder::new()
+            .wallet(wallet_clone)
+            .on_ws(WsConnect::new(url_clone))
+            .await
+            .unwrap();
+        let to_type = ToType::from_slice(&[1]);
+        for i in 1..=NB_EVENTS {
+            let pt = U256::from(UNIQUE_INT.fetch_add(1, Ordering::Relaxed));
+            let txn_req = tfhe_contract
+                .trivialEncrypt_1(pt.clone(), to_type.clone())
+                .into_transaction_request()
+                .into();
+            let pending_txn = provider.send_transaction(txn_req).await.unwrap();
+            let receipt = pending_txn.get_receipt().await.unwrap();
+            assert!(receipt.status());
+        }
+    })
+    .await
+    .unwrap();
+}
+
 
 #[tokio::test]
 #[serial(db)]
@@ -73,38 +112,10 @@ async fn test_listener_restart() -> Result<(), anyhow::Error> {
 
     tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
 
-    const NB_EVENTS: i64 = 5;
-
     // Emit first batch of events
     let wallet = EthereumWallet::new(signer.clone());
-    let tfhe_contract_clone = tfhe_contract.clone();
-    let url_clone = url.clone();
-    let wallet_clone = wallet.clone();
 
-    fn emit_events(provider: &ProviderBuilder, wallet: &EthereumWallet, url: &String, tfhe_contract: &TFHEExecutorTest, offset: i64) {
-        let tfhe_contract_clone = tfhe_contract.clone();
-        let url_clone = url.clone();
-        let wallet_clone = wallet.clone();
-        tokio::spawn(async move {
-            let provider = ProviderBuilder::new()
-                .wallet(wallet_clone)
-                .on_ws(WsConnect::new(url_clone))
-                .await
-                .unwrap();
-            let to_type = ToType::from_slice(&[1]);
-            for i in 1..=NB_EVENTS {
-                let pt = U256::from(i + offset); // offset to aoid idempotency
-                let txn_req = tfhe_contract_clone
-                    .trivialEncrypt_1(pt.clone(), to_type.clone())
-                    .into_transaction_request();
-                let pending_txn = provider.send_transaction(txn_req).await.unwrap();
-                let receipt = pending_txn.get_receipt().await.unwrap();
-                assert!(receipt.status());
-            }
-        })
-        .await
-    }
-    emit_events(&provider, &wallet, &url, &tfhe_contract, 0);
+    emit_events(&wallet, &url, tfhe_contract.clone()).await;
 
     // Kill the listener
     listener_handle.abort();
@@ -114,13 +125,13 @@ async fn test_listener_restart() -> Result<(), anyhow::Error> {
     assert!(last_block.unwrap() > 1);
 
     // Emit second batch
-    emit_events(&provider, &wallet, &url, &tfhe_contract, 100);
+    emit_events(&wallet, &url, tfhe_contract.clone()).await;
 
     // Restart listener
     let listener_handle = tokio::spawn(main(args.clone()));
 
     // Continue with events
-    emit_events(&provider, &wallet, &url, &tfhe_contract, 200);
+    emit_events(&wallet, &url, tfhe_contract.clone()).await;
 
     // Give time for events to be processed
     tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
