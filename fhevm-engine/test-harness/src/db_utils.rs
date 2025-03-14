@@ -1,4 +1,7 @@
+use rand::distr::Alphanumeric;
+use rand::Rng;
 use sqlx::postgres::types::Oid;
+use sqlx::types::Uuid;
 use sqlx::{query, PgPool};
 use std::time::Duration;
 use tokio::fs;
@@ -155,4 +158,71 @@ pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::err
     .await?;
 
     Ok(())
+}
+
+#[derive(Debug)]
+pub struct Tenant {
+    pub tenant_id: i32,
+    pub tenant_api_key: Uuid,
+    pub chain_id: i32,
+    pub key_id: i32,
+    pub verifying_contract_address: String,
+    pub acl_contract_address: String,
+    pub pks_key: Vec<u8>,
+    pub sks_key: Vec<u8>,
+    pub public_params: Vec<u8>,
+}
+
+pub async fn insert_random_tenant(pool: &PgPool) -> Result<Tenant, sqlx::Error> {
+    let chain_id: i32 = rand::rng().random_range(1..10000);
+    let key_id: i32 = rand::rng().random_range(1..10000);
+
+    let verifying_contract_address: String = rand::rng()
+        .sample_iter(&Alphanumeric)
+        .take(42)
+        .map(char::from)
+        .collect();
+
+    let acl_contract_address: String = rand::rng()
+        .sample_iter(&Alphanumeric)
+        .take(42)
+        .map(char::from)
+        .collect();
+
+    let pks_key: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
+    let sks_key: Vec<u8> = (0..32).map(|_| rand::random::<u8>()).collect();
+    let public_params: Vec<u8> = (0..64).map(|_| rand::random::<u8>()).collect();
+
+    let row = sqlx::query!(
+        r#"
+        INSERT INTO tenants (chain_id, key_id, verifying_contract_address, acl_contract_address, 
+                            pks_key, sks_key, public_params)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        RETURNING tenant_id, tenant_api_key, chain_id, verifying_contract_address, 
+                  acl_contract_address, pks_key, sks_key, public_params, key_id
+        "#,
+        chain_id,
+        key_id,
+        verifying_contract_address,
+        acl_contract_address,
+        pks_key,
+        sks_key,
+        public_params
+    )
+    .fetch_one(pool)
+    .await?;
+
+    let tenant = Tenant {
+        tenant_id: row.tenant_id,
+        tenant_api_key: row.tenant_api_key,
+        chain_id: row.chain_id,
+        verifying_contract_address: row.verifying_contract_address,
+        acl_contract_address: row.acl_contract_address,
+        pks_key: row.pks_key,
+        sks_key: row.sks_key,
+        public_params: row.public_params,
+        key_id: row.key_id.unwrap(),
+    };
+
+    Ok(tenant)
 }
