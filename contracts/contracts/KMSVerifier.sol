@@ -218,7 +218,7 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
      * @return isVerified       true if enough provided signatures are valid, false otherwise.
      */
     function verifyDecryptionEIP712KMSSignatures(
-        uint256[] memory handlesList,
+        bytes32[] memory handlesList,
         bytes memory decryptedResult,
         bytes[] memory signatures
     ) public virtual returns (bool) {

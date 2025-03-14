@@ -9,7 +9,7 @@ import "../lib/FHEVMConfig.sol";
 
 interface IKMSVerifier {
     function verifyDecryptionEIP712KMSSignatures(
-        uint256[] memory handlesList,
+        bytes32[] memory handlesList,
         bytes memory decryptedResult,
         bytes[] memory signatures
     ) external returns (bool);
