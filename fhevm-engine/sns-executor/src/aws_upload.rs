@@ -108,11 +108,10 @@ async fn upload_ciphertexts(
     let mut trx = pool.begin().await?;
 
     sqlx::query!(
-        "INSERT INTO ciphertext_digest (tenant_id, handle, retry_send, is_sent)
-        VALUES ($1, $2, $3, FALSE)",
+        "INSERT INTO ciphertext_digest (tenant_id, handle)
+        VALUES ($1, $2)",
         task.tenant_id,
         task.handle,
-        RETRY_SEND_LIMIT,
     )
     .execute(trx.as_mut())
     .await?;
