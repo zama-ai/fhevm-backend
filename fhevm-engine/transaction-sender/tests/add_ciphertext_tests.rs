@@ -41,6 +41,7 @@ async fn add_ciphertext_digests() -> anyhow::Result<()> {
         .get_transaction_count(provider.default_signer_address())
         .await?;
 
+    // Insert a ciphertext digest into the database.
     insert_ciphertext_digest(
         &env.db_pool,
         tenant.tenant_id,
@@ -51,7 +52,6 @@ async fn add_ciphertext_digests() -> anyhow::Result<()> {
     )
     .await?;
 
-    // Insert a proof into the database and notify the sender.
     sqlx::query!(
         "
         SELECT pg_notify($1, '')",
@@ -63,21 +63,21 @@ async fn add_ciphertext_digests() -> anyhow::Result<()> {
     // Make sure the digest was tagged as sent.
     for _retries in 0..10 {
         let rows = sqlx::query!(
-            "SELECT is_sent
+            "SELECT txn_is_sent
              FROM ciphertext_digest
              WHERE handle = $1",
             handle,
         )
         .fetch_one(&env.db_pool)
         .await?;
-        if rows.is_sent.unwrap_or_default() {
+        if rows.txn_is_sent.unwrap_or_default() {
             break;
         }
 
         sleep(Duration::from_millis(500)).await;
     }
 
-    // Verify that no transaction has been sent.
+    // Verify that a transaction has been sent.
     let tx_count = provider
         .get_transaction_count(provider.default_signer_address())
         .await?;
@@ -86,6 +86,14 @@ async fn add_ciphertext_digests() -> anyhow::Result<()> {
         initial_tx_count + 1,
         "Expected a new transaction to be sent"
     );
+
+    sqlx::query!(
+        "
+        delete from tenants where tenant_id = $1",
+        tenant.tenant_id
+    )
+    .execute(&env.db_pool)
+    .await?;
 
     env.cancel_token.cancel();
     run_handle.await??;
@@ -98,18 +106,18 @@ async fn insert_ciphertext_digest(
     handle: Vec<u8>,
     ciphertext: Vec<u8>,
     ciphertext128: Vec<u8>,
-    retry_send: i32,
+    txn_retry_count: i32,
 ) -> Result<(), sqlx::Error> {
     sqlx::query!(
         r#"
-        INSERT INTO ciphertext_digest (tenant_id, handle, ciphertext, ciphertext128, retry_send)
+        INSERT INTO ciphertext_digest (tenant_id, handle, ciphertext, ciphertext128, txn_retry_count)
         VALUES ($1, $2, $3, $4, $5)
         "#,
         tenant_id,
         handle,
         ciphertext,
         ciphertext128,
-        retry_send,
+        txn_retry_count,
     )
     .execute(pool)
     .await?;

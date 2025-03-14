@@ -45,7 +45,7 @@ impl<P: Provider<Ethereum> + Clone + 'static> AddCiphertextOperation<P> {
     ) -> anyhow::Result<()> {
         let h = to_hex(&handle);
 
-        info!("Processing transaction");
+        info!("Processing transaction, handle: {}", h);
 
         let txn_req = txn_request.into();
         let transaction = match provider.send_transaction(txn_req.clone()).await {
@@ -55,7 +55,8 @@ impl<P: Provider<Ethereum> + Clone + 'static> AddCiphertextOperation<P> {
                     "Transaction {:?} sending failed with error: {}, handle: {}",
                     txn_req, e, h
                 );
-                // TODO: handle error cases
+
+                Self::increment_db_retry(&db_pool, handle, &e.to_string()).await?;
                 return Ok(());
             }
         };
@@ -70,8 +71,7 @@ impl<P: Provider<Ethereum> + Clone + 'static> AddCiphertextOperation<P> {
             Ok(receipt) => receipt,
             Err(e) => {
                 error!("Getting receipt failed with error: {}", e);
-                //self.update_retry_count_by_proof_id(&db_pool, txn_request.0, &e.to_string())
-                //   .await?;
+                Self::increment_db_retry(&db_pool, handle, &e.to_string()).await?;
                 return Err(anyhow::Error::new(e));
             }
         };
@@ -79,8 +79,8 @@ impl<P: Provider<Ethereum> + Clone + 'static> AddCiphertextOperation<P> {
         if receipt.status() {
             sqlx::query!(
                 "UPDATE ciphertext_digest
-                SET is_sent = true
-                WHERE handle = $1 AND is_sent = false",
+                SET txn_is_sent = true
+                WHERE handle = $1 AND txn_is_sent = false",
                 handle
             )
             .execute(&db_pool)
@@ -98,7 +98,7 @@ impl<P: Provider<Ethereum> + Clone + 'static> AddCiphertextOperation<P> {
                 h
             );
 
-            // TODO: Update retry
+            Self::increment_db_retry(&db_pool, handle, "receipt status = false").await?;
 
             return Err(anyhow::anyhow!(
                 "Transaction {} failed with status {}, handle: {}",
@@ -131,6 +131,27 @@ impl<P: Provider<Ethereum> + Clone + 'static> AddCiphertextOperation<P> {
             gas,
         }
     }
+
+    async fn increment_db_retry(
+        db_pool: &Pool<Postgres>,
+        handle: Vec<u8>,
+        err: &str,
+    ) -> anyhow::Result<()> {
+        info!("Updating retry count, handle {}", to_hex(&handle));
+        sqlx::query!(
+            "UPDATE ciphertext_digest
+            SET
+            txn_retry_count = txn_retry_count + 1,
+            txn_last_error = $1,
+            txn_last_error_at = NOW()
+            WHERE handle = $2",
+            err,
+            handle,
+        )
+        .execute(db_pool)
+        .await?;
+        Ok(())
+    }
 }
 
 #[async_trait]
@@ -150,10 +171,12 @@ where
             "
             SELECT handle, ciphertext, ciphertext128, tenant_id
             FROM ciphertext_digest
-            WHERE is_sent = false
+            WHERE txn_is_sent = false
             AND ciphertext IS NOT NULL
             AND ciphertext128 IS NOT NULL
-            LIMIT $1",
+            AND txn_retry_count < $1
+            LIMIT $2",
+            self.conf.verify_proof_resp_max_retries as i64,
             self.conf.add_ciphertexts_batch_limit as i64,
         )
         .fetch_all(db_pool)
