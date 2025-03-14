@@ -1,26 +1,36 @@
 use super::TransactionOperation;
 use alloy::{
     network::{Ethereum, TransactionBuilder},
-    primitives::{Address, Bytes, U256},
+    primitives::{Address, FixedBytes, U256},
     providers::Provider,
     rpc::types::TransactionRequest,
     sol,
 };
 use async_trait::async_trait;
-use fhevm_engine_common::{tenant_keys::query_tenant_keyid, utils::to_hex};
+use fhevm_engine_common::{tenant_keys::query_tenant_info, utils::to_hex};
 use sqlx::{Pool, Postgres};
 use tokio::task::JoinSet;
-use tracing::{error, info, info_span, span};
+use tracing::{error, info};
 
 sol!(
     #[sol(rpc)]
-    CiphertextStorage,
-    "artifacts/CiphertextStorage.sol/CiphertextStorage.json"
+    CiphertextManager,
+    "artifacts/CiphertextManager.sol/CiphertextManager.json"
 );
+
+macro_rules! try_into_array {
+    ($vec:expr, $size:expr) => {{
+        if $vec.len() != $size {
+            panic!("invalid len, expected {} but got {}", $size, $vec.len());
+        }
+        let arr: [u8; $size] = $vec.try_into().expect("Failed to convert Vec to array");
+        arr
+    }};
+}
 
 #[derive(Clone)]
 pub struct AddCiphertextOperation<P: Provider<Ethereum> + Clone + 'static> {
-    ciphertext_storage_address: Address,
+    ciphertext_manager_address: Address,
     provider: P,
     conf: crate::ConfigSettings,
     gas: Option<u64>,
@@ -103,19 +113,19 @@ impl<P: Provider<Ethereum> + Clone + 'static> AddCiphertextOperation<P> {
 
 impl<P: Provider<Ethereum> + Clone + 'static> AddCiphertextOperation<P> {
     pub fn new(
-        ciphertext_storage_address: Address,
+        ciphertext_manager_address: Address,
         provider: P,
         conf: crate::ConfigSettings,
         gas: Option<u64>,
     ) -> Self {
         info!(
-            "Creating AddCiphertextOperation with gas: {} and storage address: {}",
+            "Creating AddCiphertextOperation with gas: {} and CiphertextManager address: {}",
             gas.unwrap_or(0),
-            ciphertext_storage_address
+            ciphertext_manager_address,
         );
 
         Self {
-            ciphertext_storage_address,
+            ciphertext_manager_address,
             provider,
             conf,
             gas,
@@ -149,15 +159,15 @@ where
         .fetch_all(db_pool)
         .await?;
 
-        let ciphertext_storage: CiphertextStorage::CiphertextStorageInstance<(), &P> =
-            CiphertextStorage::new(self.ciphertext_storage_address, &self.provider);
+        let ciphertext_manager: CiphertextManager::CiphertextManagerInstance<(), &P> =
+            CiphertextManager::new(self.ciphertext_manager_address, &self.provider);
 
         info!("Selected {} rows to process", rows.len());
 
         let mut join_set = JoinSet::new();
         for row in rows.into_iter() {
-            let key_id = match query_tenant_keyid(db_pool, row.tenant_id).await {
-                Ok(key_id) => key_id,
+            let (key_id, chain_id) = match query_tenant_info(db_pool, row.tenant_id).await {
+                Ok(res) => res,
                 Err(_) => {
                     error!(
                         "Failed to get key_id for tenant
@@ -171,49 +181,45 @@ where
             let handle: Vec<u8> = row.handle.clone();
             let h_as_hex = to_hex(&handle);
 
-            let arr: [u8; 32] = match handle.try_into() {
-                Ok(arr) => arr,
-                Err(_) => {
-                    error!("Invalid handle");
-                    continue;
-                }
-            };
-
             let (ciphertext64_digest, ciphertext128_digest) =
                 match (row.ciphertext, row.ciphertext128) {
-                    (Some(ct), Some(ct128)) => (Bytes::from(ct), Bytes::from(ct128)),
+                    (Some(ct), Some(ct128)) => (
+                        FixedBytes::from(try_into_array!(ct, 32)),
+                        FixedBytes::from(try_into_array!(ct128, 32)),
+                    ),
                     _ => {
                         error!("Missing ciphertext(s), handle {}", h_as_hex);
                         continue;
                     }
                 };
 
-            let handle_u256 = U256::from_be_bytes(arr);
-            assert_eq!(ciphertext64_digest.len(), 32);
-            assert_eq!(ciphertext128_digest.len(), 32);
+            let handle_u256 = U256::from_be_bytes(try_into_array!(handle, 32));
 
             info!(
-                "Adding ciphertext, handle: {}, key_id: {}, ct64: {}, ct128: {}",
+                "Adding ciphertext, handle: {}, chain_id: {}, key_id: {}, ct64: {}, ct128: {}",
                 h_as_hex,
+                chain_id,
                 key_id,
                 to_hex(ciphertext64_digest.as_ref()),
                 to_hex(ciphertext128_digest.as_ref()),
             );
 
             let txn_request = match &self.gas {
-                Some(gas_limit) => ciphertext_storage
-                    .addCiphertext(
+                Some(gas_limit) => ciphertext_manager
+                    .addCiphertextMaterial(
                         handle_u256,
                         U256::from(key_id),
+                        U256::from(chain_id),
                         ciphertext64_digest,
                         ciphertext128_digest,
                     )
                     .into_transaction_request()
                     .with_gas_limit(*gas_limit),
-                None => ciphertext_storage
-                    .addCiphertext(
+                None => ciphertext_manager
+                    .addCiphertextMaterial(
                         handle_u256,
                         U256::from(key_id),
+                        U256::from(chain_id),
                         ciphertext64_digest,
                         ciphertext128_digest,
                     )
@@ -224,7 +230,6 @@ where
             let provider = self.provider.clone();
             let handle = row.handle;
 
-            // drop(guard);
             join_set.spawn(async move {
                 Self::send_transaction(db_pool, provider, handle, txn_request).await
             });

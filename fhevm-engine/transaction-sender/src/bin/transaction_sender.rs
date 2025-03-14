@@ -16,7 +16,7 @@ struct Conf {
     zkpok_manager_address: Address,
 
     #[arg(short, long)]
-    ciphertext_storage_address: Address,
+    ciphertext_manager_address: Address,
 
     #[arg(short, long)]
     gateway_url: Url,
@@ -87,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
     let cancel_token = CancellationToken::new();
     let sender = TransactionSender::new(
         conf.zkpok_manager_address,
-        conf.ciphertext_storage_address,
+        conf.ciphertext_manager_address,
         signer,
         provider,
         cancel_token.clone(),
