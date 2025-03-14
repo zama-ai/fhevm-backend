@@ -43,7 +43,7 @@ contract TFHEExecutor is TFHEExecutorNoEvents {
         bytes32 result
     );
     event Cast(address indexed caller, bytes32 ct, bytes1 toType, bytes32 result);
-    event TrivialEncrypt(address indexed caller, bytes32 pt, bytes1 toType, bytes32 result);
+    event TrivialEncrypt(address indexed caller, uint256 pt, bytes1 toType, bytes32 result);
     event TrivialEncryptBytes(address indexed caller, bytes pt, bytes1 toType, bytes32 result);
     event FheIfThenElse(address indexed caller, bytes32 control, bytes32 ifTrue, bytes32 ifFalse, bytes32 result);
     event FheRand(address indexed caller, bytes1 randType, bytes16 seed, bytes32 result);
@@ -394,7 +394,7 @@ contract TFHEExecutor is TFHEExecutorNoEvents {
      * @param toType    Target type.
      * @return result   Result value of the target type.
      */
-    function trivialEncrypt(bytes32 pt, bytes1 toType) public virtual override returns (bytes32 result) {
+    function trivialEncrypt(uint256 pt, bytes1 toType) public virtual override returns (bytes32 result) {
         result = super.trivialEncrypt(pt, toType);
         emit TrivialEncrypt(msg.sender, pt, toType, result);
     }
