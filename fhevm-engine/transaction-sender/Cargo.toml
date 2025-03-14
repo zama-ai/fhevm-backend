@@ -30,3 +30,4 @@ foundry-compilers = { version = "0.13.0", features = ["svm-solc"] }
 
 [dev-dependencies]
 serial_test = "3.2.0"
+test-harness = { path = "../test-harness" }
