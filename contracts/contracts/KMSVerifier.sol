@@ -63,7 +63,7 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
      * @param decryptedResult   Decrypted result.
      */
     struct PublicDecryptionResult {
-        uint256[] handlesList;
+        bytes32[] handlesList;
         bytes decryptedResult;
     }
 
@@ -82,7 +82,7 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
 
     /// @notice Decryption result type.
     string public constant DECRYPTION_RESULT_TYPE =
-        "PublicDecryptionResult(uint256[] handlesList,bytes decryptedResult)";
+        "PublicDecryptionResult(bytes32[] handlesList,bytes decryptedResult)";
 
     /// @notice Decryption result typehash.
     bytes32 public constant DECRYPTION_RESULT_TYPEHASH = keccak256(bytes(DECRYPTION_RESULT_TYPE));
