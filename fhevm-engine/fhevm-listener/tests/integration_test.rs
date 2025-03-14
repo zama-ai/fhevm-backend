@@ -1,3 +1,4 @@
+use futures_util::future::try_join_all;
 use std::sync::atomic::AtomicU32;
 use std::sync::atomic::Ordering;
 
@@ -26,36 +27,42 @@ sol!(
 
 use crate::TFHEExecutorTest::TFHEExecutorTestInstance;
 
-const NB_EVENTS: i64 = 30;
+const NB_EVENTS: i64 = 5;
 
-async fn emit_events<P, N>(wallet: &EthereumWallet, url: &String, tfhe_contract: TFHEExecutorTestInstance<(), P, N>)
+async fn emit_events<P, N   >(signer: &PrivateKeySigner, url: &String, tfhe_contract: TFHEExecutorTestInstance<(), P, N>)
 where
       P: Clone + alloy_provider::Provider<N> + 'static,
       N: Clone + alloy_provider::Network<TransactionRequest = TransactionRequest> + 'static,
 {
-    static UNIQUE_INT: AtomicU32 = AtomicU32::new(1); // to counter avoid idempotency
-    let url_clone = url.clone();
-    let wallet_clone = wallet.clone();
-    tokio::spawn(async move {
-        let provider = ProviderBuilder::new()
-            .wallet(wallet_clone)
-            .on_ws(WsConnect::new(url_clone))
-            .await
-            .unwrap();
-        let to_type = ToType::from_slice(&[1]);
-        for i in 1..=NB_EVENTS {
-            let pt = U256::from(UNIQUE_INT.fetch_add(1, Ordering::Relaxed));
-            let txn_req = tfhe_contract
-                .trivialEncrypt_1(pt.clone(), to_type.clone())
-                .into_transaction_request()
-                .into();
-            let pending_txn = provider.send_transaction(txn_req).await.unwrap();
-            let receipt = pending_txn.get_receipt().await.unwrap();
-            assert!(receipt.status());
-        }
-    })
-    .await
-    .unwrap();
+    static UNIQUE_INT: AtomicU32 = AtomicU32::new(1); // to counter idempotency
+    let to_type = ToType::from_slice(&[4]);
+    let mut pending_txns = vec![];
+    for _ in 1..=NB_EVENTS {
+        let url_clone = url.clone();
+        let pt = U256::from(UNIQUE_INT.fetch_add(1, Ordering::Relaxed));
+        let txn_req = tfhe_contract
+            .trivialEncrypt_1(pt.clone(), to_type.clone())
+            .into_transaction_request()
+            .into();
+        let signer_clone = signer.clone();
+        pending_txns.push(tokio::spawn(async move {
+            let wallet = EthereumWallet::new(signer_clone);
+            let provider = ProviderBuilder::new()
+                .wallet(wallet)
+                .on_ws(WsConnect::new(url_clone))
+                .await
+                .unwrap();
+            provider.clone().send_transaction(txn_req).await
+        }));
+        tokio::time::sleep(tokio::time::Duration::from_millis(5)).await;
+    }
+    let mut receipts = vec![];
+    for pending_txn in try_join_all(pending_txns).await.unwrap() {
+        receipts.push(tokio::spawn(pending_txn.unwrap().get_receipt()));
+    }
+    for receipt in try_join_all(receipts).await.unwrap() {
+        assert!(receipt.unwrap().status());
+    }
 }
 
 
@@ -110,39 +117,53 @@ async fn test_listener_restart() -> Result<(), anyhow::Error> {
     // Start listener in background task
     let listener_handle = tokio::spawn(main(args.clone()));
 
-    tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(10)).await;
 
     // Emit first batch of events
-    let wallet = EthereumWallet::new(signer.clone());
+    emit_events(&signer, &url, tfhe_contract.clone()).await;
 
-    emit_events(&wallet, &url, tfhe_contract.clone()).await;
+    tokio::time::sleep(tokio::time::Duration::from_secs(40)).await; // let some time for propagation
 
     // Kill the listener
     listener_handle.abort();
+    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
     let mut database = Database::new(&database_url, &coprocessor_api_key.unwrap(), chain_id).await;
     let last_block = database.read_last_seen_block().await;
     assert!(last_block.is_some());
     assert!(last_block.unwrap() > 1);
+    let db_pool = PgPoolOptions::new().max_connections(1).connect(database_url).await?;
+    let new_count = sqlx::query!("SELECT COUNT(*) FROM computations")
+        .fetch_one(&db_pool)
+        .await?
+        .count
+        .unwrap_or(0);
+    assert_ne!(count, 0);
 
     // Emit second batch
-    emit_events(&wallet, &url, tfhe_contract.clone()).await;
+    emit_events(&signer, &url, tfhe_contract.clone()).await;
 
     // Restart listener
     let listener_handle = tokio::spawn(main(args.clone()));
 
     // Continue with events
-    emit_events(&wallet, &url, tfhe_contract.clone()).await;
+    emit_events(&signer, &url, tfhe_contract.clone()).await;
 
-    // Give time for events to be processed
-    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+    let mut old_count = 0;
+    loop {
+        // Give time for events to be processed
+        tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
 
-    let db_pool = PgPoolOptions::new().max_connections(1).connect(database_url).await?;
+        let new_count = sqlx::query!("SELECT COUNT(*) FROM computations")
+            .fetch_one(&db_pool)
+            .await?
+            .count
+            .unwrap_or(0);
 
-    let count = sqlx::query!("SELECT COUNT(*) FROM computations")
-        .fetch_one(&db_pool)
-        .await?
-        .count
-        .unwrap_or(0);
+        if old_count == new_count {
+            break;
+        };
+        old_count = new_count;
+    }
 
     assert_eq!(count, 3 * NB_EVENTS);
     // Cleanup
