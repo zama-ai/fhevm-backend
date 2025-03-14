@@ -67,19 +67,6 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
         bytes decryptedResult;
     }
 
-    /**
-     * @param aclAddress        ACL address.
-     * @param hashOfCiphertext  Hash of ciphertext.
-     * @param userAddress       Address of the user.
-     * @param contractAddress   Contract address.
-     */
-    struct CiphertextVerificationForKMS {
-        address aclAddress;
-        bytes32 hashOfCiphertext;
-        address userAddress;
-        address contractAddress;
-    }
-
     /// @notice Decryption result type.
     string public constant DECRYPTION_RESULT_TYPE =
         "PublicDecryptionResult(bytes32[] handlesList,bytes decryptedResult)";
