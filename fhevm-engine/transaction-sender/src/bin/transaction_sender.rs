@@ -48,6 +48,9 @@ struct Conf {
     #[arg(long, default_value = "true")]
     verify_proof_remove_after_max_retries: bool,
 
+    #[arg(long, default_value = "10")]
+    add_ciphertexts_batch_limit: u32,
+
     #[arg(long, default_value = "1")]
     error_sleep_initial_secs: u16,
 
@@ -98,6 +101,8 @@ async fn main() -> anyhow::Result<()> {
             verify_proof_resp_batch_limit: conf.verify_proof_resp_batch_limit,
             verify_proof_resp_max_retries: conf.verify_proof_resp_max_retries,
             verify_proof_remove_after_max_retries: conf.verify_proof_remove_after_max_retries,
+
+            add_ciphertexts_batch_limit: conf.add_ciphertexts_batch_limit,
 
             db_polling_interval_secs: conf.database_polling_interval_secs,
 

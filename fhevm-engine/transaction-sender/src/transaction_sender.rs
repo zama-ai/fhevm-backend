@@ -44,6 +44,7 @@ impl<P: Provider<Ethereum> + Clone + 'static> TransactionSender<P> {
                 ciphertext_storage_address,
                 provider.clone(),
                 conf.clone(),
+                gas,
             )),
         ];
         Ok(Self {
