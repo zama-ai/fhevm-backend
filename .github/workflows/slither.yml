@@ -5,9 +5,10 @@ on:
       - main
     paths:
       - contracts/**
+      - .github/workflows/slither.yml
 jobs:
   analyze:
-    runs-on: ubuntu-latest
+    runs-on: large_ubuntu_32
     steps:
       - name: Checkout
         uses: actions/checkout@692973e3d937129bcbf40652eb9f2f61becf3332 # v4.1.7
