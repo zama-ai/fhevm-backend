@@ -4,7 +4,6 @@ import { Operator, OperatorArguments, ReturnType } from './common';
 import { ArgumentType, OverloadSignature } from './testgen';
 import { getUint } from './utils';
 
-/// TODO: Generate dynamically these
 function commonSolLib(): string {
   return `
 type ebool is bytes32;
