@@ -39,9 +39,9 @@ jobs:
         run: cargo-deny deny check license --deny license-not-encountered
         working-directory: fhevm-engine
 
-      # - name: Security issue whitelist
-      #   run: cargo-audit audit
-      #   working-directory: fhevm-engine
+      - name: Security issue whitelist
+        run: cargo-audit audit
+        working-directory: fhevm-engine
 
 permissions:
   contents: read
