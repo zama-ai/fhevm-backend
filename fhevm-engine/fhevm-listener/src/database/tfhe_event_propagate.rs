@@ -16,11 +16,12 @@ use crate::contracts::TfheContract::TfheContractEvents;
 
 type CoprocessorApiKey = Uuid;
 type FheOperation = i32;
-pub type Handle = Uint<256, 4>;
+pub type Handle = FixedBytes<32>;
 pub type TenantId = i32;
 pub type ChainId = u64;
-pub type ToType = FixedBytes<1>;
+pub type ToType = u8;
 pub type ScalarByte = FixedBytes<1>;
+pub type ClearConst = Uint<256, 4>;
 
 const MAX_RETRIES_FOR_NOTIFY: usize = 5;
 pub const EVENT_PBS_COMPUTATIONS: &str = "event_pbs_computations";
@@ -134,7 +135,7 @@ impl Database {
     ) -> Result<(), SqlxError> {
         let dependencies_handles = dependencies_handles
             .iter()
-            .map(|d| d.to_be_bytes_vec())
+            .map(|d| d.to_vec())
             .collect::<Vec<_>>();
         let dependencies = [&dependencies_handles, dependencies_bytes].concat();
         self.insert_computation_inner(
@@ -155,10 +156,8 @@ impl Database {
         fhe_operation: FheOperation,
         scalar_byte: &FixedBytes<1>,
     ) -> Result<(), SqlxError> {
-        let dependencies = dependencies
-            .iter()
-            .map(|d| d.to_be_bytes_vec())
-            .collect::<Vec<_>>();
+        let dependencies =
+            dependencies.iter().map(|d| d.to_vec()).collect::<Vec<_>>();
         self.insert_computation_inner(
             tenant_id,
             result,
@@ -178,7 +177,7 @@ impl Database {
         scalar_byte: &FixedBytes<1>,
     ) -> Result<(), SqlxError> {
         let is_scalar = !scalar_byte.is_zero();
-        let output_handle = result.to_be_bytes_vec();
+        let output_handle = result.to_vec();
         let query = || {
             sqlx::query!(
                 r#"
@@ -227,8 +226,8 @@ impl Database {
         const HAS_SCALAR : FixedBytes::<1> = FixedBytes([1]); // if any dependency is a scalar.
         const NO_SCALAR : FixedBytes::<1> = FixedBytes([0]); // if all dependencies are handles.
         // ciphertext type
-        let ty = |to_type: &ToType| vec![to_type[0]];
-        let as_bytes = |x: &Handle| x.to_be_bytes_vec();
+        let ty = |to_type: &ToType| vec![*to_type];
+        let as_bytes = |x: &ClearConst| x.to_be_bytes_vec();
         let tenant_id = self.tenant_id;
         let fhe_operation = event_to_op_int(event);
         match &event.data {
@@ -278,7 +277,7 @@ impl Database {
             => self.insert_computation_bytes(tenant_id, result, &[], &[seed.to_vec(), as_bytes(upperBound), ty(randType)], fhe_operation, &HAS_SCALAR).await,
 
             | E::TrivialEncrypt(C::TrivialEncrypt {pt, toType, result, ..})
-            => self.insert_computation_bytes(tenant_id, result, &[pt], &[ty(toType)], fhe_operation, &HAS_SCALAR).await,
+            => self.insert_computation_bytes(tenant_id, result, &[], &[as_bytes(pt), ty(toType)], fhe_operation, &HAS_SCALAR).await,
 
             | E::TrivialEncryptBytes(C::TrivialEncryptBytes {pt, toType, result, ..})
             => self.insert_computation_bytes(tenant_id, result, &[], &[pt.to_vec(), ty(toType)], fhe_operation, &HAS_SCALAR).await,
@@ -386,7 +385,7 @@ impl Database {
 
         match data {
             AclContractEvents::Allowed(allowed) => {
-                let handle = allowed.handle.to_be_bytes_vec();
+                let handle = allowed.handle.to_vec();
 
                 self.insert_allowed_handle(
                     handle.clone(),
@@ -400,7 +399,7 @@ impl Database {
                 let handles = allowed_for_decryption
                     .handlesList
                     .iter()
-                    .map(|h| h.to_be_bytes_vec())
+                    .map(|h| h.to_vec())
                     .collect::<Vec<_>>();
 
                 self.insert_pbs_computations(&handles).await?;
