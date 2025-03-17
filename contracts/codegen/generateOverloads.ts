@@ -32,8 +32,10 @@ type SupportedFunction = SupportedFunctionParams &
   return this.toString();
 };
 
+// TODO: support more bits
+const SUPPORTED_UINT_NEXT = Array.from({ length: 32 }, (_, i) => 8 * (i + 1));
 const SUPPORTED_UINT = [8, 16, 32, 64, 128, 256];
-const SUPPORTED_BITS = [4, 8, 16, 32, 64, 128, 256];
+const SUPPORTED_BITS = [8, 16, 32, 64, 128, 256];
 
 const bigIntMin = (...args: bigint[]) => {
   return args.reduce((min, e) => (e < min ? e : min), args[0]);
