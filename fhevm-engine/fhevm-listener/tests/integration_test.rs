@@ -21,7 +21,7 @@ sol!(
     #[sol(rpc)]
     #[derive(Debug, serde::Serialize, serde::Deserialize)]
     TFHEExecutorTest,
-    "artifacts/TFHEExecutorTest.sol/TFHEExecutorTest.json"
+    "../../contracts/artifacts/contracts/TFHEExecutor.sol/TFHEExecutor.json"
 );
 
 use crate::TFHEExecutorTest::TFHEExecutorTestInstance;
