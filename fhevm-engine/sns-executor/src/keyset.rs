@@ -14,13 +14,13 @@ pub(crate) async fn fetch_keyset(
     pool: &PgPool,
     tenant_api_key: &String,
 ) -> Result<KeySet, ExecutionError> {
-    let (server_key, sns_key, sns_secret_key) = join!(
+    let (sks_keys, sns_key, sns_secret_key) = join!(
         read_sks_key(pool, tenant_api_key),
         read_sns_pk_from_lo(pool, tenant_api_key),
         read_sns_sk_from_lo(pool, tenant_api_key)
     );
 
-    let server_key = server_key?;
+    let (server_key, compressed_server_key) = sks_keys?;
     let sns_key = sns_key?;
     let sns_secret_key = sns_secret_key?;
 
@@ -28,6 +28,7 @@ pub(crate) async fn fetch_keyset(
         sns_key,
         sns_secret_key,
         server_key,
+	compressed_server_key,
     };
 
     Ok(key_set)
@@ -97,10 +98,10 @@ async fn read_keys_from_lo(
 pub async fn read_sks_key(
     pool: &PgPool,
     tenant_api_key: &String,
-) -> anyhow::Result<tfhe::ServerKey> {
+) -> anyhow::Result<(tfhe::ServerKey, tfhe::CompressedServerKey)> {
     let sks = sqlx::query(
         "
-            SELECT sks_key
+            SELECT sks_key, gpu_csks_key
             FROM tenants
             WHERE tenant_api_key = $1::uuid
         ",
@@ -112,5 +113,13 @@ pub async fn read_sks_key(
     let sks_key: Vec<u8> = sks.try_get(0)?;
     let server_key: tfhe::ServerKey = safe_deserialize_key(&sks_key)?;
 
-    Ok(server_key)
+    let csks_key: Vec<u8> = sks.try_get(1)?;
+    let csks: tfhe::CompressedServerKey = safe_deserialize_key(
+                 &csks_key
+             )
+             .expect("We can't deserialize the gpu compressed sks key");
+
+    let server_key: tfhe::ServerKey = csks.decompress();
+
+    Ok((server_key, csks))
 }

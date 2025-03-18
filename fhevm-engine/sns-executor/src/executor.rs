@@ -220,6 +220,8 @@ async fn get_remaining_tasks(
 
 /// Processes the tasks by decompressing and transforming ciphertexts.
 fn process_tasks(tasks: &mut [HandleItem], keys: &KeySet) -> Result<(), ExecutionError> {
+    let gpu_sks = keys.compressed_server_key.decompress_to_gpu();
+    //set_server_key(gpu_sks.clone());
     set_server_key(keys.server_key.clone());
 
     for task in tasks.iter_mut() {

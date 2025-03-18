@@ -21,6 +21,7 @@ pub struct KeySet {
     pub sns_key: SwitchAndSquashKey,
     pub sns_secret_key: Option<SnsClientKey>,
     pub server_key: tfhe::ServerKey,
+    pub compressed_server_key: tfhe::CompressedServerKey,
 }
 
 #[derive(Clone)]

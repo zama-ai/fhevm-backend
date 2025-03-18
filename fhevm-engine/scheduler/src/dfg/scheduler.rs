@@ -23,6 +23,7 @@ use std::{
 #[cfg(feature = "gpu")]
 use tfhe::CudaServerKey;
 use tokio::task::JoinSet;
+use std::time::SystemTime;
 
 struct ExecNode {
     df_nodes: Vec<NodeIndex>,
@@ -109,6 +110,7 @@ impl<'a> Scheduler<'a> {
 
     #[allow(dead_code)]
     async fn decompress_ciphertexts(&mut self) -> Result<()> {
+        let now = SystemTime::now();
         #[cfg(feature = "gpu")]
         let sks = self.csks.clone();
         #[cfg(not(feature = "gpu"))]
@@ -132,7 +134,8 @@ impl<'a> Scheduler<'a> {
                 .collect();
             node.inputs = inputs;
         });
-        Ok(())
+	println!(" - decompression time for {} items: {}", self.graph.node_count(), now.elapsed().unwrap().as_millis());
+	Ok(())
     }
 
     async fn schedule_fine_grain(&mut self) -> Result<()> {
@@ -542,6 +545,7 @@ fn run_computation(
                 Ok(result) => {
                     let (ct_type, ct_bytes) = result.compress();
                     (graph_node_index, Ok((result.clone(), ct_type, ct_bytes)))
+                    //(graph_node_index, Ok((result.clone(), 0, vec![])))
                 }
                 Err(e) => (graph_node_index, Err(e.into())),
             },

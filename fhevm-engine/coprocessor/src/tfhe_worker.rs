@@ -361,6 +361,7 @@ async fn tfhe_worker_cycle(
                 let keys = rk.get(tenant_id).expect("Can't get tenant key from cache");
 
                 // Schedule computations in parallel as dependences allow
+        let now = std::time::SystemTime::now();
                 tfhe::set_server_key(keys.sks.clone());
                 let mut sched = Scheduler::new(
                     &mut graph.graph,
@@ -369,6 +370,7 @@ async fn tfhe_worker_cycle(
                     keys.gpu_sks.clone(),
                 );
                 sched.schedule().await?;
+	println!(" - execution time for {} items: {}", graph.graph.node_count(), now.elapsed().unwrap().as_millis());
             }
             // Extract the results from the graph
             let mut res = graph.get_results();
