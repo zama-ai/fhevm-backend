@@ -1,7 +1,7 @@
 import dotenv from 'dotenv';
 import { Wallet } from 'ethers';
 import fs from 'fs';
-import { ethers, network, hardhatArguments as hre } from 'hardhat';
+import { ethers, hardhatArguments as hre, network } from 'hardhat';
 
 import { ACL, DecryptionOracle } from '../types';
 import { awaitCoprocessor, getClearText } from './coprocessorUtils';

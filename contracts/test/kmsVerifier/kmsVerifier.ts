@@ -97,7 +97,7 @@ describe('KMSVerifier', function () {
       tx = await kmsVerifier.connect(deployer).setThreshold(1n);
       await tx.wait();
       expect(await kmsVerifier.getThreshold()).to.equal(1);
-      
+
       tx = await contract.requestUint16();
       await tx.wait();
       await awaitAllDecryptionResults();
