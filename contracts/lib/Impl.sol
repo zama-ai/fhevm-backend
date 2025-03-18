@@ -663,7 +663,7 @@ library Impl {
 
     /**
      * @dev If 'control's value is 'true', the result has the same value as 'ifTrue'.
-     *         If 'control's value is 'false', the result has the same value as 'ifFalse'.
+     *      If 'control's value is 'false', the result has the same value as 'ifFalse'.
      */
     function select(bytes32 control, bytes32 ifTrue, bytes32 ifFalse) internal returns (bytes32 result) {
         FHEVMConfigStruct storage $ = getFHEVMConfig();

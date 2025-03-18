@@ -1,35 +1,16 @@
 import { strict as assert } from 'node:assert';
 
+import { ArgumentType, FunctionType, OverloadShard, OverloadSignature } from './common';
 import { overloadTests } from './overloadTests';
 import { getUint } from './utils';
 
-export enum ArgumentType {
-  Ebool,
-  EUint,
-  Uint,
-}
-
-export type FunctionType = {
-  type: ArgumentType;
-  bits: number;
-};
-
-export type OverloadSignature = {
-  name: string;
-  arguments: FunctionType[];
-  returnType: FunctionType;
-  binaryOperator?: string;
-  unaryOperator?: string;
-};
-
-export type OverloadShard = {
-  shardNumber: number;
-  overloads: OverloadSignature[];
-};
-
 /**
+ * Splits the provided overloads into multiple shards.
+ *
+ * @param overloads - The overloads to be split into shards.
+ * @returns An array of shards containing the split overloads.
  * This is done because there's a limit on how big
- * of a smart contract you can deploy
+ * of a smart contract you can deploy.
  */
 export function splitOverloadsToShards(overloads: OverloadSignature[]): OverloadShard[] {
   const MAX_SHARD_SIZE = 90;
@@ -113,7 +94,7 @@ async function deployTfheTestFixture${os.shardNumber}(): Promise<TFHETestSuite${
   return intro.join('');
 }
 
-export function generateTestCode(shards: OverloadShard[], numTsSplits: number): string[] {
+export function generateTypeScriptTestCode(shards: OverloadShard[], numTsSplits: number): string[] {
   const numSolTest = shards.reduce((sum, os) => sum + os.overloads.length, 0);
   let idxTsTest = 0;
 
@@ -146,7 +127,7 @@ export function generateTestCode(shards: OverloadShard[], numTsSplits: number): 
         let numEnc = 0;
         const testArgsEncrypted = t.inputs
           .map((v, index) => {
-            if (o.arguments[index].type == ArgumentType.EUint) {
+            if (o.arguments[index].type == ArgumentType.Euint) {
               numEnc++;
               return `encryptedAmount.handles[${numEnc - 1}]`;
             } else {
@@ -156,7 +137,7 @@ export function generateTestCode(shards: OverloadShard[], numTsSplits: number): 
           .join(', ');
         const inputsAdd = t.inputs
           .map((v, index) => {
-            if (o.arguments[index].type == ArgumentType.EUint) {
+            if (o.arguments[index].type == ArgumentType.Euint) {
               return `input.add${o.arguments[index].bits}(${v}n);`;
             }
           })
@@ -227,7 +208,7 @@ function ensureNumberInRange(bits: number, input: number | bigint, min: number |
   assert(input >= min && input <= max, `${bits} bit number ${input} doesn't fall into expected [${min}; ${max}] range`);
 }
 
-export function generateSmartContract(os: OverloadShard): string {
+export function generateSolidityUnitTestContracts(os: OverloadShard): string {
   const res: string[] = [];
 
   res.push(`
@@ -347,7 +328,7 @@ function signatureContractEncryptedSignature(s: OverloadSignature): string {
 
 function castExpressionToType(argExpr: string, outputType: FunctionType): string {
   switch (outputType.type) {
-    case ArgumentType.EUint:
+    case ArgumentType.Euint:
       return `TFHE.asEuint${outputType.bits}(${argExpr}, inputProof)`;
     case ArgumentType.Uint:
       return argExpr;
@@ -358,7 +339,7 @@ function castExpressionToType(argExpr: string, outputType: FunctionType): string
 
 function functionTypeToCalldataType(t: FunctionType): string {
   switch (t.type) {
-    case ArgumentType.EUint:
+    case ArgumentType.Euint:
       return `einput`;
     case ArgumentType.Uint:
       return getUint(t.bits);
@@ -369,7 +350,7 @@ function functionTypeToCalldataType(t: FunctionType): string {
 
 function functionTypeToEncryptedType(t: FunctionType): string {
   switch (t.type) {
-    case ArgumentType.EUint:
+    case ArgumentType.Euint:
     case ArgumentType.Uint:
       return `euint${t.bits}`;
     case ArgumentType.Ebool:
@@ -379,7 +360,7 @@ function functionTypeToEncryptedType(t: FunctionType): string {
 
 function functionTypeToString(t: FunctionType): string {
   switch (t.type) {
-    case ArgumentType.EUint:
+    case ArgumentType.Euint:
       return `euint${t.bits}`;
     case ArgumentType.Uint:
       return getUint(t.bits);
