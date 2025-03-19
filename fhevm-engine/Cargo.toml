@@ -22,8 +22,8 @@ rayon = "1.10.0"
 serde = "1.0.210"
 sha3 = "0.10.8"
 sqlx = { version = "0.8.3", features = ["runtime-tokio", "tls-rustls", "time", "postgres", "uuid"] }
-tfhe = { path = "/home/ubuntu/tfhe-rs/tfhe", features = ["boolean", "shortint", "integer", "zk-pok", "experimental-force_fft_algo_dif4"] }
-tfhe-versionable = "=0.5.0"
+tfhe = { path = "/home/apop/dev/tfhe-rs/tfhe", features = ["boolean", "shortint", "integer", "zk-pok", "experimental-force_fft_algo_dif4"] }
+tfhe-versionable = { path = "/home/apop/dev/tfhe-rs/utils/tfhe-versionable" }#"0.5.0"
 tokio = { version = "1.38.0", features = ["full"] }
 tokio-util = "0.7"
 tonic = { version = "0.12", features = ["server"] }

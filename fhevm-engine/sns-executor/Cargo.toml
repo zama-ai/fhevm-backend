@@ -45,6 +45,7 @@ path = "src/bin/sns_worker.rs"
 [features]
 test_decrypt_128 = []
 gpu = ["test-harness/gpu", "fhevm-engine-common/gpu", "tfhe/gpu"]
+default = ["gpu"]
 
 [dev-dependencies]
 test-harness = { path = "../test-harness" }

@@ -106,6 +106,13 @@ impl AugmentedCiphertextParameters for tfhe::shortint::Ciphertext {
     }
 }
 
+use tfhe::core_crypto::gpu::glwe_ciphertext_list::CudaGlweCiphertextList;
+use tfhe::core_crypto::gpu::lwe_bootstrap_key::CudaLweBootstrapKey;
+use tfhe::core_crypto::gpu::lwe_ciphertext_list::CudaLweCiphertextList;
+use tfhe::core_crypto::gpu::vec::{CudaVec, GpuIndex};
+use tfhe::core_crypto::gpu::{cuda_programmable_bootstrap_lwe_ciphertext, CudaStreams};
+use tfhe::core_crypto::prelude::*;
+
 impl SwitchAndSquashKey {
     pub fn new(
         fbsk_out: Fourier128LweBootstrapKey<ABox<[f64]>>,
@@ -183,6 +190,51 @@ impl SwitchAndSquashKey {
             0_u128,
             pbs_cipher_size,
             CiphertextModulus::<u128>::new_native(),
+        );
+
+        //////////////
+        let stream = CudaStreams::new_single_gpu(GpuIndex::new(0));
+        let accumulator: GlweCiphertextOwned<u128> = GlweCiphertextOwned::new(
+            u128::ONE,
+            self.fbsk_out.glwe_size(),
+            self.fbsk_out.polynomial_size(),
+            CiphertextModulus::<u128>::new_native(),
+        );
+        let accumulator_gpu = CudaGlweCiphertextList::from_glwe_ciphertext(&accumulator, &stream);
+
+        let lwe_ciphertext_in_gpu =
+            CudaLweCiphertextList::from_lwe_ciphertext(&ms_output_lwe, &stream);
+        let mut out_pbs_ct_gpu = CudaLweCiphertextList::from_lwe_ciphertext(&out_pbs_ct, &stream);
+        let h_indexes = &[<u128 as tfhe::core_crypto::prelude::Numeric>::ZERO];
+        let mut d_input_indexes = unsafe { CudaVec::<u128>::new_async(1, &stream, 0) };
+        let mut d_output_indexes = unsafe { CudaVec::<u128>::new_async(1, &stream, 0) };
+        let mut d_lut_indexes = unsafe { CudaVec::<u128>::new_async(1, &stream, 0) };
+        unsafe {
+            d_input_indexes.copy_from_cpu_async(h_indexes.as_ref(), &stream, 0);
+            d_output_indexes.copy_from_cpu_async(h_indexes.as_ref(), &stream, 0);
+            d_lut_indexes.copy_from_cpu_async(h_indexes.as_ref(), &stream, 0);
+        }
+        let bsk = LweBootstrapKey::new(
+            <u128 as tfhe::core_crypto::prelude::Numeric>::ZERO,
+            self.fbsk_out.glwe_size(),
+            self.fbsk_out.polynomial_size(),
+            self.fbsk_out.decomposition_base_log(),
+            self.fbsk_out.decomposition_level_count(),
+            self.fbsk_out.input_lwe_dimension(),
+            CiphertextModulus::<u128>::new_native(),
+        );
+        let bsk_gpu = CudaLweBootstrapKey::from_lwe_bootstrap_key(&bsk, &stream);
+        stream.synchronize();
+        cuda_programmable_bootstrap_lwe_ciphertext(
+            &lwe_ciphertext_in_gpu,
+            &mut out_pbs_ct_gpu,
+            &accumulator_gpu,
+            &d_lut_indexes,
+            &d_output_indexes,
+            &d_input_indexes,
+            LweCiphertextCount(1),
+            &bsk_gpu,
+            &stream,
         );
         programmable_bootstrap_f128_lwe_ciphertext(
             &ms_output_lwe,
