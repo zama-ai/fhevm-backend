@@ -214,12 +214,26 @@ impl SwitchAndSquashKey {
             d_output_indexes.copy_from_cpu_async(h_indexes.as_ref(), &stream, 0);
             d_lut_indexes.copy_from_cpu_async(h_indexes.as_ref(), &stream, 0);
         }
+        println!(
+            "{} {} {} {} {}",
+            self.fbsk_out.glwe_size().0,
+            self.fbsk_out.polynomial_size().0,
+            self.fbsk_out.decomposition_base_log().0,
+            self.fbsk_out.decomposition_level_count().0,
+            self.fbsk_out.input_lwe_dimension().0,
+        );
+        let lwe_dimension = LweDimension(879);
+        let glwe_dimension = GlweDimension(2);
+        let polynomial_size = PolynomialSize(2048);
+        let pbs_base_log = DecompositionBaseLog(32);
+        let pbs_level = DecompositionLevelCount(2);
+
         let bsk = LweBootstrapKey::new(
             <u128 as tfhe::core_crypto::prelude::Numeric>::ZERO,
-            self.fbsk_out.glwe_size(),
-            self.fbsk_out.polynomial_size(),
-            self.fbsk_out.decomposition_base_log(),
-            self.fbsk_out.decomposition_level_count(),
+            glwe_dimension.to_glwe_size(),//self.fbsk_out.glwe_size(),
+            polynomial_size,//self.fbsk_out.polynomial_size(),
+            pbs_base_log,//self.fbsk_out.decomposition_base_log(),
+            pbs_level,//self.fbsk_out.decomposition_level_count(),
             self.fbsk_out.input_lwe_dimension(),
             CiphertextModulus::<u128>::new_native(),
         );
@@ -236,13 +250,15 @@ impl SwitchAndSquashKey {
             &bsk_gpu,
             &stream,
         );
+        let output: Ciphertext128Block = out_pbs_ct_gpu.into_lwe_ciphertext(&stream);
         programmable_bootstrap_f128_lwe_ciphertext(
             &ms_output_lwe,
             &mut out_pbs_ct,
             &accumulator_out,
             &self.fbsk_out,
         );
-        Ok(out_pbs_ct)
+        //Ok(out_pbs_ct)
+        Ok(output)
     }
 
     // Here we will define a helper function to generate an accumulator for a PBS
