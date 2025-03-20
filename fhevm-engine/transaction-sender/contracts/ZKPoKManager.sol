@@ -3,14 +3,15 @@ pragma solidity ^0.8.28;
 
 contract ZKPoKManager {
     event VerifyProofResponseCalled(uint256, bytes32[], bytes);
+    event RejectProofResponseCalled(uint256);
 
-    error CoprocessorHasAlreadySigned(uint256 zkProofId, address signer);
+    error CoprocessorSignerAlreadyResponded(uint256 zkProofId, address signer);
 
-    bool alreadySignedRevert;
+    bool alreadyRespondedRevert;
     bool generalRevert;
 
-    constructor(bool _alreadySignedRevert, bool _generalRevert) {
-        alreadySignedRevert = _alreadySignedRevert;
+    constructor(bool _alreadyRespondedRevert, bool _generalRevert) {
+        alreadyRespondedRevert = _alreadyRespondedRevert;
         generalRevert = _generalRevert;
     }
 
@@ -23,10 +24,22 @@ contract ZKPoKManager {
             revert("General revert");
         }
 
-        if (alreadySignedRevert) {
-            revert CoprocessorHasAlreadySigned(zkProofId, msg.sender);
+        if (alreadyRespondedRevert) {
+            revert CoprocessorSignerAlreadyResponded(zkProofId, msg.sender);
         }
 
         emit VerifyProofResponseCalled(zkProofId, handles, signature);
+    }
+
+    function rejectProofResponse(uint256 zkProofId) public {
+        if (generalRevert) {
+            revert("General revert");
+        }
+
+        if (alreadyRespondedRevert) {
+            revert CoprocessorSignerAlreadyResponded(zkProofId, msg.sender);
+        }
+
+        emit RejectProofResponseCalled(zkProofId);
     }
 }
