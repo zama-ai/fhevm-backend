@@ -7,7 +7,7 @@ interface PriceData {
   };
 }
 
-export function generateFHEGasLimit(priceData: PriceData): string {
+export function generateSolidityFHEGasLimit(priceData: PriceData): string {
   let output = `// SPDX-License-Identifier: BSD-3-Clause-Clear
   pragma solidity ^0.8.24;
   

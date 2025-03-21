@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 pragma solidity ^0.8.24;
 
-import "./TFHE.sol";
-
 /**
  * @title   FHEVMConfigStruct
  * @notice  This struct contains all addresses of core contracts, which are needed in a typical dApp.
@@ -663,7 +661,7 @@ library Impl {
 
     /**
      * @dev If 'control's value is 'true', the result has the same value as 'ifTrue'.
-     *         If 'control's value is 'false', the result has the same value as 'ifFalse'.
+     *      If 'control's value is 'false', the result has the same value as 'ifFalse'.
      */
     function select(bytes32 control, bytes32 ifTrue, bytes32 ifFalse) internal returns (bytes32 result) {
         FHEVMConfigStruct storage $ = getFHEVMConfig();

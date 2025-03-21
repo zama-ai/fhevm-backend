@@ -1,3 +1,6 @@
+import fs from 'fs';
+import path from 'path';
+
 import { SUPPORTED_BITS, SUPPORTED_UINT } from './common';
 
 type Test = {
@@ -300,8 +303,5 @@ export const generateTests = () => {
 };
 
 const tests = generateTests();
-
-const fs = require('fs');
-const path = require('path');
 
 fs.writeFileSync(`${path.resolve(__dirname)}/overloads.json`, JSON.stringify(tests));
