@@ -195,11 +195,18 @@ where
         let rows = sqlx::query!(
             "
             SELECT handle, tenant_id, account_address
-            FROM allowed_handles
+            FROM allowed_handles ah
             WHERE account_address IS NOT NULL
                 AND TRIM(account_address) <> ''
                 AND txn_is_sent = false
                 AND txn_retry_count < $1
+                AND EXISTS (
+                    SELECT 1
+                    FROM ciphertext_digest cd
+                    WHERE cd.tenant_id = ah.tenant_id
+                      AND cd.handle = ah.handle
+                      AND cd.txn_is_sent = true
+                )
             LIMIT $2;
             ",
             self.conf.allow_handle_max_retries as i32,
