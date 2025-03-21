@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 pragma solidity ^0.8.24;
 
-import "./TFHE.sol";
-
 /**
  * @title   FHEVMConfigStruct
  * @notice  This struct contains all addresses of core contracts, which are needed in a typical dApp.
