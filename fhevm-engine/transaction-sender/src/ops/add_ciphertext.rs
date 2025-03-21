@@ -254,6 +254,15 @@ where
             });
         }
 
+        // Notify AllowHandle operation
+        // This is a workaround to ensure that the AllowHandle operation is triggered
+        // after the ciphertexts have been added to the CiphertextManager.
+        // In the future, we should consider using a more robust solution
+        sqlx::query("SELECT pg_notify($1, '')")
+            .bind(self.conf.allow_handle_db_channel.clone())
+            .execute(db_pool)
+            .await?;
+
         while let Some(res) = join_set.join_next().await {
             res??;
         }
