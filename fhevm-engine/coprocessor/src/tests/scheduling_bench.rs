@@ -674,3 +674,129 @@ async fn counter_increment() -> Result<(), Box<dyn std::error::Error>> {
     }
     Ok(())
 }
+
+#[tokio::test]
+async fn tree_reduction() -> Result<(), Box<dyn std::error::Error>> {
+    let app = setup_test_app().await?;
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(2)
+        .connect(app.db_url())
+        .await?;
+    let mut client = FhevmCoprocessorClient::connect(app.app_url().to_string()).await?;
+
+    let mut handle_counter: u64 = random_handle();
+    let mut next_handle = || {
+        let out: u64 = handle_counter;
+        handle_counter += 1;
+        out.to_be_bytes().to_vec()
+    };
+    let api_key_header = format!("bearer {}", default_api_key());
+
+    let mut output_handles = vec![];
+    let mut async_computations = vec![];
+    let mut num_samples: usize = 16;
+    let samples = std::env::var("FHEVM_TEST_NUM_SAMPLES");
+    if let Ok(samples) = samples {
+        num_samples = samples.parse::<usize>().unwrap();
+    }
+
+    let keys = query_tenant_keys(vec![default_tenant_id()], &pool)
+        .await
+        .map_err(|e| {
+            let e: Box<dyn std::error::Error> = e;
+            e
+        })?;
+    let keys = &keys[0];
+
+    let num_levels = (num_samples as f64).log2().ceil() as usize;
+    let mut num_comps_at_level = 2f64.powi((num_levels - 1) as i32) as usize;
+    let target = num_comps_at_level * 2;
+    let mut level_inputs = vec![];
+    let mut level_outputs = vec![];
+
+    for _ in 0..num_comps_at_level {
+        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+        let the_list = builder
+            .push(1_u64) // Initial value
+            .push(1_u64) // Initial value
+            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .unwrap();
+        let serialized = safe_serialize(&the_list);
+        let mut input_request = tonic::Request::new(InputUploadBatch {
+            input_ciphertexts: vec![InputToUpload {
+                input_payload: serialized,
+                signatures: Vec::new(),
+                user_address: test_random_user_address(),
+                contract_address: test_random_contract_address(),
+            }],
+        });
+        input_request.metadata_mut().append(
+            "authorization",
+            MetadataValue::from_str(&api_key_header).unwrap(),
+        );
+        let resp = client.upload_inputs(input_request).await?;
+        let resp = resp.get_ref();
+        assert_eq!(resp.upload_responses.len(), 1);
+        let first_resp = &resp.upload_responses[0];
+        assert_eq!(first_resp.input_handles.len(), 2);
+        let lhs_handle = first_resp.input_handles[0].handle.clone();
+        let rhs_handle = first_resp.input_handles[1].handle.clone();
+        level_inputs.push(AsyncComputationInput {
+            input: Some(Input::InputHandle(lhs_handle.clone())),
+        });
+        level_inputs.push(AsyncComputationInput {
+            input: Some(Input::InputHandle(rhs_handle.clone())),
+        });
+    }
+    let mut output_handle = next_handle();
+    for _ in 0..num_levels {
+        for i in 0..num_comps_at_level {
+            output_handle = next_handle();
+            level_outputs.push(AsyncComputationInput {
+                input: Some(Input::InputHandle(output_handle.clone())),
+            });
+            async_computations.push(AsyncComputation {
+                operation: FheOperation::FheAdd.into(),
+                output_handle: output_handle.clone(),
+                inputs: vec![level_inputs[2 * i].clone(), level_inputs[2 * i + 1].clone()],
+            });
+        }
+        num_comps_at_level /= 2;
+        if num_comps_at_level < 1 {
+            break;
+        }
+        level_inputs = std::mem::take(&mut level_outputs);
+    }
+    output_handles.push(output_handle);
+
+    println!("Scheduling computations...");
+    let mut compute_request = tonic::Request::new(AsyncComputeRequest {
+        computations: async_computations,
+    });
+    compute_request.metadata_mut().append(
+        "authorization",
+        MetadataValue::from_str(&api_key_header).unwrap(),
+    );
+    let _resp = client.async_compute(compute_request).await?;
+
+    println!("Computations scheduled, waiting upon completion...");
+    let now = SystemTime::now();
+
+    wait_until_all_ciphertexts_computed(&app).await?;
+    println!("Execution time: {}", now.elapsed().unwrap().as_millis());
+
+    let decrypt_request = output_handles.clone();
+    let resp = decrypt_ciphertexts(&pool, 1, decrypt_request).await?;
+
+    assert_eq!(
+        resp.len(),
+        output_handles.len(),
+        "Outputs length doesn't match"
+    );
+    assert_eq!(
+        resp[0].value.as_str(),
+        target.to_string(),
+        "Incorrect result."
+    );
+    Ok(())
+}
