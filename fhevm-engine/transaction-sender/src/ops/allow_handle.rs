@@ -9,7 +9,7 @@ use crate::ops::common::try_into_array;
 use super::TransactionOperation;
 use alloy::{
     network::{Ethereum, TransactionBuilder},
-    primitives::{Address, U256},
+    primitives::{Address, FixedBytes, U256},
     providers::Provider,
     rpc::types::TransactionRequest,
     sol,
@@ -244,7 +244,8 @@ where
                 h_as_hex, account_addr, chain_id
             );
 
-            let handle_u256 = U256::from_be_bytes(try_into_array::<32>(handle)?);
+            let handle_bytes32 = FixedBytes::from(try_into_array::<32>(handle)?);
+
             let address = match Address::from_str(&account_addr) {
                 Ok(addr) => addr,
                 Err(e) => {
@@ -255,11 +256,11 @@ where
 
             let txn_request = match &self.gas {
                 Some(gas_limit) => acl_manager
-                    .allowAccount(U256::from(chain_id), handle_u256, address)
+                    .allowAccount(U256::from(chain_id), handle_bytes32, address)
                     .into_transaction_request()
                     .with_gas_limit(*gas_limit),
                 None => acl_manager
-                    .allowAccount(U256::from(chain_id), handle_u256, address)
+                    .allowAccount(U256::from(chain_id), handle_bytes32, address)
                     .into_transaction_request(),
             };
 
