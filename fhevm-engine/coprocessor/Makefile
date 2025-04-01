@@ -33,3 +33,7 @@ rerun:
 clean_run:
 	$(MAKE) recreate_db
 	RUST_BACKTRACE=1 $(DB_URL) cargo run --release -- --run-server --run-bg-worker
+
+.PHONY: benchmark_erc20_gpu # Run ECR20 transfer benchmarks on GPU
+benchmark_erc20_gpu:
+	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench erc20 --features=gpu --

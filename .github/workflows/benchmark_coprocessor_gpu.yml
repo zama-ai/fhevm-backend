@@ -144,13 +144,13 @@ jobs:
 
       - name: Run benchmarks on GPU
         run: |
-          DATABASE_URL=postgresql://postgres:postgres@localhost:5432/coprocessor cargo test --release --features=gpu -- --test-threads=1
-        working-directory: fhevm-engine
+          make benchmark_erc20_gpu
+        working-directory: fhevm-engine/coprocessor
 
       - name: Parse results
         run: |
           python3 ./ci/benchmark_parser.py target/criterion ${{ env.RESULTS_FILENAME }} \
-          --database tfhe_rs \
+          --database coprocessor \
           --hardware "${{ inputs.hardware_name }}" \
           --backend gpu \
           --project-version "${{ env.COMMIT_HASH }}" \
@@ -159,6 +159,7 @@ jobs:
           --bench-date "${{ env.BENCH_DATE }}" \
           --walk-subdirs \
           --name-suffix avx512
+        working-directory: fhevm-engine
 
       - name: Upload parsed results artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
