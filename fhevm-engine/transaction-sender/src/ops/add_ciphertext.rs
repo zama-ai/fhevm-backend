@@ -212,7 +212,7 @@ where
                     }
                 };
 
-            let handle_u256 = U256::from_be_bytes(try_into_array::<32>(handle)?);
+            let handle_bytes32 = FixedBytes::from(try_into_array::<32>(handle)?);
 
             info!(
                 "Adding ciphertext, handle: {}, chain_id: {}, key_id: {}, ct64: {}, ct128: {}",
@@ -226,7 +226,7 @@ where
             let txn_request = match &self.gas {
                 Some(gas_limit) => ciphertext_manager
                     .addCiphertextMaterial(
-                        handle_u256,
+                        handle_bytes32,
                         U256::from(key_id),
                         U256::from(chain_id),
                         ciphertext64_digest,
@@ -236,7 +236,7 @@ where
                     .with_gas_limit(*gas_limit),
                 None => ciphertext_manager
                     .addCiphertextMaterial(
-                        handle_u256,
+                        handle_bytes32,
                         U256::from(key_id),
                         U256::from(chain_id),
                         ciphertext64_digest,
