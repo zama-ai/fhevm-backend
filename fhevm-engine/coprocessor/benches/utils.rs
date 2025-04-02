@@ -330,7 +330,7 @@ where
     let mut res = Vec::with_capacity(tenants_to_query.len());
     let keys = query!(
         "
-            SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, client_key
+            SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, cks_key
             FROM tenants
             WHERE tenant_id = ANY($1::INT[])
         ",
@@ -394,9 +394,9 @@ where
 
 use serde::Serialize;
 use std::collections::HashMap;
-use std::fs;
 use std::path::PathBuf;
 use std::sync::OnceLock;
+use std::{env, fs};
 use tfhe::core_crypto::prelude::*;
 
 pub mod shortint_utils {
@@ -894,4 +894,55 @@ pub fn write_to_json<
     params_directory.push("parameters.json");
 
     fs::write(params_directory, serde_json::to_string(&record).unwrap()).unwrap();
+}
+
+#[allow(dead_code)]
+#[cfg(feature = "gpu")]
+pub const GPU_MAX_SUPPORTED_POLYNOMIAL_SIZE: usize = 16384;
+
+const FAST_BENCH_BIT_SIZES: [usize; 1] = [64];
+const BENCH_BIT_SIZES: [usize; 8] = [4, 8, 16, 32, 40, 64, 128, 256];
+const MULTI_BIT_CPU_SIZES: [usize; 6] = [4, 8, 16, 32, 40, 64];
+
+/// User configuration in which benchmarks must be run.
+#[derive(Default)]
+pub struct EnvConfig {
+    pub is_multi_bit: bool,
+    pub is_fast_bench: bool,
+}
+
+impl EnvConfig {
+    #[allow(dead_code)]
+    pub fn new() -> Self {
+        let is_multi_bit = match env::var("__TFHE_RS_PARAM_TYPE") {
+            Ok(val) => val.to_lowercase() == "multi_bit",
+            Err(_) => false,
+        };
+
+        let is_fast_bench = match env::var("__TFHE_RS_FAST_BENCH") {
+            Ok(val) => val.to_lowercase() == "true",
+            Err(_) => false,
+        };
+
+        EnvConfig {
+            is_multi_bit,
+            is_fast_bench,
+        }
+    }
+
+    /// Get precisions values to benchmark.
+    #[allow(dead_code)]
+    pub fn bit_sizes(&self) -> Vec<usize> {
+        if self.is_fast_bench {
+            FAST_BENCH_BIT_SIZES.to_vec()
+        } else if self.is_multi_bit {
+            if cfg!(feature = "gpu") {
+                BENCH_BIT_SIZES.to_vec()
+            } else {
+                MULTI_BIT_CPU_SIZES.to_vec()
+            }
+        } else {
+            BENCH_BIT_SIZES.to_vec()
+        }
+    }
 }
