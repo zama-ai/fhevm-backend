@@ -149,7 +149,7 @@ jobs:
 
       - name: Parse results
         run: |
-          python3 ./ci/benchmark_parser.py target/criterion ${{ env.RESULTS_FILENAME }} \
+          python3 ./ci/benchmark_parser.py fhevm-engine/target/criterion ${{ env.RESULTS_FILENAME }} \
           --database coprocessor \
           --hardware "${{ inputs.hardware_name }}" \
           --backend gpu \
@@ -159,7 +159,6 @@ jobs:
           --bench-date "${{ env.BENCH_DATE }}" \
           --walk-subdirs \
           --name-suffix avx512
-        working-directory: fhevm-engine
 
       - name: Upload parsed results artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
