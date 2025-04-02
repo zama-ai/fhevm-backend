@@ -17,7 +17,7 @@ use std::str::FromStr;
 use tokio::sync::RwLock;
 use tokio::task::JoinSet;
 
-use crate::{auxiliary, Config, ExecutionError};
+use crate::{auxiliary, Config, ExecutionError, MAX_NUMBER_OF_INPUTS};
 use anyhow::Result;
 
 use std::sync::Arc;
@@ -27,7 +27,6 @@ use tokio::{select, time::Duration};
 use tracing::{debug, error, info};
 
 const MAX_CACHED_TENANT_KEYS: usize = 100;
-const MAX_NUMBER_OF_INPUTS: u8 = 255 - 1;
 
 pub(crate) struct Ciphertext {
     handle: Vec<u8>,
@@ -249,7 +248,9 @@ pub(crate) fn verify_proof(
     set_server_key(keys.server_key.clone());
 
     let cts: Vec<SupportedFheCiphertexts> =
-        try_verify_and_expand_ciphertext_list(request_id, raw_ct, keys, aux_data)?;
+        try_verify_and_expand_ciphertext_list(
+            request_id, raw_ct, keys, aux_data,
+        )?;
 
     let mut h = Keccak256::new();
     h.update(raw_ct);
@@ -315,9 +316,10 @@ fn compute_handle(
     ct_serialized_type: i16,
     aux_data: &auxiliary::ZkData,
 ) -> Result<Vec<u8>, ExecutionError> {
-    let chain_id_bytes: [u8; 32] = alloy_primitives::U256::from(aux_data.chain_id)
-        .to_owned()
-        .to_be_bytes();
+    let chain_id_bytes: [u8; 32] =
+        alloy_primitives::U256::from(aux_data.chain_id)
+            .to_owned()
+            .to_be_bytes();
 
     let mut handle_hash = Keccak256::new();
     handle_hash.update(blob_hash);
@@ -332,8 +334,6 @@ fn compute_handle(
 
     assert_eq!(handle.len(), 32);
 
-    // The maximum number of inputs per batch is 254,
-    // cause 255 (0xff) is reserved for handles originating from the FHE operations
     if ct_idx > MAX_NUMBER_OF_INPUTS as usize {
         return Err(ExecutionError::TooManyInputs(ct_idx));
     }
