@@ -46,6 +46,12 @@ pub enum ExecutionError {
 
     #[error("JoinError error: {0}")]
     JoinError(#[from] tokio::task::JoinError),
+
+    #[error("Too many inputs in a batch {0}")]
+    TooManyInputs(usize),
+    
+    #[error("Empty input list")]
+    EmptyInputList,
 }
 
 #[derive(Default, Debug, Clone)]

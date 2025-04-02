@@ -27,6 +27,7 @@ use tokio::{select, time::Duration};
 use tracing::{debug, error, info};
 
 const MAX_CACHED_TENANT_KEYS: usize = 100;
+const MAX_NUMBER_OF_INPUTS: u8 = 255 - 1;
 
 pub(crate) struct Ciphertext {
     handle: Vec<u8>,
@@ -177,7 +178,7 @@ async fn execute_verify_proof_routine(
             let aux_data = auxiliary::ZkData {
                 contract_address,
                 user_address,
-                chain_id: keys.chain_id,
+                chain_id: keys.chain_id as u64,
                 acl_contract_address: keys.acl_contract_address.clone(),
             };
 
@@ -248,9 +249,7 @@ pub(crate) fn verify_proof(
     set_server_key(keys.server_key.clone());
 
     let cts: Vec<SupportedFheCiphertexts> =
-        try_verify_and_expand_ciphertext_list(
-            request_id, raw_ct, keys, aux_data,
-        )?;
+        try_verify_and_expand_ciphertext_list(request_id, raw_ct, keys, aux_data)?;
 
     let mut h = Keccak256::new();
     h.update(raw_ct);
@@ -260,7 +259,7 @@ pub(crate) fn verify_proof(
         .iter()
         .enumerate()
         .map(|(idx, ct)| create_ciphertext(&blob_hash, idx, ct, aux_data))
-        .collect();
+        .collect::<Result<Vec<Ciphertext>, ExecutionError>>()?;
 
     Ok((cts, blob_hash))
 }
@@ -276,6 +275,15 @@ fn try_verify_and_expand_ciphertext_list(
         .map_err(|e| ExecutionError::InvalidAuxData(e.to_string()))?;
 
     let the_list: tfhe::ProvenCompactCiphertextList = safe_deserialize(raw_ct)?;
+    info!(
+        message = "Input list deserialized",
+        len = format!("{}", the_list.len()),
+        request_id,
+    );
+
+    if the_list.len() as u8 > MAX_NUMBER_OF_INPUTS {
+        return Err(ExecutionError::TooManyInputs(the_list.len()));
+    }
 
     let expanded: tfhe::CompactCiphertextListExpander = the_list
         .verify_and_expand(&keys.public_params, &keys.pks, &aux_data_bytes)
@@ -290,12 +298,26 @@ fn create_ciphertext(
     ct_idx: usize,
     the_ct: &SupportedFheCiphertexts,
     aux_data: &auxiliary::ZkData,
-) -> Ciphertext {
+) -> Result<Ciphertext, ExecutionError> {
     let (serialized_type, compressed) = the_ct.compress();
-    let chain_id_bytes: [u8; 32] =
-        alloy_primitives::U256::from(aux_data.chain_id)
-            .to_owned()
-            .to_be_bytes();
+    let handle = compute_handle(blob_hash, ct_idx, serialized_type, aux_data)?;
+
+    Ok(Ciphertext {
+        handle,
+        compressed,
+        ct_type: serialized_type,
+        ct_version: current_ciphertext_version(),
+    })
+}
+fn compute_handle(
+    blob_hash: &[u8],
+    ct_idx: usize,
+    ct_serialized_type: i16,
+    aux_data: &auxiliary::ZkData,
+) -> Result<Vec<u8>, ExecutionError> {
+    let chain_id_bytes: [u8; 32] = alloy_primitives::U256::from(aux_data.chain_id)
+        .to_owned()
+        .to_be_bytes();
 
     let mut handle_hash = Keccak256::new();
     handle_hash.update(blob_hash);
@@ -309,18 +331,19 @@ fn create_ciphertext(
     let mut handle = handle_hash.finalize().to_vec();
 
     assert_eq!(handle.len(), 32);
-    // idx cast to u8 must succeed because we don't allow
-    // more handles than u8 size
-    handle[29] = ct_idx as u8;
-    handle[30] = serialized_type as u8;
+
+    // The maximum number of inputs per batch is 254,
+    // cause 255 (0xff) is reserved for handles originating from the FHE operations
+    if ct_idx > MAX_NUMBER_OF_INPUTS as usize {
+        return Err(ExecutionError::TooManyInputs(ct_idx));
+    }
+
+    handle[21] = ct_idx as u8;
+    handle[22..30].copy_from_slice(&aux_data.chain_id.to_be_bytes());
+    handle[30] = ct_serialized_type as u8;
     handle[31] = current_ciphertext_version() as u8;
 
-    Ciphertext {
-        handle,
-        compressed,
-        ct_type: serialized_type,
-        ct_version: current_ciphertext_version(),
-    }
+    Ok(handle)
 }
 
 /// Returns the number of remaining tasks in the database.
