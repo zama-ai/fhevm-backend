@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
 use testcontainers::{core::WaitFor, runners::AsyncRunner, GenericImage, ImageExt};
+use tfhe::ClientKey;
 use tokio::sync::watch::Receiver;
 
 pub struct TestInstance {
@@ -322,14 +323,14 @@ pub async fn decrypt_ciphertexts(
 pub async fn query_tenant_keys<'a, T>(
     tenants_to_query: Vec<i32>,
     conn: T,
-) -> Result<Vec<TfheTenantKeys>, Box<dyn std::error::Error + Send + Sync>>
+) -> Result<Vec<(TfheTenantKeys, ClientKey)>, Box<dyn std::error::Error + Send + Sync>>
 where
     T: sqlx::PgExecutor<'a>,
 {
     let mut res = Vec::with_capacity(tenants_to_query.len());
     let keys = query!(
         "
-            SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params
+            SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, client_key
             FROM tenants
             WHERE tenant_id = ANY($1::INT[])
         ",
@@ -346,15 +347,20 @@ where
                 .expect("We can't deserialize our own validated pks key");
             let public_params: tfhe::zk::CompactPkeCrs = safe_deserialize_key(&key.public_params)
                 .expect("We can't deserialize our own validated public params");
-            res.push(TfheTenantKeys {
-                tenant_id: key.tenant_id,
-                sks,
-                pks,
-                public_params: Arc::new(public_params),
-                chain_id: key.chain_id,
-                acl_contract_address: key.acl_contract_address,
-                verifying_contract_address: key.verifying_contract_address,
-            });
+            let ck: tfhe::ClientKey = safe_deserialize_key(&key.cks_key.unwrap())
+                .expect("We can't deserialize client key");
+            res.push((
+                TfheTenantKeys {
+                    tenant_id: key.tenant_id,
+                    sks,
+                    pks,
+                    public_params: Arc::new(public_params),
+                    chain_id: key.chain_id,
+                    acl_contract_address: key.acl_contract_address,
+                    verifying_contract_address: key.verifying_contract_address,
+                },
+                ck,
+            ));
         }
         #[cfg(feature = "gpu")]
         {
@@ -364,19 +370,528 @@ where
                 .expect("We can't deserialize our own validated pks key");
             let public_params: tfhe::zk::CompactPkeCrs = safe_deserialize_key(&key.public_params)
                 .expect("We can't deserialize our own validated public params");
-            res.push(TfheTenantKeys {
-                tenant_id: key.tenant_id,
-                pks,
-                sks: csks.clone().decompress(),
-                csks: csks.clone(),
-                gpu_sks: csks.decompress_to_gpu(),
-                public_params: Arc::new(public_params),
-                chain_id: key.chain_id,
-                acl_contract_address: key.acl_contract_address,
-                verifying_contract_address: key.verifying_contract_address,
-            });
+            let ck: tfhe::ClientKey = safe_deserialize_key(&key.cks_key.unwrap())
+                .expect("We can't deserialize client key");
+            res.push((
+                TfheTenantKeys {
+                    tenant_id: key.tenant_id,
+                    pks,
+                    sks: csks.clone().decompress(),
+                    csks: csks.clone(),
+                    gpu_sks: csks.decompress_to_gpu(),
+                    public_params: Arc::new(public_params),
+                    chain_id: key.chain_id,
+                    acl_contract_address: key.acl_contract_address,
+                    verifying_contract_address: key.verifying_contract_address,
+                },
+                ck,
+            ));
         }
     }
 
     Ok(res)
+}
+
+use serde::Serialize;
+use std::collections::HashMap;
+use std::fs;
+use std::path::PathBuf;
+use std::sync::OnceLock;
+use tfhe::core_crypto::prelude::*;
+
+pub mod shortint_utils {
+    use super::*;
+    use itertools::iproduct;
+    use std::vec::IntoIter;
+    use tfhe::shortint::parameters::compact_public_key_only::CompactPublicKeyEncryptionParameters;
+    #[cfg(not(feature = "gpu"))]
+    use tfhe::shortint::parameters::current_params::V1_1_PARAM_MULTI_BIT_GROUP_4_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M128;
+    use tfhe::shortint::parameters::list_compression::CompressionParameters;
+    #[cfg(feature = "gpu")]
+    use tfhe::shortint::parameters::PARAM_GPU_MULTI_BIT_GROUP_4_MESSAGE_2_CARRY_2_KS_PBS;
+    use tfhe::shortint::parameters::{
+        ShortintKeySwitchingParameters, PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128,
+    };
+    use tfhe::shortint::{
+        CarryModulus, ClassicPBSParameters, MessageModulus, MultiBitPBSParameters, PBSParameters,
+        ShortintParameterSet,
+    };
+
+    /// An iterator that yields a succession of combinations
+    /// of parameters and a num_block to achieve a certain bit_size ciphertext
+    /// in radix decomposition
+    pub struct ParamsAndNumBlocksIter {
+        params_and_bit_sizes:
+            itertools::Product<IntoIter<tfhe::shortint::PBSParameters>, IntoIter<usize>>,
+    }
+
+    impl Default for ParamsAndNumBlocksIter {
+        fn default() -> Self {
+            let env_config = EnvConfig::new();
+
+            if env_config.is_multi_bit {
+                #[cfg(feature = "gpu")]
+                let params = vec![PARAM_GPU_MULTI_BIT_GROUP_4_MESSAGE_2_CARRY_2_KS_PBS.into()];
+                #[cfg(not(feature = "gpu"))]
+                let params = vec![
+                    V1_1_PARAM_MULTI_BIT_GROUP_4_MESSAGE_2_CARRY_2_KS_PBS_GAUSSIAN_2M128.into(),
+                ];
+
+                let params_and_bit_sizes = iproduct!(params, env_config.bit_sizes());
+                Self {
+                    params_and_bit_sizes,
+                }
+            } else {
+                // FIXME One set of parameter is tested since we want to benchmark only quickest
+                // operations.
+                let params = vec![PARAM_MESSAGE_2_CARRY_2_KS_PBS_TUNIFORM_2M128.into()];
+
+                let params_and_bit_sizes = iproduct!(params, env_config.bit_sizes());
+                Self {
+                    params_and_bit_sizes,
+                }
+            }
+        }
+    }
+
+    impl Iterator for ParamsAndNumBlocksIter {
+        type Item = (tfhe::shortint::PBSParameters, usize, usize);
+
+        fn next(&mut self) -> Option<Self::Item> {
+            let (param, bit_size) = self.params_and_bit_sizes.next()?;
+            let num_block =
+                (bit_size as f64 / (param.message_modulus().0 as f64).log(2.0)).ceil() as usize;
+
+            Some((param, num_block, bit_size))
+        }
+    }
+
+    impl From<PBSParameters> for CryptoParametersRecord<u64> {
+        fn from(params: PBSParameters) -> Self {
+            CryptoParametersRecord {
+                lwe_dimension: Some(params.lwe_dimension()),
+                glwe_dimension: Some(params.glwe_dimension()),
+                polynomial_size: Some(params.polynomial_size()),
+                lwe_noise_distribution: Some(params.lwe_noise_distribution()),
+                glwe_noise_distribution: Some(params.glwe_noise_distribution()),
+                pbs_base_log: Some(params.pbs_base_log()),
+                pbs_level: Some(params.pbs_level()),
+                ks_base_log: Some(params.ks_base_log()),
+                ks_level: Some(params.ks_level()),
+                message_modulus: Some(params.message_modulus().0),
+                carry_modulus: Some(params.carry_modulus().0),
+                ciphertext_modulus: Some(
+                    params
+                        .ciphertext_modulus()
+                        .try_to()
+                        .expect("failed to convert ciphertext modulus"),
+                ),
+                ..Default::default()
+            }
+        }
+    }
+
+    impl From<ShortintKeySwitchingParameters> for CryptoParametersRecord<u64> {
+        fn from(params: ShortintKeySwitchingParameters) -> Self {
+            CryptoParametersRecord {
+                ks_base_log: Some(params.ks_base_log),
+                ks_level: Some(params.ks_level),
+                ..Default::default()
+            }
+        }
+    }
+
+    impl From<CompactPublicKeyEncryptionParameters> for CryptoParametersRecord<u64> {
+        fn from(params: CompactPublicKeyEncryptionParameters) -> Self {
+            CryptoParametersRecord {
+                message_modulus: Some(params.message_modulus.0),
+                carry_modulus: Some(params.carry_modulus.0),
+                ciphertext_modulus: Some(params.ciphertext_modulus),
+                ..Default::default()
+            }
+        }
+    }
+
+    impl From<(CompressionParameters, ClassicPBSParameters)> for CryptoParametersRecord<u64> {
+        fn from((comp_params, pbs_params): (CompressionParameters, ClassicPBSParameters)) -> Self {
+            (comp_params, PBSParameters::PBS(pbs_params)).into()
+        }
+    }
+
+    impl From<(CompressionParameters, MultiBitPBSParameters)> for CryptoParametersRecord<u64> {
+        fn from(
+            (comp_params, multi_bit_pbs_params): (CompressionParameters, MultiBitPBSParameters),
+        ) -> Self {
+            (
+                comp_params,
+                PBSParameters::MultiBitPBS(multi_bit_pbs_params),
+            )
+                .into()
+        }
+    }
+
+    impl From<(CompressionParameters, PBSParameters)> for CryptoParametersRecord<u64> {
+        fn from((comp_params, pbs_params): (CompressionParameters, PBSParameters)) -> Self {
+            let pbs_params = ShortintParameterSet::new_pbs_param_set(pbs_params);
+            let lwe_dimension = pbs_params.encryption_lwe_dimension();
+            CryptoParametersRecord {
+                lwe_dimension: Some(lwe_dimension),
+                br_level: Some(comp_params.br_level),
+                br_base_log: Some(comp_params.br_base_log),
+                packing_ks_level: Some(comp_params.packing_ks_level),
+                packing_ks_base_log: Some(comp_params.packing_ks_base_log),
+                packing_ks_polynomial_size: Some(comp_params.packing_ks_polynomial_size),
+                packing_ks_glwe_dimension: Some(comp_params.packing_ks_glwe_dimension),
+                lwe_per_glwe: Some(comp_params.lwe_per_glwe),
+                storage_log_modulus: Some(comp_params.storage_log_modulus),
+                lwe_noise_distribution: Some(pbs_params.encryption_noise_distribution()),
+                packing_ks_key_noise_distribution: Some(
+                    comp_params.packing_ks_key_noise_distribution,
+                ),
+                ciphertext_modulus: Some(pbs_params.ciphertext_modulus()),
+                ..Default::default()
+            }
+        }
+    }
+
+    // This array has been built according to performance benchmarks measuring latency over a
+    // matrix of 4 parameters set, 3 grouping factor and a wide range of threads values.
+    // The values available here as u64 are the optimal number of threads to use for a given triplet
+    // representing one or more parameters set.
+    const MULTI_BIT_THREADS_ARRAY: [((MessageModulus, CarryModulus, LweBskGroupingFactor), u64);
+        12] = [
+        (
+            (MessageModulus(2), CarryModulus(2), LweBskGroupingFactor(2)),
+            5,
+        ),
+        (
+            (MessageModulus(4), CarryModulus(4), LweBskGroupingFactor(2)),
+            5,
+        ),
+        (
+            (MessageModulus(8), CarryModulus(8), LweBskGroupingFactor(2)),
+            5,
+        ),
+        (
+            (
+                MessageModulus(16),
+                CarryModulus(16),
+                LweBskGroupingFactor(2),
+            ),
+            5,
+        ),
+        (
+            (MessageModulus(2), CarryModulus(2), LweBskGroupingFactor(3)),
+            7,
+        ),
+        (
+            (MessageModulus(4), CarryModulus(4), LweBskGroupingFactor(3)),
+            9,
+        ),
+        (
+            (MessageModulus(8), CarryModulus(8), LweBskGroupingFactor(3)),
+            10,
+        ),
+        (
+            (
+                MessageModulus(16),
+                CarryModulus(16),
+                LweBskGroupingFactor(3),
+            ),
+            10,
+        ),
+        (
+            (MessageModulus(2), CarryModulus(2), LweBskGroupingFactor(4)),
+            11,
+        ),
+        (
+            (MessageModulus(4), CarryModulus(4), LweBskGroupingFactor(4)),
+            13,
+        ),
+        (
+            (MessageModulus(8), CarryModulus(8), LweBskGroupingFactor(4)),
+            11,
+        ),
+        (
+            (
+                MessageModulus(16),
+                CarryModulus(16),
+                LweBskGroupingFactor(4),
+            ),
+            11,
+        ),
+    ];
+
+    /// Define the number of threads to use for  parameters doing multithreaded programmable
+    /// bootstrapping.
+    ///
+    /// Parameters must have the same values between message and carry modulus.
+    /// Grouping factor 2, 3 and 4 are the only ones that are supported.
+    #[allow(dead_code)]
+    pub fn multi_bit_num_threads(
+        message_modulus: u64,
+        carry_modulus: u64,
+        grouping_factor: usize,
+    ) -> Option<u64> {
+        // TODO Implement an interpolation mechanism for X_Y parameters set
+        if message_modulus != carry_modulus || [2, 3, 4].contains(&(grouping_factor as i32)) {
+            return None;
+        }
+        let thread_map: HashMap<(MessageModulus, CarryModulus, LweBskGroupingFactor), u64> =
+            HashMap::from_iter(MULTI_BIT_THREADS_ARRAY);
+        thread_map
+            .get(&(
+                MessageModulus(message_modulus),
+                CarryModulus(carry_modulus),
+                LweBskGroupingFactor(grouping_factor),
+            ))
+            .copied()
+    }
+
+    #[allow(dead_code)]
+    pub static PARAMETERS_SET: OnceLock<ParametersSet> = OnceLock::new();
+
+    pub enum ParametersSet {
+        Default,
+        All,
+    }
+
+    #[allow(dead_code)]
+    impl ParametersSet {
+        pub fn from_env() -> Result<Self, String> {
+            let raw_value = env::var("__TFHE_RS_PARAMS_SET").unwrap_or("default".to_string());
+            match raw_value.to_lowercase().as_str() {
+                "default" => Ok(ParametersSet::Default),
+                "all" => Ok(ParametersSet::All),
+                _ => Err(format!("parameters set '{raw_value}' is not supported")),
+            }
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn init_parameters_set() {
+        PARAMETERS_SET.get_or_init(|| ParametersSet::from_env().unwrap());
+    }
+
+    #[allow(dead_code)]
+    #[derive(Clone, Copy, Debug)]
+    pub enum DesiredNoiseDistribution {
+        Gaussian,
+        TUniform,
+        Both,
+    }
+
+    #[allow(dead_code)]
+    #[derive(Clone, Copy, Debug)]
+    pub enum DesiredBackend {
+        Cpu,
+        Gpu,
+    }
+
+    #[allow(dead_code)]
+    impl DesiredBackend {
+        fn matches_parameter_name_backend(&self, param_name: &str) -> bool {
+            matches!(
+                (self, param_name.to_lowercase().contains("gpu")),
+                (DesiredBackend::Cpu, false) | (DesiredBackend::Gpu, true)
+            )
+        }
+    }
+
+    #[allow(dead_code)]
+    pub fn filter_parameters<'a, P: Copy + Into<PBSParameters>>(
+        params: &[(&'a P, &'a str)],
+        desired_noise_distribution: DesiredNoiseDistribution,
+        desired_backend: DesiredBackend,
+    ) -> Vec<(&'a P, &'a str)> {
+        params
+            .iter()
+            .filter_map(|(p, name)| {
+                let temp_param: PBSParameters = (**p).into();
+
+                match (
+                    temp_param.lwe_noise_distribution(),
+                    desired_noise_distribution,
+                ) {
+                    // If it's one of the pairs, we continue the process.
+                    (DynamicDistribution::Gaussian(_), DesiredNoiseDistribution::Gaussian)
+                    | (DynamicDistribution::TUniform(_), DesiredNoiseDistribution::TUniform)
+                    | (_, DesiredNoiseDistribution::Both) => (),
+                    _ => return None,
+                }
+
+                if !desired_backend.matches_parameter_name_backend(name) {
+                    return None;
+                };
+
+                Some((*p, *name))
+            })
+            .collect()
+    }
+}
+
+#[derive(Clone, Copy, Default, Serialize)]
+pub struct CryptoParametersRecord<Scalar: UnsignedInteger> {
+    pub lwe_dimension: Option<LweDimension>,
+    pub glwe_dimension: Option<GlweDimension>,
+    pub packing_ks_glwe_dimension: Option<GlweDimension>,
+    pub polynomial_size: Option<PolynomialSize>,
+    pub packing_ks_polynomial_size: Option<PolynomialSize>,
+    #[serde(serialize_with = "CryptoParametersRecord::serialize_distribution")]
+    pub lwe_noise_distribution: Option<DynamicDistribution<Scalar>>,
+    #[serde(serialize_with = "CryptoParametersRecord::serialize_distribution")]
+    pub glwe_noise_distribution: Option<DynamicDistribution<Scalar>>,
+    #[serde(serialize_with = "CryptoParametersRecord::serialize_distribution")]
+    pub packing_ks_key_noise_distribution: Option<DynamicDistribution<Scalar>>,
+    pub pbs_base_log: Option<DecompositionBaseLog>,
+    pub pbs_level: Option<DecompositionLevelCount>,
+    pub ks_base_log: Option<DecompositionBaseLog>,
+    pub ks_level: Option<DecompositionLevelCount>,
+    pub pfks_level: Option<DecompositionLevelCount>,
+    pub pfks_base_log: Option<DecompositionBaseLog>,
+    pub pfks_std_dev: Option<StandardDev>,
+    pub cbs_level: Option<DecompositionLevelCount>,
+    pub cbs_base_log: Option<DecompositionBaseLog>,
+    pub br_level: Option<DecompositionLevelCount>,
+    pub br_base_log: Option<DecompositionBaseLog>,
+    pub packing_ks_level: Option<DecompositionLevelCount>,
+    pub packing_ks_base_log: Option<DecompositionBaseLog>,
+    pub message_modulus: Option<u64>,
+    pub carry_modulus: Option<u64>,
+    pub ciphertext_modulus: Option<CiphertextModulus<Scalar>>,
+    pub lwe_per_glwe: Option<LweCiphertextCount>,
+    pub storage_log_modulus: Option<CiphertextModulusLog>,
+}
+
+impl<Scalar: UnsignedInteger> CryptoParametersRecord<Scalar> {
+    pub fn noise_distribution_as_string(noise_distribution: DynamicDistribution<Scalar>) -> String {
+        match noise_distribution {
+            DynamicDistribution::Gaussian(g) => format!("Gaussian({}, {})", g.std, g.mean),
+            DynamicDistribution::TUniform(t) => format!("TUniform({})", t.bound_log2()),
+        }
+    }
+
+    pub fn serialize_distribution<S>(
+        noise_distribution: &Option<DynamicDistribution<Scalar>>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        match noise_distribution {
+            Some(d) => serializer.serialize_some(&Self::noise_distribution_as_string(*d)),
+            None => serializer.serialize_none(),
+        }
+    }
+}
+
+#[derive(Serialize)]
+enum PolynomialMultiplication {
+    Fft,
+    // Ntt,
+}
+
+#[derive(Serialize)]
+enum IntegerRepresentation {
+    Radix,
+    // Crt,
+    // Hybrid,
+}
+
+#[derive(Serialize)]
+enum ExecutionType {
+    Sequential,
+    Parallel,
+}
+
+#[derive(Serialize)]
+enum KeySetType {
+    Single,
+    // Multi,
+}
+
+#[derive(Serialize)]
+enum OperandType {
+    CipherText,
+    PlainText,
+}
+
+#[derive(Clone, Serialize)]
+pub enum OperatorType {
+    Atomic,
+    // AtomicPattern,
+}
+
+#[derive(Serialize)]
+struct BenchmarkParametersRecord<Scalar: UnsignedInteger> {
+    display_name: String,
+    crypto_parameters_alias: String,
+    crypto_parameters: CryptoParametersRecord<Scalar>,
+    message_modulus: Option<u64>,
+    carry_modulus: Option<u64>,
+    ciphertext_modulus: usize,
+    bit_size: u32,
+    polynomial_multiplication: PolynomialMultiplication,
+    precision: u32,
+    error_probability: f64,
+    integer_representation: IntegerRepresentation,
+    decomposition_basis: Vec<u32>,
+    pbs_algorithm: Option<String>,
+    execution_type: ExecutionType,
+    key_set_type: KeySetType,
+    operand_type: OperandType,
+    operator_type: OperatorType,
+}
+
+/// Writes benchmarks parameters to disk in JSON format.
+pub fn write_to_json<
+    Scalar: UnsignedInteger + Serialize,
+    T: Into<CryptoParametersRecord<Scalar>>,
+>(
+    bench_id: &str,
+    params: T,
+    params_alias: impl Into<String>,
+    display_name: impl Into<String>,
+    operator_type: &OperatorType,
+    bit_size: u32,
+    decomposition_basis: Vec<u32>,
+) {
+    let params = params.into();
+
+    let execution_type = match bench_id.contains("parallelized") {
+        true => ExecutionType::Parallel,
+        false => ExecutionType::Sequential,
+    };
+    let operand_type = match bench_id.contains("scalar") {
+        true => OperandType::PlainText,
+        false => OperandType::CipherText,
+    };
+
+    let record = BenchmarkParametersRecord {
+        display_name: display_name.into(),
+        crypto_parameters_alias: params_alias.into(),
+        crypto_parameters: params.to_owned(),
+        message_modulus: params.message_modulus,
+        carry_modulus: params.carry_modulus,
+        ciphertext_modulus: 64,
+        bit_size,
+        polynomial_multiplication: PolynomialMultiplication::Fft,
+        precision: (params.message_modulus.unwrap_or(2) as u32).ilog2(),
+        error_probability: 2f64.powf(-41.0),
+        integer_representation: IntegerRepresentation::Radix,
+        decomposition_basis,
+        pbs_algorithm: None, // To be added in future version
+        execution_type,
+        key_set_type: KeySetType::Single,
+        operand_type,
+        operator_type: operator_type.to_owned(),
+    };
+
+    let mut params_directory = ["benchmarks_parameters", bench_id]
+        .iter()
+        .collect::<PathBuf>();
+    fs::create_dir_all(&params_directory).unwrap();
+    params_directory.push("parameters.json");
+
+    fs::write(params_directory, serde_json::to_string(&record).unwrap()).unwrap();
 }

@@ -11,9 +11,12 @@ use crate::utils::{
     decrypt_ciphertexts, default_api_key, default_tenant_id, random_handle, setup_test_app,
     wait_until_all_ciphertexts_computed,
 };
+use crate::utils::{write_to_json, OperatorType};
 use fhevm_engine_common::utils::safe_serialize;
 use std::str::FromStr;
 use std::time::SystemTime;
+use tfhe::prelude::*;
+use tfhe::shortint::parameters::*;
 use tonic::metadata::MetadataValue;
 
 pub fn test_random_user_address() -> String {
@@ -39,10 +42,12 @@ fn main() {
         group.throughput(Throughput::Elements(num_elems));
         let bench_id =
             format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
-        group.bench_with_input(&bench_id, &num_elems, move |b, &num_elems| {
-            let _ = Runtime::new()
-                .unwrap()
-                .block_on(schedule_erc20_whitepaper(b, num_elems as usize));
+        group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
+            let _ = Runtime::new().unwrap().block_on(schedule_erc20_whitepaper(
+                b,
+                num_elems as usize,
+                bench_id.clone(),
+            ));
         });
     }
     group.finish();
@@ -53,6 +58,7 @@ fn main() {
 async fn schedule_erc20_whitepaper(
     bencher: &mut Bencher<'_, WallTime>,
     num_tx: usize,
+    bench_id: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let app = setup_test_app().await?;
     let pool = sqlx::postgres::PgPoolOptions::new()
@@ -86,12 +92,12 @@ async fn schedule_erc20_whitepaper(
     let keys = &keys[0];
 
     for _ in 0..=(num_samples - 1) as u32 {
-        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.0.pks);
         let the_list = builder
             .push(100_u64) // Balance source
             .push(10_u64) // Transfer amount
             .push(20_u64) // Balance destination
-            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .build_with_proof_packed(&keys.0.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
             .unwrap();
 
         let serialized = safe_serialize(&the_list);
@@ -194,6 +200,18 @@ async fn schedule_erc20_whitepaper(
         wait_until_all_ciphertexts_computed(&app).await.unwrap();
         println!("Execution time: {}", now.elapsed().unwrap().as_millis());
     });
+
+    let params = keys.1.computation_parameters();
+    write_to_json::<u64, _>(
+        &bench_id,
+        params,
+        "",
+        "erc20-transfer",
+        &OperatorType::Atomic,
+        64,
+        vec![],
+    );
+
     Ok(())
 }
 
@@ -230,12 +248,12 @@ async fn schedule_erc20_no_cmux() -> Result<(), Box<dyn std::error::Error>> {
     let keys = &keys[0];
 
     for _ in 0..=(num_samples - 1) as u32 {
-        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.0.pks);
         let the_list = builder
             .push(100_u64) // Balance source
             .push(10_u64) // Transfer amount
             .push(20_u64) // Balance destination
-            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .build_with_proof_packed(&keys.0.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
             .unwrap();
 
         let serialized = safe_serialize(&the_list);
@@ -400,10 +418,10 @@ async fn schedule_dependent_erc20_no_cmux() -> Result<(), Box<dyn std::error::Er
         })?;
     let keys = &keys[0];
 
-    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.0.pks);
     let the_list = builder
         .push(20_u64) // Initial balance destination
-        .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+        .build_with_proof_packed(&keys.0.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
         .unwrap();
     let serialized = safe_serialize(&the_list);
     let mut input_request = tonic::Request::new(InputUploadBatch {
@@ -429,11 +447,11 @@ async fn schedule_dependent_erc20_no_cmux() -> Result<(), Box<dyn std::error::Er
     };
 
     for _ in 0..=(num_samples - 1) as u32 {
-        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.0.pks);
         let the_list = builder
             .push(100_u64) // Balance source
             .push(10_u64) // Transfer amount
-            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .build_with_proof_packed(&keys.0.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
             .unwrap();
 
         let serialized = safe_serialize(&the_list);
@@ -599,10 +617,10 @@ async fn counter_increment() -> Result<(), Box<dyn std::error::Error>> {
         })?;
     let keys = &keys[0];
 
-    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.0.pks);
     let the_list = builder
         .push(42_u64) // Initial counter value
-        .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+        .build_with_proof_packed(&keys.0.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
         .unwrap();
     let serialized = safe_serialize(&the_list);
     let mut input_request = tonic::Request::new(InputUploadBatch {
@@ -718,11 +736,11 @@ async fn tree_reduction() -> Result<(), Box<dyn std::error::Error>> {
     let mut level_outputs = vec![];
 
     for _ in 0..num_comps_at_level {
-        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.0.pks);
         let the_list = builder
             .push(1_u64) // Initial value
             .push(1_u64) // Initial value
-            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .build_with_proof_packed(&keys.0.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
             .unwrap();
         let serialized = safe_serialize(&the_list);
         let mut input_request = tonic::Request::new(InputUploadBatch {

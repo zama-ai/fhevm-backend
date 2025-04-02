@@ -54,6 +54,7 @@ gpu = ["tfhe/gpu", "scheduler/gpu", "fhevm-engine-common/gpu"]
 testcontainers = "0.21"
 fhevm-listener = { path = "../fhevm-listener" }
 criterion = { version = "0.5.1", features = ["async_futures"] }
+serde = { workspace = true }
 
 [build-dependencies]
 tonic-build = "0.12"
