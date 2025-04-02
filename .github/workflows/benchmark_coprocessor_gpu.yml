@@ -1,5 +1,5 @@
 # Run all fhevm coprocessor benchmarks on a GPU instance on Hyperstack and return parsed results to Slab CI bot.
-name: Coprocessor benchmarks
+name: Coprocessor GPU benchmarks
 
 on:
   workflow_dispatch:
