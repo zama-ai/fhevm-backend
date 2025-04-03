@@ -2369,7 +2369,7 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "lazy_static",
- "lru 0.12.5",
+ "lru 0.13.0",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry-semantic-conventions",

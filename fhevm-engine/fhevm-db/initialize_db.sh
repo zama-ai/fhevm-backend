@@ -29,7 +29,7 @@ sqlx migrate run --source $MIGRATION_DIR || { echo "Failed to run migrations."; 
 
 echo "-------------- Start inserting keys for tenant: $TENANT_API_KEY --------------"
 
-CHAIN_ID=${CHAIN_ID:-"12345"}
+CHAIN_ID=${CHAIN_ID:-12345}
 PKS_FILE=${PKS_FILE:-"$KEY_DIR/pks"}
 SKS_FILE=${SKS_FILE:-"$KEY_DIR/sks"}
 PUBLIC_PARAMS_FILE=${PUBLIC_PARAMS_FILE:-"$KEY_DIR/pp"}

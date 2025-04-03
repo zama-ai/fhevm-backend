@@ -5,7 +5,7 @@ use std::str::FromStr;
 
 use crate::db_queries::{check_if_api_key_is_valid, fetch_tenant_server_key};
 use crate::server::coprocessor::GenericResponse;
-use crate::types::{CoprocessorError, TfheTenantKeys};
+use crate::types::CoprocessorError;
 use crate::utils::sort_computations_by_dependencies;
 use alloy::signers::local::PrivateKeySigner;
 use alloy::signers::SignerSync;
@@ -16,6 +16,7 @@ use coprocessor::{
     InputCiphertextResponseHandle, InputUploadBatch, InputUploadResponse,
 };
 pub use fhevm_engine_common::common;
+pub use fhevm_engine_common::tenant_keys::TenantKeysCache;
 use fhevm_engine_common::tfhe_ops::{
     check_fhe_operand_types, current_ciphertext_version, trivial_encrypt_be_bytes,
     try_expand_ciphertext_list, validate_fhe_type,
@@ -81,7 +82,7 @@ lazy_static! {
 struct CoprocessorService {
     pool: sqlx::Pool<sqlx::Postgres>,
     args: crate::daemon_cli::Args,
-    tenant_key_cache: std::sync::Arc<tokio::sync::RwLock<lru::LruCache<i32, TfheTenantKeys>>>,
+    tenant_key_cache: TenantKeysCache,
     signer: PrivateKeySigner,
     get_ciphertext_eip712_domain: Eip712Domain,
 }
@@ -118,10 +119,9 @@ pub async fn run_server_iteration(
         .connect(&db_url)
         .await?;
 
-    let tenant_key_cache: std::sync::Arc<tokio::sync::RwLock<lru::LruCache<i32, TfheTenantKeys>>> =
-        std::sync::Arc::new(tokio::sync::RwLock::new(lru::LruCache::new(
-            NonZeroUsize::new(args.tenant_key_cache_size as usize).unwrap(),
-        )));
+    let tenant_key_cache: TenantKeysCache = std::sync::Arc::new(tokio::sync::RwLock::new(
+        lru::LruCache::new(NonZeroUsize::new(args.tenant_key_cache_size as usize).unwrap()),
+    ));
 
     let service = CoprocessorService::new(pool, args, tenant_key_cache, signer);
 
@@ -283,7 +283,7 @@ impl CoprocessorService {
     fn new(
         pool: sqlx::Pool<sqlx::Postgres>,
         args: crate::daemon_cli::Args,
-        tenant_key_cache: std::sync::Arc<tokio::sync::RwLock<lru::LruCache<i32, TfheTenantKeys>>>,
+        tenant_key_cache: TenantKeysCache,
         signer: PrivateKeySigner,
     ) -> Self {
         let get_ciphertext_eip712_domain = alloy::sol_types::eip712_domain! {
@@ -324,7 +324,7 @@ impl CoprocessorService {
         }
 
         let fetch_key_response = {
-            fetch_tenant_server_key(tenant_id, &self.pool, &self.tenant_key_cache)
+            fetch_tenant_server_key(tenant_id as i64, &self.pool, &self.tenant_key_cache)
                 .await
                 .map_err(tonic::Status::from_error)?
         };
@@ -746,7 +746,7 @@ impl CoprocessorService {
 
         let mut span = tracer.child_span("db_query_server_key");
         let fetch_key_response = {
-            fetch_tenant_server_key(tenant_id, &self.pool, &self.tenant_key_cache)
+            fetch_tenant_server_key(tenant_id as i64, &self.pool, &self.tenant_key_cache)
                 .await
                 .map_err(tonic::Status::from_error)?
         };

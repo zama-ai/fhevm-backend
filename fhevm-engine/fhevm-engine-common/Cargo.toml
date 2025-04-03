@@ -17,7 +17,7 @@ prost = { workspace = true }
 tonic  = { workspace = true }
 sqlx = {workspace = true}
 tokio = { workspace = true }
-lru = "0.13"
+lru = { workspace = true }
 tracing = { workspace = true }
 
 # crates.io dependencies

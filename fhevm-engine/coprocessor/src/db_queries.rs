@@ -2,7 +2,8 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::server::GrpcTracer;
-use crate::types::{CoprocessorError, TfheTenantKeys};
+use crate::types::CoprocessorError;
+use fhevm_engine_common::tenant_keys::{TenantKeysCache, TfheTenantKeys};
 use fhevm_engine_common::utils::safe_deserialize_key;
 use opentelemetry::trace::Span;
 use opentelemetry::KeyValue;
@@ -57,7 +58,7 @@ pub async fn check_if_api_key_is_valid<T>(
 
 #[allow(dead_code)] // gpu server key currently not used
 pub struct FetchTenantKeyResult {
-    pub chain_id: i32,
+    pub chain_id: i64,
     pub verifying_contract_address: String,
     pub acl_contract_address: String,
     pub server_key: tfhe::ServerKey,
@@ -68,9 +69,9 @@ pub struct FetchTenantKeyResult {
 
 /// Returns chain id and verifying contract address for EIP712 signature and tfhe server key
 pub async fn fetch_tenant_server_key<'a, T>(
-    tenant_id: i32,
+    tenant_id: i64,
     pool: T,
-    tenant_key_cache: &std::sync::Arc<tokio::sync::RwLock<lru::LruCache<i32, TfheTenantKeys>>>,
+    tenant_key_cache: &TenantKeysCache,
 ) -> Result<FetchTenantKeyResult, Box<dyn std::error::Error + Send + Sync>>
 where
     T: sqlx::PgExecutor<'a> + Copy,
@@ -92,7 +93,7 @@ where
             }
         }
 
-        populate_cache_with_tenant_keys(vec![tenant_id], pool, tenant_key_cache).await?;
+        populate_cache_with_tenant_keys(vec![tenant_id as i32], pool, tenant_key_cache).await?;
     }
 }
 
@@ -161,7 +162,7 @@ where
 pub async fn populate_cache_with_tenant_keys<'a, T>(
     tenants_to_query: Vec<i32>,
     conn: T,
-    tenant_key_cache: &std::sync::Arc<tokio::sync::RwLock<lru::LruCache<i32, TfheTenantKeys>>>,
+    tenant_key_cache: &TenantKeysCache,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
 where
     T: sqlx::PgExecutor<'a>,
@@ -177,7 +178,7 @@ where
         let mut key_cache = tenant_key_cache.write().await;
 
         for key in keys {
-            key_cache.put(key.tenant_id, key);
+            key_cache.put(key.tenant_id as i64, key);
         }
     }
 
