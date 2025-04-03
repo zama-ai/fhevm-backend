@@ -1,9 +1,9 @@
 import dotenv from 'dotenv';
 import { Wallet } from 'ethers';
 import fs from 'fs';
-import { ethers, network } from 'hardhat';
+import { ethers, network, hardhatArguments as hre } from 'hardhat';
 
-import { DecryptionOracle } from '../types';
+import { ACL, DecryptionOracle } from '../types';
 import { awaitCoprocessor, getClearText } from './coprocessorUtils';
 
 const networkName = network.name;
@@ -11,9 +11,13 @@ const networkName = network.name;
 const parsedEnvACL = dotenv.parse(fs.readFileSync('addresses/.env.acl'));
 const aclAdd = parsedEnvACL.ACL_CONTRACT_ADDRESS;
 
+/**
+ * An object that maps numeric keys to their corresponding ciphertext types.
+ * The keys represent different types of ciphertexts, and the values are their
+ * respective type names as strings.
+ */
 const CiphertextType = {
   0: 'bool',
-  1: 'uint8', // corresponding to euint4
   2: 'uint8', // corresponding to euint8
   3: 'uint16',
   4: 'uint32',
@@ -50,7 +54,7 @@ let lastBlockSnapshotForDecrypt: number;
 
 export const initDecryptionOracle = async (): Promise<void> => {
   firstBlockListening = await ethers.provider.getBlockNumber();
-  if (networkName === 'hardhat' && hre.__SOLIDITY_COVERAGE_RUNNING !== true) {
+  if (networkName === 'hardhat' && process.env.SOLIDITY_COVERAGE_RUNNING !== 'true') {
     // evm_snapshot is not supported in coverage mode
     await ethers.provider.send('set_lastBlockSnapshotForDecrypt', [firstBlockListening]);
   }
@@ -99,6 +103,9 @@ const fulfillAllPastRequestsIds = async (mocked: boolean) => {
 
   for (const request of pastRequests) {
     const event = ifaceEventDecryption.parseLog(request);
+    if (!event) {
+      throw new Error('Event is null');
+    }
     const requestID = event.args[1];
     const handles = event.args[2];
     const contractCaller = event.args[3];
@@ -111,7 +118,7 @@ const fulfillAllPastRequestsIds = async (mocked: boolean) => {
 
       // first check tat all handles are allowed for decryption
       const aclFactory = await ethers.getContractFactory('ACL');
-      const acl = aclFactory.attach(aclAdd);
+      const acl = aclFactory.attach(aclAdd) as ACL;
       const isAllowedForDec = await Promise.all(
         handles.map(async (handle: string) => acl.isAllowedForDecryption(handle)),
       );
@@ -160,7 +167,11 @@ const fulfillAllPastRequestsIds = async (mocked: boolean) => {
         const tx = await relayer.sendTransaction(txData);
         await tx.wait();
       } catch (error) {
-        console.log('Gateway fulfillment tx failed with the following error:', error.message);
+        if (error instanceof Error) {
+          console.log('Gateway fulfillment tx failed with the following error:', error.message);
+        } else {
+          console.log('Gateway fulfillment tx failed with an unknown error');
+        }
         toSkip.push(requestID);
         throw error;
       }
