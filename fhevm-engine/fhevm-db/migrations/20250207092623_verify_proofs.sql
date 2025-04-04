@@ -1,6 +1,6 @@
 CREATE TABLE IF NOT EXISTS verify_proofs (
     zk_proof_id BIGINT PRIMARY KEY NOT NULL CHECK (zk_proof_id >= 0),
-    chain_id INTEGER NOT NULL CHECK(chain_id >= 0),
+    chain_id BIGINT NOT NULL CHECK(chain_id >= 1),
     contract_address TEXT NOT NULL,
     user_address TEXT NOT NULL,
     input BYTEA,

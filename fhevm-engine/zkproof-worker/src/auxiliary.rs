@@ -1,5 +1,7 @@
 use std::str::FromStr;
 
+use fhevm_engine_common::ChainId;
+
 const SIZE: usize = 92;
 
 /// ZkData is the data that is used to generate the ZKPs
@@ -8,7 +10,7 @@ pub(crate) struct ZkData {
     pub contract_address: String,
     pub user_address: String,
     pub acl_contract_address: String,
-    pub chain_id: i64,
+    pub chain_id: ChainId,
 }
 
 impl ZkData {

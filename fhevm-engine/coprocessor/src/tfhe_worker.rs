@@ -1,5 +1,6 @@
+use crate::db_queries::populate_cache_with_tenant_keys;
 use crate::types::CoprocessorError;
-use crate::{db_queries::populate_cache_with_tenant_keys, types::TfheTenantKeys};
+use fhevm_engine_common::tenant_keys::TenantKeysCache;
 use fhevm_engine_common::types::{FhevmError, Handle, SupportedFheCiphertexts};
 use fhevm_engine_common::{tfhe_ops::current_ciphertext_version, types::SupportedFheOperations};
 use itertools::Itertools;
@@ -66,10 +67,9 @@ async fn tfhe_worker_cycle(
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>> {
     let tracer = opentelemetry::global::tracer("tfhe_worker");
 
-    let tenant_key_cache: std::sync::Arc<tokio::sync::RwLock<lru::LruCache<i32, TfheTenantKeys>>> =
-        std::sync::Arc::new(tokio::sync::RwLock::new(lru::LruCache::new(
-            NonZeroUsize::new(args.tenant_key_cache_size as usize).unwrap(),
-        )));
+    let tenant_key_cache: TenantKeysCache = std::sync::Arc::new(tokio::sync::RwLock::new(
+        lru::LruCache::new(NonZeroUsize::new(args.tenant_key_cache_size as usize).unwrap()),
+    ));
 
     let db_url = crate::utils::db_url(args);
     let pool = sqlx::postgres::PgPoolOptions::new()
@@ -183,7 +183,7 @@ async fn tfhe_worker_cycle(
         let key_cache = tenant_key_cache.read().await;
         for (tenant_id, work) in work_by_tenant.iter() {
             let _ = tenants_to_query.insert(*tenant_id);
-            if !key_cache.contains(tenant_id) {
+            if !key_cache.contains(&(*tenant_id as u64)) {
                 let _ = keys_to_query.insert(*tenant_id);
             }
             for w in work.iter() {
@@ -198,7 +198,7 @@ async fn tfhe_worker_cycle(
             .map(|i| i.to_vec())
             .collect::<Vec<_>>();
         let tenants_to_query = tenants_to_query.into_iter().collect::<Vec<_>>();
-        let keys_to_query = keys_to_query.into_iter().collect::<Vec<_>>();
+        let keys_to_query: Vec<i32> = keys_to_query.into_iter().collect::<Vec<_>>();
         s.set_attribute(KeyValue::new("keys_to_query", keys_to_query.len() as i64));
         s.set_attribute(KeyValue::new(
             "tenants_to_query",
@@ -358,7 +358,9 @@ async fn tfhe_worker_cycle(
             let mut s_outer = tracer.start_with_context("wait_and_update_fhe_work", &loop_ctx);
             {
                 let mut rk = tenant_key_cache.write().await;
-                let keys = rk.get(tenant_id).expect("Can't get tenant key from cache");
+                let keys = rk
+                    .get(&(*tenant_id as u64))
+                    .expect("Can't get tenant key from cache");
 
                 // Schedule computations in parallel as dependences allow
                 tfhe::set_server_key(keys.sks.clone());

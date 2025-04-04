@@ -6,11 +6,13 @@ use fhevm_engine_common::tfhe_ops::{
 };
 use fhevm_engine_common::types::SupportedFheCiphertexts;
 
+use bigdecimal::ToPrimitive;
 use fhevm_engine_common::utils::safe_deserialize;
 use lru::LruCache;
 use sha3::Digest;
 use sha3::Keccak256;
 use sqlx::postgres::PgPoolOptions;
+use sqlx::types::BigDecimal;
 use sqlx::{postgres::PgListener, PgPool, Row};
 use std::num::NonZero;
 use std::str::FromStr;
@@ -148,7 +150,10 @@ async fn execute_verify_proof_routine(
     {
         let request_id: i64 = row.get("zk_proof_id");
         let input: Vec<u8> = row.get("input");
-        let chain_id: i64 = row.get("chain_id");
+        let chain_id = row
+            .get::<BigDecimal, _>("chain_id")
+            .to_u64()
+            .expect("chain_id to u64");
         let contract_address = row.get("contract_address");
         let user_address = row.get("user_address");
 
