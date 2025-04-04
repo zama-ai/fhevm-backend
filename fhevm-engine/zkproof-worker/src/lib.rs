@@ -9,6 +9,12 @@ use std::io;
 use fhevm_engine_common::types::FhevmError;
 use thiserror::Error;
 
+/// A batch can contain up to 254 inputs.
+///
+/// - Each computed handle stores its ciphertext index in a single byte.
+/// - The value 255 (0xFF) is reserved for handles produced by FHE operations.
+pub const MAX_NUMBER_OF_INPUTS: u8 = 255 - 1;
+
 #[derive(Error, Debug)]
 pub enum ExecutionError {
     #[error("Database error: {0}")]
@@ -46,6 +52,12 @@ pub enum ExecutionError {
 
     #[error("JoinError error: {0}")]
     JoinError(#[from] tokio::task::JoinError),
+
+    #[error("Too many inputs in a batch {0}")]
+    TooManyInputs(usize),
+
+    #[error("Empty input list")]
+    EmptyInputList,
 }
 
 #[derive(Default, Debug, Clone)]

@@ -3,6 +3,7 @@ use std::time::Duration;
 use fhevm_engine_common::{tenant_keys, utils::safe_serialize};
 use test_harness::instance::DBInstance;
 use tokio::time::sleep;
+use tracing::info;
 
 use crate::auxiliary::ZkData;
 
@@ -42,10 +43,7 @@ pub async fn setup() -> anyhow::Result<(sqlx::PgPool, DBInstance)> {
     Ok((pool, test_instance))
 }
 
-pub(crate) async fn is_valid(
-    pool: &sqlx::PgPool,
-    zk_proof_id: i64,
-) -> Result<bool, sqlx::Error> {
+pub(crate) async fn is_valid(pool: &sqlx::PgPool, zk_proof_id: i64) -> Result<bool, sqlx::Error> {
     let result = sqlx::query!(
         "SELECT verified FROM verify_proofs WHERE zk_proof_id = $1",
         zk_proof_id
@@ -56,10 +54,7 @@ pub(crate) async fn is_valid(
     Ok(result.verified.unwrap_or(false))
 }
 
-pub(crate) async fn generate_zk_pok(
-    pool: &sqlx::PgPool,
-    aux_data: &[u8],
-) -> Vec<u8> {
+pub(crate) async fn generate_sample_zkpok(pool: &sqlx::PgPool, aux_data: &[u8]) -> Vec<u8> {
     let keys: Vec<tenant_keys::TfheTenantKeys> =
         tenant_keys::query_tenant_keys(vec![1], pool, true)
             .await
@@ -70,7 +65,7 @@ pub(crate) async fn generate_zk_pok(
             .unwrap();
     let keys = &keys[0];
 
-    println!("Building list");
+    info!("generate_sample_zkpok: Building zkpok");
     let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
     let the_list = builder
         .push(false)
@@ -86,7 +81,43 @@ pub(crate) async fn generate_zk_pok(
         )
         .unwrap();
 
-    safe_serialize(&the_list)
+    let res = safe_serialize(&the_list);
+    info!("generate_sample_zkpok: Building zkpok done");
+    res
+}
+
+pub(crate) async fn generate_n_inputs_zkpok(
+    pool: &sqlx::PgPool,
+    aux_data: &[u8],
+    num_inputs: usize,
+) -> Vec<u8> {
+    let keys: Vec<tenant_keys::TfheTenantKeys> =
+        tenant_keys::query_tenant_keys(vec![1], pool, true)
+            .await
+            .map_err(|e| {
+                let e: Box<dyn std::error::Error> = e;
+                e
+            })
+            .unwrap();
+    let keys = &keys[0];
+
+    info!("generate_n_inputs_zkpok: Building zkpok with {} inputs", num_inputs);
+    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+    for _ in 0..num_inputs {
+        builder.push(true);
+    }
+
+    let the_list = builder
+        .build_with_proof_packed(
+            &keys.public_params,
+            aux_data,
+            tfhe::zk::ZkComputeLoad::Proof,
+        )
+        .unwrap();
+
+    let res = safe_serialize(&the_list);
+    info!("generate_n_inputs_zkpok: Building zkpok done");
+    res
 }
 
 pub(crate) async fn insert_proof(
@@ -101,7 +132,7 @@ pub(crate) async fn insert_proof(
             VALUES ($1, $2, $3, $4, $5, NULL )" 
         ).bind(request_id)
         .bind(zk_pok) 
-        .bind(aux.chain_id)
+        .bind(aux.chain_id as i32)
         .bind(aux.contract_address.clone())
         .bind(aux.user_address.clone())
         .execute(pool).await?;
@@ -121,8 +152,7 @@ pub(crate) async fn insert_proof(
 
 pub(crate) fn aux_fixture(acl_contract_address: String) -> (ZkData, [u8; 92]) {
     // Define  20-byte addresses
-    let contract_address =
-        "0x1111111111111111111111111111111111111111".to_string();
+    let contract_address = "0x1111111111111111111111111111111111111111".to_string();
     let user_address = "0x2222222222222222222222222222222222222222".to_string();
     let zk_data = ZkData {
         contract_address,
