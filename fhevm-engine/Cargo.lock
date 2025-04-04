@@ -1957,7 +1957,7 @@ dependencies = [
  "bitflags 2.9.0",
  "cexpr",
  "clang-sys",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -3134,6 +3134,7 @@ dependencies = [
  "clap",
  "fhevm-engine-common",
  "foundry-compilers",
+ "foundry-compilers-artifacts",
  "futures-util",
  "semver 1.0.26",
  "serde",
@@ -4282,7 +4283,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]

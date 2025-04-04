@@ -3,7 +3,7 @@ use bigdecimal::num_bigint::BigInt;
 
 use fhevm_listener::contracts::TfheContract;
 use fhevm_listener::contracts::TfheContract::TfheContractEvents;
-use fhevm_listener::database::tfhe_event_propagate::{Database as ListenerDatabase, Handle, ToType};
+use fhevm_listener::database::tfhe_event_propagate::{ClearConst, Database as ListenerDatabase, Handle, ToType};
 
 
 use crate::tests::operators::{generate_binary_test_cases, generate_unary_test_cases};
@@ -423,7 +423,7 @@ async fn test_fhe_unary_operands_events() -> Result<(), Box<dyn std::error::Erro
         listener_event_to_db.notify_scheduler().await;
         wait_until_all_ciphertexts_computed(&app).await?;
 
-        let decrypt_request = vec![output_handle.to_be_bytes_vec()];
+        let decrypt_request = vec![output_handle.to_vec()];
         let resp = decrypt_ciphertexts(&pool, 1, decrypt_request).await?;
         let decr_response = &resp[0];
         println!(
@@ -544,7 +544,7 @@ async fn test_fhe_if_then_else_events() -> Result<(), Box<dyn std::error::Error>
                 .await?;
             listener_event_to_db.notify_scheduler().await;
             wait_until_all_ciphertexts_computed(&app).await?;
-            let decrypt_request = vec![output_handle.to_be_bytes_vec()];
+            let decrypt_request = vec![output_handle.to_vec()];
             let resp = decrypt_ciphertexts(&pool, 1, decrypt_request).await?;
             let decr_response = &resp[0];
             println!(
@@ -619,7 +619,7 @@ async fn test_fhe_cast_events() -> Result<(), Box<dyn std::error::Error>> {
 
             listener_event_to_db.notify_scheduler().await;
             wait_until_all_ciphertexts_computed(&app).await?;
-            let decrypt_request = vec![output_handle.to_be_bytes_vec()];
+            let decrypt_request = vec![output_handle.to_vec()];
             let resp = decrypt_ciphertexts(&pool, 1, decrypt_request).await?;
             let decr_response = &resp[0];
 

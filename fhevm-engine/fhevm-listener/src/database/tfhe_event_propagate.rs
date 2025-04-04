@@ -16,10 +16,10 @@ use crate::contracts::TfheContract::TfheContractEvents;
 
 type CoprocessorApiKey = Uuid;
 type FheOperation = i32;
-pub type Handle = Uint<256, 4>;
+pub type Handle = FixedBytes<32>;
 pub type TenantId = i32;
 pub type ChainId = u64;
-pub type ToType = FixedBytes<1>;
+pub type ToType = u8;
 pub type ScalarByte = FixedBytes<1>;
 pub type ClearConst = Uint<256, 4>;
 
@@ -226,7 +226,7 @@ impl Database {
         const HAS_SCALAR : FixedBytes::<1> = FixedBytes([1]); // if any dependency is a scalar.
         const NO_SCALAR : FixedBytes::<1> = FixedBytes([0]); // if all dependencies are handles.
         // ciphertext type
-        let ty = |to_type: &ToType| vec![to_type[0]];
+        let ty = |to_type: &ToType| vec![*to_type];
         let as_bytes = |x: &ClearConst| x.to_be_bytes_vec();
         let tenant_id = self.tenant_id;
         let fhe_operation = event_to_op_int(event);
