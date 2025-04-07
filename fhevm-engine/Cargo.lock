@@ -1957,7 +1957,7 @@ dependencies = [
  "bitflags 2.9.0",
  "cexpr",
  "clang-sys",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "log",
  "prettyplease",
  "proc-macro2",
@@ -2369,7 +2369,7 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "lazy_static",
- "lru 0.12.5",
+ "lru 0.13.0",
  "opentelemetry",
  "opentelemetry-otlp",
  "opentelemetry-semantic-conventions",
@@ -4282,7 +4282,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fc2f4eb4bc735547cfed7c0a4922cbd04a4655978c09b54f1f7b228750664c34"
 dependencies = [
  "cfg-if",
- "windows-targets 0.48.5",
+ "windows-targets 0.52.6",
 ]
 
 [[package]]
@@ -6405,6 +6405,7 @@ version = "0.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "6a007b6936676aa9ab40207cde35daab0a04b823be8ae004368c0793b96a61e0"
 dependencies = [
+ "bigdecimal",
  "bytes",
  "crc",
  "crossbeam-queue",
@@ -6484,6 +6485,7 @@ checksum = "4560278f0e00ce64938540546f59f590d60beee33fffbd3b9cd47851e5fff233"
 dependencies = [
  "atoi",
  "base64 0.22.1",
+ "bigdecimal",
  "bitflags 2.9.0",
  "byteorder",
  "bytes",
@@ -6528,6 +6530,7 @@ checksum = "c5b98a57f363ed6764d5b3a12bfedf62f07aa16e1856a7ddc2a0bb190a959613"
 dependencies = [
  "atoi",
  "base64 0.22.1",
+ "bigdecimal",
  "bitflags 2.9.0",
  "byteorder",
  "crc",
@@ -6544,6 +6547,7 @@ dependencies = [
  "log",
  "md-5",
  "memchr",
+ "num-bigint",
  "once_cell",
  "rand 0.8.5",
  "serde",
@@ -6798,6 +6802,7 @@ version = "0.1.0"
 dependencies = [
  "alloy",
  "anyhow",
+ "fhevm-engine-common",
  "hex",
  "rand 0.9.0",
  "serde_json",
@@ -8368,6 +8373,7 @@ version = "0.6.1"
 dependencies = [
  "alloy-primitives",
  "anyhow",
+ "bigdecimal",
  "bincode",
  "clap",
  "fhevm-engine-common",

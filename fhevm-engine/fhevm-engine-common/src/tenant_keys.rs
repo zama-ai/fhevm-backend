@@ -1,13 +1,23 @@
 use crate::utils::safe_deserialize_key;
+use crate::ChainId;
+
+use bigdecimal::BigDecimal;
+use bigdecimal::ToPrimitive;
 use sqlx::Row;
 use std::sync::Arc;
 
+pub type TenantKeysCache = Arc<tokio::sync::RwLock<lru::LruCache<u64, TfheTenantKeys>>>;
+
 pub struct TfheTenantKeys {
     pub tenant_id: i32,
-    pub chain_id: i32,
+    pub chain_id: ChainId,
     pub verifying_contract_address: String,
     pub acl_contract_address: String,
     pub sks: tfhe::ServerKey,
+    #[cfg(feature = "gpu")]
+    pub csks: tfhe::CompressedServerKey,
+    #[cfg(feature = "gpu")]
+    pub gpu_sks: tfhe::CudaServerKey,
 
     // only used in tests, that's why we put dead_code
     #[allow(dead_code)]
@@ -18,7 +28,7 @@ pub struct TfheTenantKeys {
 
 pub struct FetchTenantKeyResult {
     pub tenant_id: i32,
-    pub chain_id: i32,
+    pub chain_id: ChainId,
     pub verifying_contract_address: String,
     pub acl_contract_address: String,
     pub server_key: tfhe::ServerKey,
@@ -28,9 +38,9 @@ pub struct FetchTenantKeyResult {
 
 /// Returns chain id and verifying contract address for EIP712 signature and tfhe server key
 pub async fn fetch_tenant_server_key<'a, T>(
-    id: i32,
+    id: u64,
     pool: T,
-    tenant_key_cache: &std::sync::Arc<tokio::sync::RwLock<lru::LruCache<i32, TfheTenantKeys>>>,
+    tenant_key_cache: &TenantKeysCache,
     is_tenant_id: bool,
 ) -> Result<FetchTenantKeyResult, Box<dyn std::error::Error + Send + Sync>>
 where
@@ -56,8 +66,11 @@ where
         populate_cache_with_tenant_keys(vec![id], pool, tenant_key_cache, is_tenant_id).await?;
     }
 }
+
+/// Returns the tenant keys for a given tenant_id or chain_id
+/// TODO: Replace the coprocessor:: query_tenant_keys impl with the one in this file
 pub async fn query_tenant_keys<'a, T>(
-    ids_to_query: Vec<i32>,
+    ids_to_query: Vec<u64>,
     conn: T,
     is_tenant_id: bool,
 ) -> Result<Vec<TfheTenantKeys>, Box<dyn std::error::Error + Send + Sync>>
@@ -74,10 +87,15 @@ where
         "
             SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params
             FROM tenants
-            WHERE {} = ANY($1::INT[])
+            WHERE {} = ANY($1::NUMERIC[])
         ",
         column
     );
+
+    let ids_to_query = ids_to_query
+        .into_iter()
+        .map(BigDecimal::from)
+        .collect::<Vec<_>>();
 
     let rows = sqlx::query(&query_str)
         .bind(&ids_to_query)
@@ -88,42 +106,61 @@ where
 
     for row in rows {
         let tenant_id: i32 = row.try_get("tenant_id")?;
-        let chain_id: i32 = row.try_get("chain_id")?;
+        let chain_id: BigDecimal = row.try_get("chain_id")?;
+        let chain_id: u64 = chain_id
+            .to_u64()
+            .ok_or("Failed to convert chain_id to u64")?;
+
         let acl_contract_address: String = row.try_get("acl_contract_address")?;
         let verifying_contract_address: String = row.try_get("verifying_contract_address")?;
         let pks_key: Vec<u8> = row.try_get("pks_key")?;
         let sks_key: Vec<u8> = row.try_get("sks_key")?;
         let public_params_key: Vec<u8> = row.try_get("public_params")?;
 
-        // Deserialize binary keys properly
-        #[cfg(not(feature = "gpu"))]
-        let sks: tfhe::ServerKey = safe_deserialize_key(&sks_key)?;
-        #[cfg(feature = "gpu")]
-        let sks = {
-            let csks: tfhe::CompressedServerKey = safe_deserialize_key(&sks_key)?;
-            csks.decompress()
-        };
         let pks: tfhe::CompactPublicKey = safe_deserialize_key(&pks_key)?;
         let public_params: tfhe::zk::CompactPkeCrs = safe_deserialize_key(&public_params_key)?;
 
-        res.push(TfheTenantKeys {
-            tenant_id,
-            chain_id,
-            acl_contract_address,
-            verifying_contract_address,
-            sks,
-            pks,
-            public_params: Arc::new(public_params),
-        });
+        // Deserialize binary keys properly
+        #[cfg(not(feature = "gpu"))]
+        {
+            let sks: tfhe::ServerKey = safe_deserialize_key(&sks_key)?;
+            res.push(TfheTenantKeys {
+                tenant_id,
+                chain_id,
+                acl_contract_address,
+                verifying_contract_address,
+                sks,
+                pks,
+                public_params: Arc::new(public_params),
+            });
+        }
+        #[cfg(feature = "gpu")]
+        {
+            let csks: tfhe::CompressedServerKey = safe_deserialize_key(&sks_key)?;
+            let sks = csks.decompress();
+            let gpu_sks = csks.decompress_to_gpu();
+
+            res.push(TfheTenantKeys {
+                tenant_id,
+                chain_id,
+                acl_contract_address,
+                verifying_contract_address,
+                sks,
+                pks,
+                csks,
+                gpu_sks,
+                public_params: Arc::new(public_params),
+            });
+        }
     }
 
     Ok(res)
 }
 
 pub async fn populate_cache_with_tenant_keys<'a, T>(
-    tenants_to_query: Vec<i32>,
+    tenants_to_query: Vec<u64>,
     conn: T,
-    tenant_key_cache: &std::sync::Arc<tokio::sync::RwLock<lru::LruCache<i32, TfheTenantKeys>>>,
+    tenant_key_cache: &TenantKeysCache,
     is_tenant_id: bool,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
 where
@@ -154,7 +191,7 @@ where
 
         for key in keys {
             let id = if is_tenant_id {
-                key.tenant_id
+                key.tenant_id as u64
             } else {
                 key.chain_id
             };
@@ -170,7 +207,7 @@ pub struct TenantInfo {
     /// The key_id of the tenant
     pub key_id: [u8; 32],
     /// The chain id of the tenant
-    pub chain_id: i32,
+    pub chain_id: i64,
 }
 
 /// Returns the key_id, chain_id for a given tenant_id

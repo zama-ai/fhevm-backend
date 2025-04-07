@@ -1,4 +1,8 @@
-use alloy_provider::fillers::{BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller};
+use alloy_provider::fillers::{
+    BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill,
+    NonceFiller,
+};
+use fhevm_engine_common::ChainId;
 use futures_util::stream::StreamExt;
 use sqlx::types::Uuid;
 use std::collections::VecDeque;
@@ -15,7 +19,7 @@ use alloy_sol_types::SolEventInterface;
 use clap::Parser;
 
 use crate::contracts::{AclContract, TfheContract};
-use crate::database::tfhe_event_propagate::{ChainId, Database};
+use crate::database::tfhe_event_propagate::Database;
 
 #[derive(Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
@@ -35,7 +39,10 @@ pub struct Args {
     #[arg(long, default_value = None)]
     pub tfhe_contract_address: Option<String>,
 
-    #[arg(long, default_value = "postgresql://postgres:testmdp@localhost:5432/postgres")]
+    #[arg(
+        long,
+        default_value = "postgresql://postgres:testmdp@localhost:5432/postgres"
+    )]
     pub database_url: String,
 
     #[arg(long, default_value = None, help = "Can be negative from last block", allow_hyphen_values = true)]
@@ -47,14 +54,21 @@ pub struct Args {
     #[arg(long, default_value = None, help = "A Coprocessor API key is needed for database access")]
     pub coprocessor_api_key: Option<Uuid>,
 
-    #[arg(long, default_value = "5", help = "Catchup margin relative the last seen block")]
+    #[arg(
+        long,
+        default_value = "5",
+        help = "Catchup margin relative the last seen block"
+    )]
     pub catchup_margin: u64,
 }
 
 type RProvider = FillProvider<
     JoinFill<
         alloy::providers::Identity,
-        JoinFill<GasFiller, JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>>,
+        JoinFill<
+            GasFiller,
+            JoinFill<BlobGasFiller, JoinFill<NonceFiller, ChainIdFiller>>,
+        >,
     >,
     RootProvider,
 >;
@@ -78,10 +92,12 @@ impl InfiniteLogIter {
     fn new(args: &Args) -> Self {
         let mut contract_addresses = vec![];
         if let Some(acl_contract_address) = &args.acl_contract_address {
-            contract_addresses.push(Address::from_str(acl_contract_address).unwrap());
+            contract_addresses
+                .push(Address::from_str(acl_contract_address).unwrap());
         };
         if let Some(tfhe_contract_address) = &args.tfhe_contract_address {
-            contract_addresses.push(Address::from_str(tfhe_contract_address).unwrap());
+            contract_addresses
+                .push(Address::from_str(tfhe_contract_address).unwrap());
         };
         Self {
             url: args.url.clone(),
@@ -104,13 +120,20 @@ impl InfiniteLogIter {
         provider.get_chain_id().await.unwrap()
     }
 
-    async fn catchup_block_from(&self, provider: &RProvider) -> BlockNumberOrTag {
+    async fn catchup_block_from(
+        &self,
+        provider: &RProvider,
+    ) -> BlockNumberOrTag {
         if let Some(last_seen_block) = self.last_valid_block {
-            return BlockNumberOrTag::Number(last_seen_block - self.catchup_margin + 1);
+            return BlockNumberOrTag::Number(
+                last_seen_block - self.catchup_margin + 1,
+            );
         }
         if let Some(start_at_block) = self.start_at_block {
             if start_at_block >= 0 {
-                return BlockNumberOrTag::Number(start_at_block.try_into().unwrap());
+                return BlockNumberOrTag::Number(
+                    start_at_block.try_into().unwrap(),
+                );
             }
         }
         let Ok(last_block) = provider.get_block_number().await else {
@@ -124,7 +147,11 @@ impl InfiniteLogIter {
         BlockNumberOrTag::Number(last_block - catch_size.min(last_block))
     }
 
-    async fn fill_catchup_events(&mut self, provider: &RProvider, filter: &Filter) {
+    async fn fill_catchup_events(
+        &mut self,
+        provider: &RProvider,
+        filter: &Filter,
+    ) {
         let logs = provider.get_logs(&filter).await.expect("BLA2");
         self.catchup_logs.extend(logs);
     }
@@ -135,7 +162,8 @@ impl InfiniteLogIter {
             let ws = WsConnect::new(&self.url);
             match ProviderBuilder::new().on_ws(ws).await {
                 Ok(provider) => {
-                    let catch_up_from = self.catchup_block_from(&provider).await;
+                    let catch_up_from =
+                        self.catchup_block_from(&provider).await;
                     let mut filter = Filter::new().from_block(catch_up_from);
                     if let Some(end_at_block) = self.end_at_block {
                         filter = filter
@@ -229,9 +257,11 @@ impl InfiniteLogIter {
         let Some(current_event) = &self.current_event else {
             return None;
         };
-        if let Some(block_number) = current_event.block_number  {
+        if let Some(block_number) = current_event.block_number {
             // we subtract one because the current block is on going
-            self.last_valid_block = Some(block_number.max(self.last_valid_block.unwrap_or_default()) - 1);
+            self.last_valid_block = Some(
+                block_number.max(self.last_valid_block.unwrap_or_default()) - 1,
+            );
         }
         return self.current_event.clone();
     }

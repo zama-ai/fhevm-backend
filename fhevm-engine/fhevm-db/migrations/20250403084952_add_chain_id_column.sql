@@ -1,0 +1,1 @@
+ALTER TABLE tenants ADD COLUMN chain_id NUMERIC(20,0) NOT NULL CHECK (chain_id >= 1);

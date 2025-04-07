@@ -2,8 +2,11 @@ use std::str::FromStr;
 use std::sync::Arc;
 
 use crate::server::GrpcTracer;
-use crate::types::{CoprocessorError, TfheTenantKeys};
+use crate::types::CoprocessorError;
+use bigdecimal::ToPrimitive;
+use fhevm_engine_common::tenant_keys::{TenantKeysCache, TfheTenantKeys};
 use fhevm_engine_common::utils::safe_deserialize_key;
+use fhevm_engine_common::ChainId;
 use opentelemetry::trace::Span;
 use opentelemetry::KeyValue;
 use sqlx::{query, Postgres};
@@ -57,7 +60,7 @@ pub async fn check_if_api_key_is_valid<T>(
 
 #[allow(dead_code)] // gpu server key currently not used
 pub struct FetchTenantKeyResult {
-    pub chain_id: i32,
+    pub chain_id: ChainId,
     pub verifying_contract_address: String,
     pub acl_contract_address: String,
     pub server_key: tfhe::ServerKey,
@@ -68,9 +71,9 @@ pub struct FetchTenantKeyResult {
 
 /// Returns chain id and verifying contract address for EIP712 signature and tfhe server key
 pub async fn fetch_tenant_server_key<'a, T>(
-    tenant_id: i32,
+    tenant_id: u64,
     pool: T,
-    tenant_key_cache: &std::sync::Arc<tokio::sync::RwLock<lru::LruCache<i32, TfheTenantKeys>>>,
+    tenant_key_cache: &TenantKeysCache,
 ) -> Result<FetchTenantKeyResult, Box<dyn std::error::Error + Send + Sync>>
 where
     T: sqlx::PgExecutor<'a> + Copy,
@@ -92,7 +95,7 @@ where
             }
         }
 
-        populate_cache_with_tenant_keys(vec![tenant_id], pool, tenant_key_cache).await?;
+        populate_cache_with_tenant_keys(vec![tenant_id as i32], pool, tenant_key_cache).await?;
     }
 }
 
@@ -115,6 +118,7 @@ where
     .fetch_all(conn)
     .await?;
     for key in keys {
+        let chain_id = key.chain_id.to_u64().expect("Chain ID should be a u64");
         #[cfg(not(feature = "gpu"))]
         {
             let sks: tfhe::ServerKey = safe_deserialize_key(&key.sks_key)
@@ -128,7 +132,7 @@ where
                 sks,
                 pks,
                 public_params: Arc::new(public_params),
-                chain_id: key.chain_id,
+                chain_id,
                 acl_contract_address: key.acl_contract_address,
                 verifying_contract_address: key.verifying_contract_address,
             });
@@ -148,7 +152,7 @@ where
                 csks: csks.clone(),
                 gpu_sks: csks.decompress_to_gpu(),
                 public_params: Arc::new(public_params),
-                chain_id: key.chain_id,
+                chain_id,
                 acl_contract_address: key.acl_contract_address,
                 verifying_contract_address: key.verifying_contract_address,
             });
@@ -161,7 +165,7 @@ where
 pub async fn populate_cache_with_tenant_keys<'a, T>(
     tenants_to_query: Vec<i32>,
     conn: T,
-    tenant_key_cache: &std::sync::Arc<tokio::sync::RwLock<lru::LruCache<i32, TfheTenantKeys>>>,
+    tenant_key_cache: &TenantKeysCache,
 ) -> Result<(), Box<dyn std::error::Error + Send + Sync>>
 where
     T: sqlx::PgExecutor<'a>,
@@ -177,7 +181,7 @@ where
         let mut key_cache = tenant_key_cache.write().await;
 
         for key in keys {
-            key_cache.put(key.tenant_id, key);
+            key_cache.put(key.tenant_id as u64, key);
         }
     }
 

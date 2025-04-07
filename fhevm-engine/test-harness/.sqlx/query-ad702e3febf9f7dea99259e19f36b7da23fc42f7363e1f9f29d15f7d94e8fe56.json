@@ -16,7 +16,7 @@
       {
         "ordinal": 2,
         "name": "chain_id",
-        "type_info": "Int4"
+        "type_info": "Numeric"
       },
       {
         "ordinal": 3,
@@ -51,7 +51,7 @@
     ],
     "parameters": {
       "Left": [
-        "Int4",
+        "Numeric",
         "Bytea",
         "Text",
         "Text",

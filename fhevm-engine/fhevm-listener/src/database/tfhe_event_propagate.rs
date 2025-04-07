@@ -13,12 +13,12 @@ use fhevm_engine_common::types::SupportedFheOperations;
 use crate::contracts::AclContract::AclContractEvents;
 use crate::contracts::TfheContract;
 use crate::contracts::TfheContract::TfheContractEvents;
+use fhevm_engine_common::ChainId;
 
 type CoprocessorApiKey = Uuid;
 type FheOperation = i32;
 pub type Handle = Uint<256, 4>;
 pub type TenantId = i32;
-pub type ChainId = u64;
 pub type ToType = FixedBytes<1>;
 pub type ScalarByte = FixedBytes<1>;
 
