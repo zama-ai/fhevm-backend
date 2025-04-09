@@ -390,7 +390,7 @@ impl Database {
 
                 self.insert_allowed_handle(
                     handle.clone(),
-                    allowed.account.to_string(),
+                    Some(allowed.account.to_string()),
                 )
                 .await?;
 
@@ -402,6 +402,15 @@ impl Database {
                     .iter()
                     .map(|h| h.to_be_bytes_vec())
                     .collect::<Vec<_>>();
+
+                // In order to not create a dedicated table for public decryption
+                // we insert the handles in the allowed_handles table
+                // but with None as contract address
+                // This will allow us to distinguish between the two types of handles
+                // one for allowed and one for allowed for decryption
+                for handle in handles.clone() {
+                    self.insert_allowed_handle(handle, None).await?;
+                }
 
                 self.insert_pbs_computations(&handles).await?;
             }
@@ -485,18 +494,18 @@ impl Database {
     pub async fn insert_allowed_handle(
         &mut self,
         handle: Vec<u8>,
-        account_address: String,
+        account_address: Option<String>,
     ) -> Result<(), SqlxError> {
         let tenant_id = self.tenant_id;
 
         let query = || {
             sqlx::query!(
-                    "INSERT INTO allowed_handles(tenant_id, handle, account_address) VALUES($1, $2, $3)
-                         ON CONFLICT DO NOTHING;",
-                    tenant_id,
-                    handle,
-                    &account_address,
-                )
+                "INSERT INTO allowed_handles(tenant_id, handle, account_address) VALUES($1, $2, $3)
+                     ON CONFLICT DO NOTHING;",
+                tenant_id,
+                handle,
+                account_address.as_deref(),
+            )
         };
 
         loop {
