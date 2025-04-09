@@ -1,6 +1,8 @@
 use alloy_primitives::FixedBytes;
 use alloy_primitives::Log;
 use alloy_primitives::Uint;
+use fhevm_engine_common::types::AllowEvents;
+use fhevm_engine_common::utils::compact_hex;
 use sqlx::postgres::PgConnectOptions;
 use sqlx::postgres::PgPoolOptions;
 use sqlx::types::Uuid;
@@ -390,7 +392,8 @@ impl Database {
 
                 self.insert_allowed_handle(
                     handle.clone(),
-                    Some(allowed.account.to_string()),
+                    allowed.account.to_string(),
+                    AllowEvents::AllowedAccount,
                 )
                 .await?;
 
@@ -403,13 +406,18 @@ impl Database {
                     .map(|h| h.to_be_bytes_vec())
                     .collect::<Vec<_>>();
 
-                // In order to not create a dedicated table for public decryption
-                // we insert the handles in the allowed_handles table
-                // but with None as contract address
-                // This will allow us to distinguish between the two types of handles
-                // one for allowed and one for allowed for decryption
                 for handle in handles.clone() {
-                    self.insert_allowed_handle(handle, None).await?;
+                    println!(
+                        "Allowed for public decryption: {}",
+                        compact_hex(&handle),
+                    );
+
+                    self.insert_allowed_handle(
+                        handle,
+                        "".to_string(),
+                        AllowEvents::AllowedForDecryption,
+                    )
+                    .await?;
                 }
 
                 self.insert_pbs_computations(&handles).await?;
@@ -494,17 +502,19 @@ impl Database {
     pub async fn insert_allowed_handle(
         &mut self,
         handle: Vec<u8>,
-        account_address: Option<String>,
+        account_address: String,
+        event_type: AllowEvents,
     ) -> Result<(), SqlxError> {
         let tenant_id = self.tenant_id;
 
         let query = || {
             sqlx::query!(
-                "INSERT INTO allowed_handles(tenant_id, handle, account_address) VALUES($1, $2, $3)
+                "INSERT INTO allowed_handles(tenant_id, handle, account_address, event_type) VALUES($1, $2, $3, $4)
                      ON CONFLICT DO NOTHING;",
                 tenant_id,
                 handle,
-                account_address.as_deref(),
+                account_address,
+                event_type as i16,
             )
         };
 
