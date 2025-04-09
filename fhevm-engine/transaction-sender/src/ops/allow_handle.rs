@@ -29,17 +29,22 @@ sol!(
 
 struct Key {
     handle: Vec<u8>,
-    account_addr: String,
+    account_addr: Option<String>,
     tenant_id: i32,
 }
 
 impl Display for Key {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let account_display = match &self.account_addr {
+            Some(addr) => addr,
+            None => "None",
+        };
+
         write!(
             f,
             "Key {{ handle: {}, account: {}, tenant_id: {} }}",
             compact_hex(&self.handle),
-            self.account_addr,
+            account_display,
             self.tenant_id
         )
     }
@@ -98,18 +103,34 @@ impl<P: Provider<Ethereum> + Clone + 'static> ACLManagerOperation<P> {
         };
 
         if receipt.status() {
-            sqlx::query!(
-                "UPDATE allowed_handles
-                 SET txn_is_sent = true
-                 WHERE handle = $1
-                 AND account_address = $2
-                 AND tenant_id = $3",
-                key.handle,
-                key.account_addr,
-                key.tenant_id
-            )
-            .execute(&self.db_pool)
-            .await?;
+            if key.account_addr.is_none() {
+                // Handle the NULL case
+                sqlx::query!(
+                    "UPDATE allowed_handles
+                     SET txn_is_sent = true
+                     WHERE handle = $1
+                     AND account_address IS NULL
+                     AND tenant_id = $2",
+                    key.handle,
+                    key.tenant_id
+                )
+                .execute(&self.db_pool)
+                .await?;
+            } else {
+                // Handle the non-NULL case
+                sqlx::query!(
+                    "UPDATE allowed_handles
+                     SET txn_is_sent = true
+                     WHERE handle = $1
+                     AND account_address = $2
+                     AND tenant_id = $3",
+                    key.handle,
+                    key.account_addr,
+                    key.tenant_id
+                )
+                .execute(&self.db_pool)
+                .await?;
+            }
 
             info!(
                 "allowAccount txn: {} succeeded, {}",
@@ -195,12 +216,10 @@ where
     async fn execute(&self) -> anyhow::Result<bool> {
         let rows = sqlx::query!(
             "
-            SELECT handle, tenant_id, account_address
-            FROM allowed_handles
-            WHERE account_address IS NOT NULL
-                AND TRIM(account_address) <> ''
-                AND txn_is_sent = false
-                AND txn_retry_count < $1
+            SELECT handle, tenant_id, account_address 
+            FROM allowed_handles 
+            WHERE txn_is_sent = false 
+            AND txn_retry_count < $1
             LIMIT $2;
             ",
             self.conf.allow_handle_max_retries as i32,
@@ -234,31 +253,52 @@ where
             let handle: Vec<u8> = row.handle.clone();
             let h_as_hex = compact_hex(&handle);
 
-            let account_addr = row.account_address;
+            let account_addr: Option<String> = Some(row.account_address);
             info!(
-                "Allow handle: {}, account: {}, chain_id: {}",
+                "Allow handle: {}, account: {:?}, chain_id: {}",
                 h_as_hex, account_addr, chain_id
             );
 
             let handle_u256 = U256::from_be_bytes(try_into_array::<32>(handle)?);
-            let address = match Address::from_str(&account_addr) {
-                Ok(addr) => addr,
-                Err(e) => {
-                    error!("Failed to parse address: {}, error: {}", account_addr, e);
-                    continue;
+            let txn_request = if account_addr.is_none() {
+                // Call allowPublicDecrypt when account_address is null
+                match &self.gas {
+                    Some(gas_limit) => acl_manager
+                        .allowPublicDecrypt(U256::from(chain_id), handle_u256)
+                        .into_transaction_request()
+                        .with_gas_limit(*gas_limit),
+                    None => acl_manager
+                        .allowPublicDecrypt(U256::from(chain_id), handle_u256)
+                        .into_transaction_request(),
+                }
+            } else {
+                // Parse address and call allowAccount when account_address is present
+                let address = match account_addr.as_ref().map(|s| Address::from_str(s)) {
+                    Some(Ok(addr)) => addr,
+                    Some(Err(e)) => {
+                        error!(
+                            "Failed to parse address: {}, error: {}",
+                            account_addr.as_ref().unwrap(),
+                            e
+                        );
+                        continue;
+                    }
+                    None => {
+                        error!("No account address found");
+                        continue;
+                    }
+                };
+
+                match &self.gas {
+                    Some(gas_limit) => acl_manager
+                        .allowAccount(U256::from(chain_id), handle_u256, address)
+                        .into_transaction_request()
+                        .with_gas_limit(*gas_limit),
+                    None => acl_manager
+                        .allowAccount(U256::from(chain_id), handle_u256, address)
+                        .into_transaction_request(),
                 }
             };
-
-            let txn_request = match &self.gas {
-                Some(gas_limit) => acl_manager
-                    .allowAccount(U256::from(chain_id), handle_u256, address)
-                    .into_transaction_request()
-                    .with_gas_limit(*gas_limit),
-                None => acl_manager
-                    .allowAccount(U256::from(chain_id), handle_u256, address)
-                    .into_transaction_request(),
-            };
-
             let handle = row.handle;
 
             let key = Key {
