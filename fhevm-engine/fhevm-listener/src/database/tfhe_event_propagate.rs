@@ -25,7 +25,6 @@ pub type ScalarByte = FixedBytes<1>;
 const MAX_RETRIES_FOR_NOTIFY: usize = 5;
 pub const EVENT_PBS_COMPUTATIONS: &str = "event_pbs_computations";
 pub const EVENT_ALLOWED_HANDLE: &str = "event_allowed_handle";
-pub const EVENT_WORK_AVAILABLE: &str = "work_available";
 
 pub fn retry_on_sqlx_error(err: &SqlxError) -> bool {
     match err {
@@ -371,10 +370,6 @@ impl Database {
                 }
             }
         }
-    }
-
-    pub async fn notify_scheduler(&mut self) {
-        self.notify_database(EVENT_WORK_AVAILABLE).await
     }
 
     /// Handles all types of ACL events
