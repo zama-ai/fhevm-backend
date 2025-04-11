@@ -1,4 +1,14 @@
 # Stage 1: Build
+FROM node:20-slim AS build_contract
+
+# Set the working directory
+WORKDIR /app
+
+COPY ./contracts ./contracts
+
+# Compiled contracts for listeners
+RUN cd contracts && npm install && npx hardhat compile
+
 FROM rust:1.85.0-bookworm AS build
 
 WORKDIR /app
@@ -14,7 +24,9 @@ COPY ./proto/ ./proto/
 
 WORKDIR /app/fhevm-engine
 
-# Start the database service
+# Build all binaries
+COPY --from=build_contract /app/contracts/artifacts/contracts/ACL.sol/ /app/contracts/artifacts/contracts/ACL.sol/
+COPY --from=build_contract /app/contracts/artifacts/contracts/TFHEExecutor.sol/ /app/contracts/artifacts/contracts/TFHEExecutor.sol/
 RUN cargo fetch && \
     SQLX_OFFLINE=true cargo build --release
 
