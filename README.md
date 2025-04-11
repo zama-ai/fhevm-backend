@@ -107,7 +107,7 @@ More details on configuration can be found in the [documentation](https://docs.z
 
 ### Coprocessor
 
-#### Dependences
+#### Dependencies
 
 - `docker-compose`
 - `rust`
