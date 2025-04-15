@@ -53,7 +53,7 @@ pub struct Scheduler<'a> {
     edges: Dag<(), OpEdge>,
     sks: tfhe::ServerKey,
     #[cfg(feature = "gpu")]
-    csks: tfhe::CudaServerKey,
+    csks: Vec<tfhe::CudaServerKey>,
 }
 
 impl<'a> Scheduler<'a> {
@@ -74,7 +74,7 @@ impl<'a> Scheduler<'a> {
     pub fn new(
         graph: &'a mut Dag<OpNode, OpEdge>,
         sks: tfhe::ServerKey,
-        #[cfg(feature = "gpu")] csks: tfhe::CudaServerKey,
+        #[cfg(feature = "gpu")] csks: Vec<tfhe::CudaServerKey>,
     ) -> Self {
         let edges = graph.map(|_, _| (), |_, edge| *edge);
         Self {
@@ -88,7 +88,7 @@ impl<'a> Scheduler<'a> {
 
     pub async fn schedule(&mut self) -> Result<()> {
         let schedule_type = std::env::var("FHEVM_DF_SCHEDULE");
-        self.decompress_ciphertexts().await?;
+        //self.decompress_ciphertexts().await?;
         match schedule_type {
             Ok(val) => match val.as_str() {
                 "MAX_PARALLELISM" => {
@@ -99,46 +99,52 @@ impl<'a> Scheduler<'a> {
                     self.schedule_coarse_grain(PartitionStrategy::MaxLocality)
                         .await
                 }
+                #[cfg(not(feature = "gpu"))]
                 "LOOP" => self.schedule_component_loop().await,
+                #[cfg(feature = "gpu")]
+                "LOOP" => self.schedule_component_loop_gpu().await,
                 "FINE_GRAIN" => self.schedule_fine_grain().await,
                 unhandled => panic!("Scheduling strategy {:?} does not exist", unhandled),
             },
+            #[cfg(not(feature = "gpu"))]
             _ => self.schedule_component_loop().await,
+            #[cfg(feature = "gpu")]
+            _ => self.schedule_component_loop_gpu().await,
         }
     }
 
-    async fn decompress_ciphertexts(&mut self) -> Result<()> {
-        #[cfg(feature = "gpu")]
-        let sks = self.csks.clone();
-        #[cfg(not(feature = "gpu"))]
-        let sks = self.sks.clone();
-        tfhe::set_server_key(sks.clone());
-        rayon::broadcast(|_| {
-            tfhe::set_server_key(sks.clone());
-        });
-        self.graph.node_weights_mut().par_bridge().for_each(|node| {
-            let inputs = node
-                .inputs
-                .iter()
-                .map(|i| match i {
-                    DFGTaskInput::Value(i) => DFGTaskInput::Value(i.clone()),
-                    DFGTaskInput::Compressed((t, c)) => DFGTaskInput::Value(
-                        SupportedFheCiphertexts::decompress(*t, c)
-                            .expect("Could not decompress ciphertext"),
-                    ),
-                    DFGTaskInput::Dependence(d) => DFGTaskInput::Dependence(*d),
-                })
-                .collect();
-            node.inputs = inputs;
-        });
-        Ok(())
-    }
+    // async fn decompress_ciphertexts(&mut self) -> Result<()> {
+    //     #[cfg(feature = "gpu")]
+    //     let sks = self.csks.clone();
+    //     #[cfg(not(feature = "gpu"))]
+    //     let sks = self.sks.clone();
+    //     tfhe::set_server_key(sks.clone());
+    //     rayon::broadcast(|_| {
+    //         tfhe::set_server_key(sks.clone());
+    //     });
+    //     self.graph.node_weights_mut().par_bridge().for_each(|node| {
+    //         let inputs = node
+    //             .inputs
+    //             .iter()
+    //             .map(|i| match i {
+    //                 DFGTaskInput::Value(i) => DFGTaskInput::Value(i.clone()),
+    //                 DFGTaskInput::Compressed((t, c)) => DFGTaskInput::Value(
+    //                     SupportedFheCiphertexts::decompress(*t, c)
+    //                         .expect("Could not decompress ciphertext"),
+    //                 ),
+    //                 DFGTaskInput::Dependence(d) => DFGTaskInput::Dependence(*d),
+    //             })
+    //             .collect();
+    //         node.inputs = inputs;
+    //     });
+    //     Ok(())
+    // }
 
     async fn schedule_fine_grain(&mut self) -> Result<()> {
         let mut set: JoinSet<TaskResult> = JoinSet::new();
-        #[cfg(feature = "gpu")]
-        let sks = self.csks.clone();
-        #[cfg(not(feature = "gpu"))]
+        //#[cfg(feature = "gpu")]
+        //let sks = self.csks.clone();
+        //#[cfg(not(feature = "gpu"))]
         let sks = self.sks.clone();
         tfhe::set_server_key(sks.clone());
         // Prime the scheduler with all nodes without dependences
@@ -211,9 +217,9 @@ impl<'a> Scheduler<'a> {
     }
 
     async fn schedule_coarse_grain(&mut self, strategy: PartitionStrategy) -> Result<()> {
-        #[cfg(feature = "gpu")]
-        let sks = self.csks.clone();
-        #[cfg(not(feature = "gpu"))]
+        //#[cfg(feature = "gpu")]
+        //let sks = self.csks.clone();
+        //#[cfg(not(feature = "gpu"))]
         let sks = self.sks.clone();
         tfhe::set_server_key(sks.clone());
         let mut set: JoinSet<(Vec<TaskResult>, NodeIndex)> = JoinSet::new();
@@ -307,13 +313,11 @@ impl<'a> Scheduler<'a> {
         Ok(())
     }
 
+    #[cfg(not(feature = "gpu"))]
     async fn schedule_component_loop(&mut self) -> Result<()> {
         let mut execution_graph: Dag<ExecNode, ()> = Dag::default();
         let _ = partition_components(self.graph, &mut execution_graph);
         let mut comps = vec![];
-        #[cfg(feature = "gpu")]
-        let sks = self.csks.clone();
-        #[cfg(not(feature = "gpu"))]
         let sks = self.sks.clone();
         tfhe::set_server_key(sks.clone());
         rayon::broadcast(|_| {
@@ -346,6 +350,78 @@ impl<'a> Scheduler<'a> {
             comps.par_iter().for_each_with(src, |src, (args, index)| {
                 src.send(execute_partition(args.to_vec(), *index)).unwrap();
             });
+        })
+        .await?;
+        let results: Vec<_> = dest.iter().collect();
+        for mut result in results {
+            while let Some(o) = result.0.pop() {
+                let index = o.0;
+                let node_index = NodeIndex::new(index);
+                self.graph[node_index].result = Some(o.1);
+            }
+        }
+        Ok(())
+    }
+
+    #[cfg(feature = "gpu")]
+    async fn schedule_component_loop_gpu(&mut self) -> Result<()> {
+        let mut execution_graph: Dag<ExecNode, ()> = Dag::default();
+        let _ = partition_components(self.graph, &mut execution_graph);
+        let mut comps = vec![];
+
+        // Prime the scheduler with all nodes without dependences
+        for idx in 0..execution_graph.node_count() {
+            let index = NodeIndex::new(idx);
+            let node = execution_graph
+                .node_weight_mut(index)
+                .ok_or(SchedulerError::DataflowGraphError)?;
+            if self.is_ready_task(node) {
+                let mut args = Vec::with_capacity(node.df_nodes.len());
+                for nidx in node.df_nodes.iter() {
+                    let n = self
+                        .graph
+                        .node_weight_mut(*nidx)
+                        .ok_or(SchedulerError::DataflowGraphError)?;
+                    let opcode = n.opcode;
+                    args.push((opcode, std::mem::take(&mut n.inputs), *nidx));
+                }
+                comps.push((std::mem::take(&mut args), index));
+            }
+        }
+        if comps.is_empty() {
+            return Ok(());
+        }
+
+        let keys = self.csks.clone();
+        let (src, dest) = channel();
+        tokio::task::spawn_blocking(move || {
+            let num_streams_per_gpu = 8; // TODO: add config variable for this
+            let chunk_size = comps.len() / keys.len() + (comps.len() % keys.len() != 0) as usize;
+
+            comps
+                .par_chunks(chunk_size) // Split into as many chunks as GPUs available
+                .enumerate() // Get the index for GPU
+                .for_each_with(src, |src, (i, comps_i)| {
+                    // Process chunks within each GPU
+                    let stream_chunk_size = comps_i.len() / num_streams_per_gpu
+                        + (comps_i.len() % num_streams_per_gpu != 0) as usize;
+                    let src = src.clone();
+                    comps_i
+                        .par_chunks(stream_chunk_size) // Further split chunks into as many chunks as we allow streams per GPU
+                        .for_each_with(src, |src, chunk| {
+                            // Set the server key for the current GPU
+                            tfhe::set_server_key(keys[i].clone());
+                            // Sequential iteration over the chunks of data for each stream
+                            chunk.iter().for_each(|(args, index)| {
+                                src.send(execute_partition(args.to_vec(), *index)).unwrap();
+                            });
+                        });
+                });
+
+            // tfhe::set_server_key(sks.clone());
+            // comps.par_iter().for_each_with(src, |src, (args, index)| {
+            //     src.send(execute_partition(args.to_vec(), *index)).unwrap();
+            // });
         })
         .await?;
         let results: Vec<_> = dest.iter().collect();
