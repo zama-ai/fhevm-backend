@@ -33,10 +33,10 @@ jobs:
     with:
       working-directory: "."
       push_image: true
-      image-name: "httpz-backend/contracts"
-      image-dev-name: "httpz-backend/contracts-dev"
+      image-name: "httpz-backend/contracts/sc-bundle"
+      image-dev-name: "httpz-backend/contracts/sc-bundle-dev"
       generate-dev-image: true
       docker-file: "contracts/operations/docker/ci.dockerfile"
       docker-file-dev: "contracts/operations/docker/dev.dockerfile"
-      image-dev-description: "HTTPZ smart contracts dev image"
+      image-dev-description: "HTTPZ Host Contracts dev image"
       arm-build: true
