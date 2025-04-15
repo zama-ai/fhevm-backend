@@ -1,12 +1,10 @@
 use coprocessor::daemon_cli::Args;
-use coprocessor::types::TfheTenantKeys;
 use fhevm_engine_common::utils::safe_deserialize_key;
 use rand::Rng;
 use sqlx::query;
 use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::Arc;
 use testcontainers::{core::WaitFor, runners::AsyncRunner, GenericImage, ImageExt};
-use tfhe::ClientKey;
 use tokio::sync::watch::Receiver;
 
 pub struct TestInstance {
@@ -247,17 +245,23 @@ pub async fn setup_test_user(pool: &sqlx::PgPool) -> Result<(), Box<dyn std::err
     Ok(())
 }
 
+pub struct BenchKeys {
+    pub pks: tfhe::CompactPublicKey,
+    pub public_params: Arc<tfhe::zk::CompactPkeCrs>,
+    pub cks: tfhe::ClientKey,
+}
+
 pub async fn query_tenant_keys<'a, T>(
     tenants_to_query: Vec<i32>,
     conn: T,
-) -> Result<Vec<(TfheTenantKeys, ClientKey)>, Box<dyn std::error::Error + Send + Sync>>
+) -> Result<Vec<BenchKeys>, Box<dyn std::error::Error + Send + Sync>>
 where
     T: sqlx::PgExecutor<'a>,
 {
     let mut res = Vec::with_capacity(tenants_to_query.len());
     let keys = query!(
         "
-            SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, pks_key, sks_key, public_params, cks_key
+            SELECT tenant_id, chain_id, acl_contract_address, verifying_contract_address, pks_key, public_params, cks_key
             FROM tenants
             WHERE tenant_id = ANY($1::INT[])
         ",
@@ -268,51 +272,31 @@ where
     for key in keys {
         #[cfg(not(feature = "gpu"))]
         {
-            let sks: tfhe::ServerKey = safe_deserialize_key(&key.sks_key)
-                .expect("We can't deserialize our own validated sks key");
             let pks: tfhe::CompactPublicKey = safe_deserialize_key(&key.pks_key)
                 .expect("We can't deserialize our own validated pks key");
             let public_params: tfhe::zk::CompactPkeCrs = safe_deserialize_key(&key.public_params)
                 .expect("We can't deserialize our own validated public params");
-            let ck: tfhe::ClientKey = safe_deserialize_key(&key.cks_key.unwrap())
+            let cks: tfhe::ClientKey = safe_deserialize_key(&key.cks_key.unwrap())
                 .expect("We can't deserialize client key");
-            res.push((
-                TfheTenantKeys {
-                    tenant_id: key.tenant_id,
-                    sks,
-                    pks,
-                    public_params: Arc::new(public_params),
-                    chain_id: key.chain_id,
-                    acl_contract_address: key.acl_contract_address,
-                    verifying_contract_address: key.verifying_contract_address,
-                },
-                ck,
-            ));
+            res.push(BenchKeys {
+                pks,
+                public_params: Arc::new(public_params),
+                cks,
+            });
         }
         #[cfg(feature = "gpu")]
         {
-            let csks: tfhe::CompressedServerKey = safe_deserialize_key(&key.sks_key)
-                .expect("We can't deserialize the gpu compressed sks key");
             let pks: tfhe::CompactPublicKey = safe_deserialize_key(&key.pks_key)
                 .expect("We can't deserialize our own validated pks key");
             let public_params: tfhe::zk::CompactPkeCrs = safe_deserialize_key(&key.public_params)
                 .expect("We can't deserialize our own validated public params");
-            let ck: tfhe::ClientKey = safe_deserialize_key(&key.cks_key.unwrap())
+            let cks: tfhe::ClientKey = safe_deserialize_key(&key.cks_key.unwrap())
                 .expect("We can't deserialize client key");
-            res.push((
-                TfheTenantKeys {
-                    tenant_id: key.tenant_id,
-                    pks,
-                    sks: csks.clone().decompress(),
-                    csks: csks.clone(),
-                    gpu_sks: csks.decompress_to_gpu(),
-                    public_params: Arc::new(public_params),
-                    chain_id: key.chain_id,
-                    acl_contract_address: key.acl_contract_address,
-                    verifying_contract_address: key.verifying_contract_address,
-                },
-                ck,
-            ));
+            res.push(BenchKeys {
+                pks,
+                public_params: Arc::new(public_params),
+                cks,
+            });
         }
     }
 

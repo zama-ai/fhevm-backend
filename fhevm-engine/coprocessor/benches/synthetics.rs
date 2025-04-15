@@ -97,10 +97,10 @@ async fn counter_increment(
         })?;
     let keys = &keys[0];
 
-    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.0.pks);
+    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
     let the_list = builder
         .push(42_u64) // Initial counter value
-        .build_with_proof_packed(&keys.0.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+        .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
         .unwrap();
     let serialized = safe_serialize(&the_list);
     let mut input_request = tonic::Request::new(InputUploadBatch {
@@ -161,7 +161,7 @@ async fn counter_increment(
         println!("Execution time: {}", now.elapsed().unwrap().as_millis());
     });
 
-    let params = keys.1.computation_parameters();
+    let params = keys.cks.computation_parameters();
     write_to_json::<u64, _>(
         &bench_id,
         params,
@@ -213,16 +213,15 @@ async fn tree_reduction(
 
     let num_levels = (num_samples as f64).log2().ceil() as usize;
     let mut num_comps_at_level = 2f64.powi((num_levels - 1) as i32) as usize;
-    let target = num_comps_at_level * 2;
     let mut level_inputs = vec![];
     let mut level_outputs = vec![];
 
     for _ in 0..num_comps_at_level {
-        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.0.pks);
+        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
         let the_list = builder
             .push(1_u64) // Initial value
             .push(1_u64) // Initial value
-            .build_with_proof_packed(&keys.0.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
             .unwrap();
         let serialized = safe_serialize(&the_list);
         let mut input_request = tonic::Request::new(InputUploadBatch {
@@ -287,7 +286,7 @@ async fn tree_reduction(
         println!("Execution time: {}", now.elapsed().unwrap().as_millis());
     });
 
-    let params = keys.1.computation_parameters();
+    let params = keys.cks.computation_parameters();
     write_to_json::<u64, _>(
         &bench_id,
         params,
