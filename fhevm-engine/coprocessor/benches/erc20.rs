@@ -111,12 +111,12 @@ async fn schedule_erc20_whitepaper(
     let keys = &keys[0];
 
     for _ in 0..=(num_samples - 1) as u32 {
-        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.0.pks);
+        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
         let the_list = builder
             .push(100_u64) // Balance source
             .push(10_u64) // Transfer amount
             .push(20_u64) // Balance destination
-            .build_with_proof_packed(&keys.0.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
             .unwrap();
 
         let serialized = safe_serialize(&the_list);
@@ -220,7 +220,7 @@ async fn schedule_erc20_whitepaper(
         println!("Execution time: {}", now.elapsed().unwrap().as_millis());
     });
 
-    let params = keys.1.computation_parameters();
+    let params = keys.cks.computation_parameters();
     write_to_json::<u64, _>(
         &bench_id,
         params,
@@ -271,12 +271,12 @@ async fn schedule_erc20_no_cmux(
     let keys = &keys[0];
 
     for _ in 0..=(num_samples - 1) as u32 {
-        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.0.pks);
+        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
         let the_list = builder
             .push(100_u64) // Balance source
             .push(10_u64) // Transfer amount
             .push(20_u64) // Balance destination
-            .build_with_proof_packed(&keys.0.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
             .unwrap();
 
         let serialized = safe_serialize(&the_list);
@@ -386,7 +386,7 @@ async fn schedule_erc20_no_cmux(
         println!("Execution time: {}", now.elapsed().unwrap().as_millis());
     });
 
-    let params = keys.1.computation_parameters();
+    let params = keys.cks.computation_parameters();
     write_to_json::<u64, _>(
         &bench_id,
         params,
@@ -435,10 +435,10 @@ async fn schedule_dependent_erc20_no_cmux(
         })?;
     let keys = &keys[0];
 
-    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.0.pks);
+    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
     let the_list = builder
         .push(20_u64) // Initial balance destination
-        .build_with_proof_packed(&keys.0.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+        .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
         .unwrap();
     let serialized = safe_serialize(&the_list);
     let mut input_request = tonic::Request::new(InputUploadBatch {
@@ -464,11 +464,11 @@ async fn schedule_dependent_erc20_no_cmux(
     };
 
     for _ in 0..=(num_samples - 1) as u32 {
-        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.0.pks);
+        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
         let the_list = builder
             .push(100_u64) // Balance source
             .push(10_u64) // Transfer amount
-            .build_with_proof_packed(&keys.0.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
             .unwrap();
 
         let serialized = safe_serialize(&the_list);
@@ -578,7 +578,7 @@ async fn schedule_dependent_erc20_no_cmux(
         println!("Execution time: {}", now.elapsed().unwrap().as_millis());
     });
 
-    let params = keys.1.computation_parameters();
+    let params = keys.cks.computation_parameters();
     write_to_json::<u64, _>(
         &bench_id,
         params,
