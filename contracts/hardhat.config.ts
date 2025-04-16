@@ -1,12 +1,12 @@
 import '@nomicfoundation/hardhat-toolbox';
 import '@openzeppelin/hardhat-upgrades';
+import dotenv from 'dotenv';
 import 'hardhat-deploy';
 import 'hardhat-ignore-warnings';
 import type { HardhatUserConfig, extendProvider } from 'hardhat/config';
 import { task } from 'hardhat/config';
 import type { NetworkUserConfig } from 'hardhat/types';
 import { resolve } from 'path';
-import dotenv from 'dotenv';
 
 import CustomProvider from './CustomProvider';
 import './tasks/accounts';
