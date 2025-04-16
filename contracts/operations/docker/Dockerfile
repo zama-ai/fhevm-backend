@@ -1,29 +1,35 @@
 FROM ghcr.io/zama-ai/httpz-node-golden-image:latest
 
+USER root
+
+RUN apk add --no-cache \
+    bash \
+    kubectl \
+    python3 \
+    python3-dev \
+    make \
+    g++ \
+    gcc \
+    nodejs-dev && \
+    ln -sf /usr/bin/gcc /usr/bin/cc && \
+    rm -rf /var/cache/apk/*
+
 WORKDIR /app
 
-RUN chown -R httpz:httpz /home/httpz && \
-    chown -R httpz:httpz /app
-
 # Copy only necessary files
-COPY --chown=httpz:httpz contracts/package.json ./
-COPY --chown=httpz:httpz contracts/package-lock.json ./
+COPY contracts/package.json ./
 
 # Install dependencies
-RUN npm ci && \
-    npm prune
+RUN npm i
 
 # Copy the application files
-COPY --chown=httpz:httpz contracts/*.ts contracts/tsconfig.json ./
-COPY --chown=httpz:httpz contracts/contracts ./contracts/
-COPY --chown=httpz:httpz contracts/addresses ./addresses/
-COPY --chown=httpz:httpz contracts/tasks ./tasks/
-COPY --chown=httpz:httpz contracts/lib ./lib/
-COPY --chown=httpz:httpz contracts/decryptionOracle ./decryptionOracle/
+COPY contracts/*.ts contracts/tsconfig.json ./
+COPY contracts/contracts ./contracts/
+COPY contracts/addresses ./addresses/
+COPY contracts/tasks ./tasks/
+COPY contracts/lib ./lib/
+COPY contracts/decryptionOracle ./decryptionOracle/
 
-# Pre-download Solidity compiler
-RUN npx hardhat compile --force
-
-USER httpz:httpz
+# USER httpz:httpz
 
 ENTRYPOINT ["/bin/bash", "-c"]

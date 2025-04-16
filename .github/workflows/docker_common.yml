@@ -3,6 +3,8 @@ name: Docker Build and Push
 on:
   workflow_call:
     secrets:
+      GHCR_READ_TOKEN:
+        required: true
       BLOCKCHAIN_ACTIONS_TOKEN:
         required: true
       GRAVITON_BUILDER_SSH_PRIVATE_KEY:
@@ -113,7 +115,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+          password: ${{ secrets.GHCR_READ_TOKEN }}
 
       - name: Echo github event
         run: echo "Github event ==> ${{ github.event_name }}"
