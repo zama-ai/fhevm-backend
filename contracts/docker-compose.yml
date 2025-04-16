@@ -27,7 +27,7 @@ services:
     container_name: httpz-sc-deploy
     build:
       context: ../
-      dockerfile: contracts/operations/docker/ci.dockerfile
+      dockerfile: contracts/operations/docker/Dockerfile
       tags:
         - "httpz-smart-contracts:0.7.0-local"
     env_file:
