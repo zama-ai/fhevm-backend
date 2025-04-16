@@ -157,7 +157,7 @@ impl<'a> Scheduler<'a> {
                 .ok_or(SchedulerError::DataflowGraphError)?;
             if Self::is_ready(node) {
                 let opcode = node.opcode;
-                let inputs: Result<Vec<SupportedFheCiphertexts>> = node
+                let inputs: Vec<SupportedFheCiphertexts> = node
                     .inputs
                     .iter()
                     .map(|i| match i {
@@ -167,7 +167,7 @@ impl<'a> Scheduler<'a> {
                         }
                         _ => Err(SchedulerError::UnsatisfiedDependence.into()),
                     })
-                    .collect();
+                    .collect::<Result<Vec<_>>>()?;
                 set.spawn_blocking(move || {
                     tfhe::set_server_key(sks.clone());
                     run_computation(opcode, inputs, idx)
@@ -192,7 +192,7 @@ impl<'a> Scheduler<'a> {
                         DFGTaskInput::Value(output.0.clone());
                     if Self::is_ready(child_node) {
                         let opcode = child_node.opcode;
-                        let inputs: Result<Vec<SupportedFheCiphertexts>> = child_node
+                        let inputs: Vec<SupportedFheCiphertexts> = child_node
                             .inputs
                             .iter()
                             .map(|i| match i {
@@ -202,7 +202,7 @@ impl<'a> Scheduler<'a> {
                                 }
                                 _ => Err(SchedulerError::UnsatisfiedDependence.into()),
                             })
-                            .collect();
+                            .collect::<Result<Vec<_>>>()?;
                         set.spawn_blocking(move || {
                             tfhe::set_server_key(sks.clone());
                             run_computation(opcode, inputs, child_index.index())
@@ -590,7 +590,7 @@ fn execute_partition(
                 }
             }
         }
-        let (node_index, result) = run_computation(opcode, Ok(cts), nidx.index());
+        let (node_index, result) = run_computation(opcode, cts, nidx.index());
         res.insert(node_index, result);
     }
     (Vec::from_iter(res), task_id)
@@ -598,28 +598,25 @@ fn execute_partition(
 
 fn run_computation(
     operation: i32,
-    inputs: Result<Vec<SupportedFheCiphertexts>>,
+    inputs: Vec<SupportedFheCiphertexts>,
     graph_node_index: usize,
 ) -> TaskResult {
     let op = FheOperation::try_from(operation);
-    match inputs {
-        Ok(inputs) => match op {
-            Ok(FheOperation::FheGetCiphertext) => {
-                let (ct_type, ct_bytes) = inputs[0].compress();
-                (graph_node_index, Ok((inputs[0].clone(), ct_type, ct_bytes)))
+    match op {
+        Ok(FheOperation::FheGetCiphertext) => {
+            let (ct_type, ct_bytes) = inputs[0].compress();
+            (graph_node_index, Ok((inputs[0].clone(), ct_type, ct_bytes)))
+        }
+        Ok(_) => match perform_fhe_operation(operation as i16, &inputs) {
+            Ok(result) => {
+                let (ct_type, ct_bytes) = result.compress();
+                (graph_node_index, Ok((result.clone(), ct_type, ct_bytes)))
             }
-            Ok(_) => match perform_fhe_operation(operation as i16, &inputs) {
-                Ok(result) => {
-                    let (ct_type, ct_bytes) = result.compress();
-                    (graph_node_index, Ok((result.clone(), ct_type, ct_bytes)))
-                }
-                Err(e) => (graph_node_index, Err(e.into())),
-            },
-            _ => (
-                graph_node_index,
-                Err(SchedulerError::UnknownOperation(operation).into()),
-            ),
+            Err(e) => (graph_node_index, Err(e.into())),
         },
-        Err(_) => (graph_node_index, Err(SchedulerError::InvalidInputs.into())),
+        _ => (
+            graph_node_index,
+            Err(SchedulerError::UnknownOperation(operation).into()),
+        ),
     }
 }
