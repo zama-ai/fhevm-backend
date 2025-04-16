@@ -60,13 +60,11 @@ task('task:deployDecryptionOracle').setAction(async function (taskArguments: Tas
   const privateKey = getRequiredEnvVar('DEPLOYER_PRIVATE_KEY');
   const deployer = new ethers.Wallet(privateKey).connect(ethers.provider);
   const currentImplementation = await ethers.getContractFactory('EmptyUUPSProxy', deployer);
-  const newImplem = await ethers.getContractFactory('DecryptionOracle', deployer);
+  const newImplem = await ethers.getContractFactory('decryptionOracle/DecryptionOracle.sol:DecryptionOracle', deployer);
   const parsedEnv = dotenv.parse(fs.readFileSync('addresses/.env.decryptionoracle'));
   const proxyAddress = parsedEnv.DECRYPTION_ORACLE_ADDRESS;
   const proxy = await upgrades.forceImport(proxyAddress, currentImplementation);
-  await upgrades.upgradeProxy(proxy, newImplem, {
-    unsafeAllow: ['constructor', 'state-variable-assignment', 'state-variable-immutable', 'missing-initializer'],
-  });
+  await upgrades.upgradeProxy(proxy, newImplem);
   console.log('DecryptionOracle code set successfully at address:', proxyAddress);
 });
 
@@ -78,9 +76,7 @@ task('task:deployACL').setAction(async function (taskArguments: TaskArguments, {
   const parsedEnv = dotenv.parse(fs.readFileSync('addresses/.env.acl'));
   const proxyAddress = parsedEnv.ACL_CONTRACT_ADDRESS;
   const proxy = await upgrades.forceImport(proxyAddress, currentImplementation);
-  await upgrades.upgradeProxy(proxy, newImplem, {
-    unsafeAllow: ['constructor', 'state-variable-assignment', 'state-variable-immutable', 'missing-initializer'],
-  });
+  await upgrades.upgradeProxy(proxy, newImplem);
   console.log('ACL code set successfully at address:', proxyAddress);
 });
 
@@ -92,9 +88,7 @@ task('task:deployHTTPZExecutor').setAction(async function (taskArguments: TaskAr
   const parsedEnv = dotenv.parse(fs.readFileSync('addresses/.env.exec'));
   const proxyAddress = parsedEnv.HTTPZ_EXECUTOR_CONTRACT_ADDRESS;
   const proxy = await upgrades.forceImport(proxyAddress, currentImplementation);
-  await upgrades.upgradeProxy(proxy, newImplem, {
-    unsafeAllow: ['constructor', 'state-variable-assignment', 'state-variable-immutable', 'missing-initializer'],
-  });
+  await upgrades.upgradeProxy(proxy, newImplem);
   console.log('HTTPZExecutor code set successfully at address:', proxyAddress);
 });
 
@@ -130,7 +124,6 @@ task('task:deployKMSVerifier')
     }
     await upgrades.upgradeProxy(proxy, newImplem, {
       call: { fn: 'reinitialize', args: [verifyingContractSource, chainIDSource, initialSigners, initialThreshold] },
-      unsafeAllow: ['constructor', 'state-variable-assignment', 'state-variable-immutable', 'missing-initializer'],
     });
     console.log('KMSVerifier code set successfully at address:', proxyAddress);
     console.log(`${numSigners} KMS signers were added to KMSVerifier at initialization`);
@@ -169,7 +162,6 @@ task('task:deployInputVerifier')
 
     await upgrades.upgradeProxy(proxy, newImplem, {
       call: { fn: 'reinitialize', args: [verifyingContractSource, chainIDSource, initialSigners] },
-      unsafeAllow: ['constructor', 'state-variable-assignment', 'state-variable-immutable', 'missing-initializer'],
     });
     console.log('InputVerifier code set successfully at address:', proxyAddress);
   });
@@ -182,9 +174,7 @@ task('task:deployFHEGasLimit').setAction(async function (taskArguments: TaskArgu
   const parsedEnv = dotenv.parse(fs.readFileSync('addresses/.env.fhegaslimit'));
   const proxyAddress = parsedEnv.FHE_GASLIMIT_CONTRACT_ADDRESS;
   const proxy = await upgrades.forceImport(proxyAddress, currentImplementation);
-  await upgrades.upgradeProxy(proxy, newImplem, {
-    unsafeAllow: ['constructor', 'state-variable-assignment', 'state-variable-immutable', 'missing-initializer'],
-  });
+  await upgrades.upgradeProxy(proxy, newImplem);
   console.log('FHEGasLimit code set successfully at address:', proxyAddress);
 });
 
