@@ -30,6 +30,10 @@ COPY contracts/tasks ./tasks/
 COPY contracts/lib ./lib/
 COPY contracts/decryptionOracle ./decryptionOracle/
 
-# USER httpz:httpz
+# Pre-download Solidity compiler
+RUN npx hardhat compile --force && \
+    chown -R httpz:httpz /app
+
+USER httpz:httpz
 
 ENTRYPOINT ["/bin/bash", "-c"]
