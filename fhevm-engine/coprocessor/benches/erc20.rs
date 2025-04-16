@@ -110,34 +110,34 @@ async fn schedule_erc20_whitepaper(
         })?;
     let keys = &keys[0];
 
+    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+    let the_list = builder
+        .push(100_u64) // Balance source
+        .push(10_u64) // Transfer amount
+        .push(20_u64) // Balance destination
+        .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+        .unwrap();
+
+    let serialized = safe_serialize(&the_list);
+    let mut input_request = tonic::Request::new(InputUploadBatch {
+        input_ciphertexts: vec![InputToUpload {
+            input_payload: serialized,
+            signatures: Vec::new(),
+            user_address: test_random_user_address(),
+            contract_address: test_random_contract_address(),
+        }],
+    });
+    input_request.metadata_mut().append(
+        "authorization",
+        MetadataValue::from_str(&api_key_header).unwrap(),
+    );
+    let resp = client.upload_inputs(input_request).await?;
+    let resp = resp.get_ref();
+    assert_eq!(resp.upload_responses.len(), 1);
+    let first_resp = &resp.upload_responses[0];
+    assert_eq!(first_resp.input_handles.len(), 3);
+
     for _ in 0..=(num_samples - 1) as u32 {
-        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
-        let the_list = builder
-            .push(100_u64) // Balance source
-            .push(10_u64) // Transfer amount
-            .push(20_u64) // Balance destination
-            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
-            .unwrap();
-
-        let serialized = safe_serialize(&the_list);
-        let mut input_request = tonic::Request::new(InputUploadBatch {
-            input_ciphertexts: vec![InputToUpload {
-                input_payload: serialized,
-                signatures: Vec::new(),
-                user_address: test_random_user_address(),
-                contract_address: test_random_contract_address(),
-            }],
-        });
-        input_request.metadata_mut().append(
-            "authorization",
-            MetadataValue::from_str(&api_key_header).unwrap(),
-        );
-        let resp = client.upload_inputs(input_request).await?;
-        let resp = resp.get_ref();
-        assert_eq!(resp.upload_responses.len(), 1);
-        let first_resp = &resp.upload_responses[0];
-        assert_eq!(first_resp.input_handles.len(), 3);
-
         let handle_bals = first_resp.input_handles[0].handle.clone();
         let bals = AsyncComputationInput {
             input: Some(Input::InputHandle(handle_bals.clone())),
@@ -270,34 +270,34 @@ async fn schedule_erc20_no_cmux(
         })?;
     let keys = &keys[0];
 
+    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+    let the_list = builder
+        .push(100_u64) // Balance source
+        .push(10_u64) // Transfer amount
+        .push(20_u64) // Balance destination
+        .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+        .unwrap();
+
+    let serialized = safe_serialize(&the_list);
+    let mut input_request = tonic::Request::new(InputUploadBatch {
+        input_ciphertexts: vec![InputToUpload {
+            input_payload: serialized,
+            signatures: Vec::new(),
+            user_address: test_random_user_address(),
+            contract_address: test_random_contract_address(),
+        }],
+    });
+    input_request.metadata_mut().append(
+        "authorization",
+        MetadataValue::from_str(&api_key_header).unwrap(),
+    );
+    let resp = client.upload_inputs(input_request).await?;
+    let resp = resp.get_ref();
+    assert_eq!(resp.upload_responses.len(), 1);
+    let first_resp = &resp.upload_responses[0];
+    assert_eq!(first_resp.input_handles.len(), 3);
+
     for _ in 0..=(num_samples - 1) as u32 {
-        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
-        let the_list = builder
-            .push(100_u64) // Balance source
-            .push(10_u64) // Transfer amount
-            .push(20_u64) // Balance destination
-            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
-            .unwrap();
-
-        let serialized = safe_serialize(&the_list);
-        let mut input_request = tonic::Request::new(InputUploadBatch {
-            input_ciphertexts: vec![InputToUpload {
-                input_payload: serialized,
-                signatures: Vec::new(),
-                user_address: test_random_user_address(),
-                contract_address: test_random_contract_address(),
-            }],
-        });
-        input_request.metadata_mut().append(
-            "authorization",
-            MetadataValue::from_str(&api_key_header).unwrap(),
-        );
-        let resp = client.upload_inputs(input_request).await?;
-        let resp = resp.get_ref();
-        assert_eq!(resp.upload_responses.len(), 1);
-        let first_resp = &resp.upload_responses[0];
-        assert_eq!(first_resp.input_handles.len(), 3);
-
         let handle_bals = first_resp.input_handles[0].handle.clone();
         let bals = AsyncComputationInput {
             input: Some(Input::InputHandle(handle_bals.clone())),
@@ -463,33 +463,33 @@ async fn schedule_dependent_erc20_no_cmux(
         input: Some(Input::InputHandle(handle_bald.clone())),
     };
 
+    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+    let the_list = builder
+        .push(100_u64) // Balance source
+        .push(10_u64) // Transfer amount
+        .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+        .unwrap();
+
+    let serialized = safe_serialize(&the_list);
+    let mut input_request = tonic::Request::new(InputUploadBatch {
+        input_ciphertexts: vec![InputToUpload {
+            input_payload: serialized,
+            signatures: Vec::new(),
+            user_address: test_random_user_address(),
+            contract_address: test_random_contract_address(),
+        }],
+    });
+    input_request.metadata_mut().append(
+        "authorization",
+        MetadataValue::from_str(&api_key_header).unwrap(),
+    );
+    let resp = client.upload_inputs(input_request).await?;
+    let resp = resp.get_ref();
+    assert_eq!(resp.upload_responses.len(), 1);
+    let first_resp = &resp.upload_responses[0];
+    assert_eq!(first_resp.input_handles.len(), 2);
+
     for _ in 0..=(num_samples - 1) as u32 {
-        let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
-        let the_list = builder
-            .push(100_u64) // Balance source
-            .push(10_u64) // Transfer amount
-            .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
-            .unwrap();
-
-        let serialized = safe_serialize(&the_list);
-        let mut input_request = tonic::Request::new(InputUploadBatch {
-            input_ciphertexts: vec![InputToUpload {
-                input_payload: serialized,
-                signatures: Vec::new(),
-                user_address: test_random_user_address(),
-                contract_address: test_random_contract_address(),
-            }],
-        });
-        input_request.metadata_mut().append(
-            "authorization",
-            MetadataValue::from_str(&api_key_header).unwrap(),
-        );
-        let resp = client.upload_inputs(input_request).await?;
-        let resp = resp.get_ref();
-        assert_eq!(resp.upload_responses.len(), 1);
-        let first_resp = &resp.upload_responses[0];
-        assert_eq!(first_resp.input_handles.len(), 2);
-
         let handle_bals = first_resp.input_handles[0].handle.clone();
         let bals = AsyncComputationInput {
             input: Some(Input::InputHandle(handle_bals.clone())),
