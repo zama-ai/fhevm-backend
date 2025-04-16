@@ -76,7 +76,9 @@ task('task:deployACL').setAction(async function (taskArguments: TaskArguments, {
   const parsedEnv = dotenv.parse(fs.readFileSync('addresses/.env.acl'));
   const proxyAddress = parsedEnv.ACL_CONTRACT_ADDRESS;
   const proxy = await upgrades.forceImport(proxyAddress, currentImplementation);
-  await upgrades.upgradeProxy(proxy, newImplem);
+  await upgrades.upgradeProxy(proxy, newImplem, {
+    unsafeAllow: ['missing-initializer'],
+  });
   console.log('ACL code set successfully at address:', proxyAddress);
 });
 
