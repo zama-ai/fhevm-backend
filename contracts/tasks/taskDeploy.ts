@@ -64,7 +64,9 @@ task('task:deployDecryptionOracle').setAction(async function (taskArguments: Tas
   const parsedEnv = dotenv.parse(fs.readFileSync('addresses/.env.decryptionoracle'));
   const proxyAddress = parsedEnv.DECRYPTION_ORACLE_ADDRESS;
   const proxy = await upgrades.forceImport(proxyAddress, currentImplementation);
-  await upgrades.upgradeProxy(proxy, newImplem);
+  await upgrades.upgradeProxy(proxy, newImplem, {
+    unsafeAllow: ['missing-initializer'],
+  });
   console.log('DecryptionOracle code set successfully at address:', proxyAddress);
 });
 
@@ -90,7 +92,9 @@ task('task:deployHTTPZExecutor').setAction(async function (taskArguments: TaskAr
   const parsedEnv = dotenv.parse(fs.readFileSync('addresses/.env.exec'));
   const proxyAddress = parsedEnv.HTTPZ_EXECUTOR_CONTRACT_ADDRESS;
   const proxy = await upgrades.forceImport(proxyAddress, currentImplementation);
-  await upgrades.upgradeProxy(proxy, newImplem);
+  await upgrades.upgradeProxy(proxy, newImplem, {
+    unsafeAllow: ['missing-initializer'],
+  });
   console.log('HTTPZExecutor code set successfully at address:', proxyAddress);
 });
 
@@ -176,7 +180,9 @@ task('task:deployFHEGasLimit').setAction(async function (taskArguments: TaskArgu
   const parsedEnv = dotenv.parse(fs.readFileSync('addresses/.env.fhegaslimit'));
   const proxyAddress = parsedEnv.FHE_GASLIMIT_CONTRACT_ADDRESS;
   const proxy = await upgrades.forceImport(proxyAddress, currentImplementation);
-  await upgrades.upgradeProxy(proxy, newImplem);
+  await upgrades.upgradeProxy(proxy, newImplem, {
+    unsafeAllow: ['missing-initializer'],
+  });
   console.log('FHEGasLimit code set successfully at address:', proxyAddress);
 });
 
