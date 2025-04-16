@@ -393,6 +393,13 @@ function generateACLInterface(): string {
      * @param handlesList   List of handles.
      */
     function allowForDecryption(bytes32[] memory handlesList) external;
+
+    /**
+     * @notice                  Returns wether a handle is allowed to be publicly decrypted.
+     * @param handle            Handle.
+     * @return isDecryptable    Whether the handle can be publicly decrypted.
+     */
+    function isAllowedForDecryption(bytes32 handle) external view returns(bool);
   }
   `;
 }
@@ -1043,6 +1050,21 @@ function generateSolidityACLMethods(fheTypes: AdjustedFheType[]): string {
       return value;
     }
 
+    /**
+     * @dev Makes the value publicly decryptable.
+     */
+    function makePubliclyDecryptable(e${fheType.type.toLowerCase()} value) internal returns(e${fheType.type.toLowerCase()}) {
+      Impl.makePubliclyDecryptable(e${fheType.type.toLowerCase()}.unwrap(value));
+      return value;
+    }
+
+    /**
+     * @dev Returns whether the the value is publicly decryptable.
+     */
+    function isPubliclyDecryptable(e${fheType.type.toLowerCase()} value) internal view returns (bool) {
+      return Impl.isPubliclyDecryptable(e${fheType.type.toLowerCase()}.unwrap(value));
+    }
+
     `),
   );
 
@@ -1224,6 +1246,19 @@ function generateCustomMethodsForImpl(): string {
     }
 
     /**
+     * @notice              Allows the handle to be publicly decryptable.
+     * @dev                 The caller must be allowed to use handle for makePubliclyDecryptable() to succeed. 
+     *                      If not, makePubliclyDecryptable() reverts.
+     * @param handle        Handle.
+     */
+    function makePubliclyDecryptable(bytes32 handle) internal {
+      HTTPZConfigStruct storage $ = getHTTPZConfig();
+      bytes32[] memory handleArray = new bytes32[](1);
+      handleArray[0] = handle;
+      IACL($.ACLAddress).allowForDecryption(handleArray);
+    }
+
+    /**
      * @dev This function removes the transient allowances in the ACL, which could be useful for integration
      *      with Account Abstraction when bundling several UserOps calling the HTTPZExecutor Coprocessor.
      */
@@ -1253,6 +1288,16 @@ function generateCustomMethodsForImpl(): string {
     function isAllowed(bytes32 handle, address account) internal view returns (bool) {
       HTTPZConfigStruct storage $ = getHTTPZConfig();
       return IACL($.ACLAddress).isAllowed(handle, account);
+    }
+
+    /**
+     * @notice              Returns whether the handle is allowed to be publicly decrypted.
+     * @param handle        Handle.
+     * @return isAllowed    Whether the handle can be publicly decrypted.
+     */
+    function isPubliclyDecryptable(bytes32 handle) internal view returns (bool) {
+      HTTPZConfigStruct storage $ = getHTTPZConfig();
+      return IACL($.ACLAddress).isAllowedForDecryption(handle);
     }
     `;
 }

@@ -8827,6 +8827,21 @@ library HTTPZ {
     }
 
     /**
+     * @dev Makes the value publicly decryptable.
+     */
+    function makePubliclyDecryptable(ebool value) internal returns (ebool) {
+        Impl.makePubliclyDecryptable(ebool.unwrap(value));
+        return value;
+    }
+
+    /**
+     * @dev Returns whether the the value is publicly decryptable.
+     */
+    function isPubliclyDecryptable(ebool value) internal view returns (bool) {
+        return Impl.isPubliclyDecryptable(ebool.unwrap(value));
+    }
+
+    /**
      * @dev Returns whether the account is allowed to use the value.
      */
     function isAllowed(euint8 value, address account) internal view returns (bool) {
@@ -8862,6 +8877,21 @@ library HTTPZ {
     function allowTransient(euint8 value, address account) internal returns (euint8) {
         Impl.allowTransient(euint8.unwrap(value), account);
         return value;
+    }
+
+    /**
+     * @dev Makes the value publicly decryptable.
+     */
+    function makePubliclyDecryptable(euint8 value) internal returns (euint8) {
+        Impl.makePubliclyDecryptable(euint8.unwrap(value));
+        return value;
+    }
+
+    /**
+     * @dev Returns whether the the value is publicly decryptable.
+     */
+    function isPubliclyDecryptable(euint8 value) internal view returns (bool) {
+        return Impl.isPubliclyDecryptable(euint8.unwrap(value));
     }
 
     /**
@@ -8903,6 +8933,21 @@ library HTTPZ {
     }
 
     /**
+     * @dev Makes the value publicly decryptable.
+     */
+    function makePubliclyDecryptable(euint16 value) internal returns (euint16) {
+        Impl.makePubliclyDecryptable(euint16.unwrap(value));
+        return value;
+    }
+
+    /**
+     * @dev Returns whether the the value is publicly decryptable.
+     */
+    function isPubliclyDecryptable(euint16 value) internal view returns (bool) {
+        return Impl.isPubliclyDecryptable(euint16.unwrap(value));
+    }
+
+    /**
      * @dev Returns whether the account is allowed to use the value.
      */
     function isAllowed(euint32 value, address account) internal view returns (bool) {
@@ -8938,6 +8983,21 @@ library HTTPZ {
     function allowTransient(euint32 value, address account) internal returns (euint32) {
         Impl.allowTransient(euint32.unwrap(value), account);
         return value;
+    }
+
+    /**
+     * @dev Makes the value publicly decryptable.
+     */
+    function makePubliclyDecryptable(euint32 value) internal returns (euint32) {
+        Impl.makePubliclyDecryptable(euint32.unwrap(value));
+        return value;
+    }
+
+    /**
+     * @dev Returns whether the the value is publicly decryptable.
+     */
+    function isPubliclyDecryptable(euint32 value) internal view returns (bool) {
+        return Impl.isPubliclyDecryptable(euint32.unwrap(value));
     }
 
     /**
@@ -8979,6 +9039,21 @@ library HTTPZ {
     }
 
     /**
+     * @dev Makes the value publicly decryptable.
+     */
+    function makePubliclyDecryptable(euint64 value) internal returns (euint64) {
+        Impl.makePubliclyDecryptable(euint64.unwrap(value));
+        return value;
+    }
+
+    /**
+     * @dev Returns whether the the value is publicly decryptable.
+     */
+    function isPubliclyDecryptable(euint64 value) internal view returns (bool) {
+        return Impl.isPubliclyDecryptable(euint64.unwrap(value));
+    }
+
+    /**
      * @dev Returns whether the account is allowed to use the value.
      */
     function isAllowed(euint128 value, address account) internal view returns (bool) {
@@ -9014,6 +9089,21 @@ library HTTPZ {
     function allowTransient(euint128 value, address account) internal returns (euint128) {
         Impl.allowTransient(euint128.unwrap(value), account);
         return value;
+    }
+
+    /**
+     * @dev Makes the value publicly decryptable.
+     */
+    function makePubliclyDecryptable(euint128 value) internal returns (euint128) {
+        Impl.makePubliclyDecryptable(euint128.unwrap(value));
+        return value;
+    }
+
+    /**
+     * @dev Returns whether the the value is publicly decryptable.
+     */
+    function isPubliclyDecryptable(euint128 value) internal view returns (bool) {
+        return Impl.isPubliclyDecryptable(euint128.unwrap(value));
     }
 
     /**
@@ -9055,6 +9145,21 @@ library HTTPZ {
     }
 
     /**
+     * @dev Makes the value publicly decryptable.
+     */
+    function makePubliclyDecryptable(eaddress value) internal returns (eaddress) {
+        Impl.makePubliclyDecryptable(eaddress.unwrap(value));
+        return value;
+    }
+
+    /**
+     * @dev Returns whether the the value is publicly decryptable.
+     */
+    function isPubliclyDecryptable(eaddress value) internal view returns (bool) {
+        return Impl.isPubliclyDecryptable(eaddress.unwrap(value));
+    }
+
+    /**
      * @dev Returns whether the account is allowed to use the value.
      */
     function isAllowed(euint256 value, address account) internal view returns (bool) {
@@ -9090,6 +9195,21 @@ library HTTPZ {
     function allowTransient(euint256 value, address account) internal returns (euint256) {
         Impl.allowTransient(euint256.unwrap(value), account);
         return value;
+    }
+
+    /**
+     * @dev Makes the value publicly decryptable.
+     */
+    function makePubliclyDecryptable(euint256 value) internal returns (euint256) {
+        Impl.makePubliclyDecryptable(euint256.unwrap(value));
+        return value;
+    }
+
+    /**
+     * @dev Returns whether the the value is publicly decryptable.
+     */
+    function isPubliclyDecryptable(euint256 value) internal view returns (bool) {
+        return Impl.isPubliclyDecryptable(euint256.unwrap(value));
     }
 
     /**
@@ -9131,6 +9251,21 @@ library HTTPZ {
     }
 
     /**
+     * @dev Makes the value publicly decryptable.
+     */
+    function makePubliclyDecryptable(ebytes64 value) internal returns (ebytes64) {
+        Impl.makePubliclyDecryptable(ebytes64.unwrap(value));
+        return value;
+    }
+
+    /**
+     * @dev Returns whether the the value is publicly decryptable.
+     */
+    function isPubliclyDecryptable(ebytes64 value) internal view returns (bool) {
+        return Impl.isPubliclyDecryptable(ebytes64.unwrap(value));
+    }
+
+    /**
      * @dev Returns whether the account is allowed to use the value.
      */
     function isAllowed(ebytes128 value, address account) internal view returns (bool) {
@@ -9169,6 +9304,21 @@ library HTTPZ {
     }
 
     /**
+     * @dev Makes the value publicly decryptable.
+     */
+    function makePubliclyDecryptable(ebytes128 value) internal returns (ebytes128) {
+        Impl.makePubliclyDecryptable(ebytes128.unwrap(value));
+        return value;
+    }
+
+    /**
+     * @dev Returns whether the the value is publicly decryptable.
+     */
+    function isPubliclyDecryptable(ebytes128 value) internal view returns (bool) {
+        return Impl.isPubliclyDecryptable(ebytes128.unwrap(value));
+    }
+
+    /**
      * @dev Returns whether the account is allowed to use the value.
      */
     function isAllowed(ebytes256 value, address account) internal view returns (bool) {
@@ -9204,5 +9354,20 @@ library HTTPZ {
     function allowTransient(ebytes256 value, address account) internal returns (ebytes256) {
         Impl.allowTransient(ebytes256.unwrap(value), account);
         return value;
+    }
+
+    /**
+     * @dev Makes the value publicly decryptable.
+     */
+    function makePubliclyDecryptable(ebytes256 value) internal returns (ebytes256) {
+        Impl.makePubliclyDecryptable(ebytes256.unwrap(value));
+        return value;
+    }
+
+    /**
+     * @dev Returns whether the the value is publicly decryptable.
+     */
+    function isPubliclyDecryptable(ebytes256 value) internal view returns (bool) {
+        return Impl.isPubliclyDecryptable(ebytes256.unwrap(value));
     }
 }
