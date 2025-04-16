@@ -15,7 +15,17 @@ type eaddress is bytes32;
 type ebytes64 is bytes32;
 type ebytes128 is bytes32;
 type ebytes256 is bytes32;
-type einput is bytes32;
+type externalEbool is bytes32;
+type externalEuint8 is bytes32;
+type externalEuint16 is bytes32;
+type externalEuint32 is bytes32;
+type externalEuint64 is bytes32;
+type externalEuint128 is bytes32;
+type externalEuint256 is bytes32;
+type externalEaddress is bytes32;
+type externalEbytes64 is bytes32;
+type externalEbytes128 is bytes32;
+type externalEbytes256 is bytes32;
 
 /**
  * @title   HTTPZ
@@ -8439,8 +8449,8 @@ library HTTPZ {
     /**
      * @dev Convert an inputHandle with corresponding inputProof to an encrypted ebool integer.
      */
-    function asEbool(einput inputHandle, bytes memory inputProof) internal returns (ebool) {
-        return ebool.wrap(Impl.verify(einput.unwrap(inputHandle), inputProof, FheType.Bool));
+    function fromExternal(externalEbool inputHandle, bytes memory inputProof) internal returns (ebool) {
+        return ebool.wrap(Impl.verify(externalEbool.unwrap(inputHandle), inputProof, FheType.Bool));
     }
 
     /**
@@ -8453,8 +8463,8 @@ library HTTPZ {
     /**
      * @dev Convert an inputHandle with corresponding inputProof to an encrypted euint8 integer.
      */
-    function asEuint8(einput inputHandle, bytes memory inputProof) internal returns (euint8) {
-        return euint8.wrap(Impl.verify(einput.unwrap(inputHandle), inputProof, FheType.Uint8));
+    function fromExternal(externalEuint8 inputHandle, bytes memory inputProof) internal returns (euint8) {
+        return euint8.wrap(Impl.verify(externalEuint8.unwrap(inputHandle), inputProof, FheType.Uint8));
     }
 
     /**
@@ -8467,8 +8477,8 @@ library HTTPZ {
     /**
      * @dev Convert an inputHandle with corresponding inputProof to an encrypted euint16 integer.
      */
-    function asEuint16(einput inputHandle, bytes memory inputProof) internal returns (euint16) {
-        return euint16.wrap(Impl.verify(einput.unwrap(inputHandle), inputProof, FheType.Uint16));
+    function fromExternal(externalEuint16 inputHandle, bytes memory inputProof) internal returns (euint16) {
+        return euint16.wrap(Impl.verify(externalEuint16.unwrap(inputHandle), inputProof, FheType.Uint16));
     }
 
     /**
@@ -8481,8 +8491,8 @@ library HTTPZ {
     /**
      * @dev Convert an inputHandle with corresponding inputProof to an encrypted euint32 integer.
      */
-    function asEuint32(einput inputHandle, bytes memory inputProof) internal returns (euint32) {
-        return euint32.wrap(Impl.verify(einput.unwrap(inputHandle), inputProof, FheType.Uint32));
+    function fromExternal(externalEuint32 inputHandle, bytes memory inputProof) internal returns (euint32) {
+        return euint32.wrap(Impl.verify(externalEuint32.unwrap(inputHandle), inputProof, FheType.Uint32));
     }
 
     /**
@@ -8495,8 +8505,8 @@ library HTTPZ {
     /**
      * @dev Convert an inputHandle with corresponding inputProof to an encrypted euint64 integer.
      */
-    function asEuint64(einput inputHandle, bytes memory inputProof) internal returns (euint64) {
-        return euint64.wrap(Impl.verify(einput.unwrap(inputHandle), inputProof, FheType.Uint64));
+    function fromExternal(externalEuint64 inputHandle, bytes memory inputProof) internal returns (euint64) {
+        return euint64.wrap(Impl.verify(externalEuint64.unwrap(inputHandle), inputProof, FheType.Uint64));
     }
 
     /**
@@ -8509,8 +8519,8 @@ library HTTPZ {
     /**
      * @dev Convert an inputHandle with corresponding inputProof to an encrypted euint128 integer.
      */
-    function asEuint128(einput inputHandle, bytes memory inputProof) internal returns (euint128) {
-        return euint128.wrap(Impl.verify(einput.unwrap(inputHandle), inputProof, FheType.Uint128));
+    function fromExternal(externalEuint128 inputHandle, bytes memory inputProof) internal returns (euint128) {
+        return euint128.wrap(Impl.verify(externalEuint128.unwrap(inputHandle), inputProof, FheType.Uint128));
     }
 
     /**
@@ -8523,8 +8533,8 @@ library HTTPZ {
     /**
      * @dev Convert an inputHandle with corresponding inputProof to an encrypted eaddress integer.
      */
-    function asEaddress(einput inputHandle, bytes memory inputProof) internal returns (eaddress) {
-        return eaddress.wrap(Impl.verify(einput.unwrap(inputHandle), inputProof, FheType.Uint160));
+    function fromExternal(externalEaddress inputHandle, bytes memory inputProof) internal returns (eaddress) {
+        return eaddress.wrap(Impl.verify(externalEaddress.unwrap(inputHandle), inputProof, FheType.Uint160));
     }
 
     /**
@@ -8537,8 +8547,8 @@ library HTTPZ {
     /**
      * @dev Convert an inputHandle with corresponding inputProof to an encrypted euint256 integer.
      */
-    function asEuint256(einput inputHandle, bytes memory inputProof) internal returns (euint256) {
-        return euint256.wrap(Impl.verify(einput.unwrap(inputHandle), inputProof, FheType.Uint256));
+    function fromExternal(externalEuint256 inputHandle, bytes memory inputProof) internal returns (euint256) {
+        return euint256.wrap(Impl.verify(externalEuint256.unwrap(inputHandle), inputProof, FheType.Uint256));
     }
 
     /**
@@ -8551,8 +8561,8 @@ library HTTPZ {
     /**
      * @dev Convert an inputHandle with corresponding inputProof to an encrypted ebytes64 integer.
      */
-    function asEbytes64(einput inputHandle, bytes memory inputProof) internal returns (ebytes64) {
-        return ebytes64.wrap(Impl.verify(einput.unwrap(inputHandle), inputProof, FheType.Uint512));
+    function fromExternal(externalEbytes64 inputHandle, bytes memory inputProof) internal returns (ebytes64) {
+        return ebytes64.wrap(Impl.verify(externalEbytes64.unwrap(inputHandle), inputProof, FheType.Uint512));
     }
 
     /**
@@ -8565,8 +8575,8 @@ library HTTPZ {
     /**
      * @dev Convert an inputHandle with corresponding inputProof to an encrypted ebytes128 integer.
      */
-    function asEbytes128(einput inputHandle, bytes memory inputProof) internal returns (ebytes128) {
-        return ebytes128.wrap(Impl.verify(einput.unwrap(inputHandle), inputProof, FheType.Uint1024));
+    function fromExternal(externalEbytes128 inputHandle, bytes memory inputProof) internal returns (ebytes128) {
+        return ebytes128.wrap(Impl.verify(externalEbytes128.unwrap(inputHandle), inputProof, FheType.Uint1024));
     }
 
     /**
@@ -8579,8 +8589,8 @@ library HTTPZ {
     /**
      * @dev Convert an inputHandle with corresponding inputProof to an encrypted ebytes256 integer.
      */
-    function asEbytes256(einput inputHandle, bytes memory inputProof) internal returns (ebytes256) {
-        return ebytes256.wrap(Impl.verify(einput.unwrap(inputHandle), inputProof, FheType.Uint2048));
+    function fromExternal(externalEbytes256 inputHandle, bytes memory inputProof) internal returns (ebytes256) {
+        return ebytes256.wrap(Impl.verify(externalEbytes256.unwrap(inputHandle), inputProof, FheType.Uint2048));
     }
 
     /**

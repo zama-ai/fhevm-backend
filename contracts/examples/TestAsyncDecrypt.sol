@@ -238,8 +238,8 @@ contract TestAsyncDecrypt is DecryptionOracleCaller {
     /// @notice Request decryption of a non-trivial 64-bit unsigned integer
     /// @param inputHandle The input handle for the encrypted value
     /// @param inputProof The input proof for the encrypted value
-    function requestUint64NonTrivial(einput inputHandle, bytes calldata inputProof) public {
-        euint64 inputNonTrivial = HTTPZ.asEuint64(inputHandle, inputProof);
+    function requestUint64NonTrivial(externalEuint64 inputHandle, bytes calldata inputProof) public {
+        euint64 inputNonTrivial = HTTPZ.fromExternal(inputHandle, inputProof);
         bytes32[] memory cts = new bytes32[](1);
         cts[0] = toBytes32(inputNonTrivial);
         requestDecryption(cts, this.callbackUint64.selector);
@@ -263,8 +263,8 @@ contract TestAsyncDecrypt is DecryptionOracleCaller {
         requestDecryption(cts, this.callbackUint128.selector);
     }
 
-    function requestUint128NonTrivial(einput inputHandle, bytes calldata inputProof) public {
-        euint128 inputNonTrivial = HTTPZ.asEuint128(inputHandle, inputProof);
+    function requestUint128NonTrivial(externalEuint128 inputHandle, bytes calldata inputProof) public {
+        euint128 inputNonTrivial = HTTPZ.fromExternal(inputHandle, inputProof);
         bytes32[] memory cts = new bytes32[](1);
         cts[0] = toBytes32(inputNonTrivial);
         requestDecryption(cts, this.callbackUint128.selector);
@@ -285,8 +285,8 @@ contract TestAsyncDecrypt is DecryptionOracleCaller {
         requestDecryption(cts, this.callbackUint256.selector);
     }
 
-    function requestUint256NonTrivial(einput inputHandle, bytes calldata inputProof) public {
-        euint256 inputNonTrivial = HTTPZ.asEuint256(inputHandle, inputProof);
+    function requestUint256NonTrivial(externalEuint256 inputHandle, bytes calldata inputProof) public {
+        euint256 inputNonTrivial = HTTPZ.fromExternal(inputHandle, inputProof);
         bytes32[] memory cts = new bytes32[](1);
         cts[0] = toBytes32(inputNonTrivial);
         requestDecryption(cts, this.callbackUint256.selector);
@@ -301,8 +301,8 @@ contract TestAsyncDecrypt is DecryptionOracleCaller {
         return decryptedInput;
     }
 
-    function requestEbytes64NonTrivial(einput inputHandle, bytes calldata inputProof) public {
-        ebytes64 inputNonTrivial = HTTPZ.asEbytes64(inputHandle, inputProof);
+    function requestEbytes64NonTrivial(externalEbytes64 inputHandle, bytes calldata inputProof) public {
+        ebytes64 inputNonTrivial = HTTPZ.fromExternal(inputHandle, inputProof);
         bytes32[] memory cts = new bytes32[](1);
         cts[0] = toBytes32(inputNonTrivial);
         requestDecryption(cts, this.callbackBytes64.selector);
@@ -324,8 +324,8 @@ contract TestAsyncDecrypt is DecryptionOracleCaller {
         return decryptedInput;
     }
 
-    function requestEbytes128NonTrivial(einput inputHandle, bytes calldata inputProof) public {
-        ebytes128 inputNonTrivial = HTTPZ.asEbytes128(inputHandle, inputProof);
+    function requestEbytes128NonTrivial(externalEbytes128 inputHandle, bytes calldata inputProof) public {
+        ebytes128 inputNonTrivial = HTTPZ.fromExternal(inputHandle, inputProof);
         bytes32[] memory cts = new bytes32[](1);
         cts[0] = toBytes32(inputNonTrivial);
         requestDecryption(cts, this.callbackBytes128.selector);
@@ -354,8 +354,8 @@ contract TestAsyncDecrypt is DecryptionOracleCaller {
         requestDecryption(cts, this.callbackBytes256.selector);
     }
 
-    function requestEbytes256NonTrivial(einput inputHandle, bytes calldata inputProof) public {
-        ebytes256 inputNonTrivial = HTTPZ.asEbytes256(inputHandle, inputProof);
+    function requestEbytes256NonTrivial(externalEbytes256 inputHandle, bytes calldata inputProof) public {
+        ebytes256 inputNonTrivial = HTTPZ.fromExternal(inputHandle, inputProof);
         bytes32[] memory cts = new bytes32[](1);
         cts[0] = toBytes32(inputNonTrivial);
         requestDecryption(cts, this.callbackBytes256.selector);
@@ -427,8 +427,8 @@ contract TestAsyncDecrypt is DecryptionOracleCaller {
     /// @dev Demonstrates how to include encrypted bytes256 in a mixed decryption request
     /// @param inputHandle The encrypted input handle for the bytes256
     /// @param inputProof The proof for the encrypted bytes256
-    function requestMixedBytes256(einput inputHandle, bytes calldata inputProof) public {
-        ebytes256 xBytes256 = HTTPZ.asEbytes256(inputHandle, inputProof);
+    function requestMixedBytes256(externalEbytes256 inputHandle, bytes calldata inputProof) public {
+        ebytes256 xBytes256 = HTTPZ.fromExternal(inputHandle, inputProof);
         bytes32[] memory cts = new bytes32[](4);
         cts[0] = toBytes32(xBool);
         cts[1] = toBytes32(xAddress);

@@ -21,8 +21,8 @@ contract TestInput is DecryptionOracleCaller {
         setDecryptionOracle(DECRYPTION_ORACLE_ADDRESS);
     }
 
-    function requestUint64NonTrivial(einput inputHandle, bytes calldata inputProof) public {
-        euint64 inputNonTrivial = HTTPZ.asEuint64(inputHandle, inputProof);
+    function requestUint64NonTrivial(externalEuint64 inputHandle, bytes calldata inputProof) public {
+        euint64 inputNonTrivial = HTTPZ.fromExternal(inputHandle, inputProof);
         bytes32[] memory cts = new bytes32[](1);
         cts[0] = toBytes32(inputNonTrivial);
         requestDecryption(cts, this.callbackUint64.selector);
@@ -37,14 +37,14 @@ contract TestInput is DecryptionOracleCaller {
     }
 
     function requestMixedNonTrivial(
-        einput inputHandleBool,
-        einput inputHandleUint8,
-        einput inputHandleAddress,
+        externalEbool inputHandleBool,
+        externalEuint8 inputHandleUint8,
+        externalEaddress inputHandleAddress,
         bytes calldata inputProof
     ) public {
-        ebool encBool = HTTPZ.asEbool(inputHandleBool, inputProof);
-        euint8 encUint8 = HTTPZ.asEuint8(inputHandleUint8, inputProof);
-        eaddress encAddress = HTTPZ.asEaddress(inputHandleAddress, inputProof);
+        ebool encBool = HTTPZ.fromExternal(inputHandleBool, inputProof);
+        euint8 encUint8 = HTTPZ.fromExternal(inputHandleUint8, inputProof);
+        eaddress encAddress = HTTPZ.fromExternal(inputHandleAddress, inputProof);
         bytes32[] memory cts = new bytes32[](3);
         cts[0] = toBytes32(encBool);
         cts[1] = toBytes32(encUint8);

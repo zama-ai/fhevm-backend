@@ -8,8 +8,8 @@ import { getUint } from './utils';
  *
  * This function filters the provided FHE types to include only those that are supported for
  * binary or unary operations. It then maps these types to Solidity type aliases, where each
- * type is represented as a `bytes32`. Additionally, it includes a predefined alias for
- * `einput`, which is represented as `bytes32`.
+ * type is represented as a `bytes32`. Additionally, it includes predefined aliases for
+ * `externalEXXX`, which is represented as `bytes32`.
  *
  * @param fheTypes - An array of FHE types to generate Solidity type aliases from.
  * @returns A string containing the Solidity type aliases, each on a new line.
@@ -29,7 +29,23 @@ export function createSolidityTypeAliasesFromFheTypes(fheTypes: FheType[]): stri
       .flat(),
   );
 
-  return res.concat(['type einput is bytes32;']).join('\n');
+  res = res.concat(
+    fheTypes
+      .filter((fheType: FheType) => fheType.supportedOperators.length > 0)
+      .map((fheType: FheType) => `type externalE${fheType.type.toLowerCase()} is bytes32;`),
+  );
+
+  res = res.concat(
+    fheTypes
+      .map((fheType: FheType) =>
+        (fheType.aliases?.filter((fheTypeAlias: AliasFheType) => fheTypeAlias.supportedOperators.length > 0) ?? []).map(
+          (fheTypeAlias: AliasFheType) => `type externalE${fheTypeAlias.type.toLowerCase()} is bytes32;`,
+        ),
+      )
+      .flat(),
+  );
+
+  return res.join('\n');
 }
 
 /**
@@ -504,7 +520,7 @@ export function generateSolidityHTTPZLib(operators: Operator[], fheTypes: FheTyp
     res.push(handleSolidityTFHEUnaryOperators(fheType, operators)),
   );
 
-  // 9. Handle conversion from plaintext and einput to all supported types (e.g., einput --> ebool, bytes memory --> ebytes64, uint32 --> euint32)
+  // 9. Handle conversion from plaintext and externalEXXX to all supported types (e.g., externalEbool --> ebool, bytes memory --> ebytes64, uint32 --> euint32)
   adjustedFheTypes.forEach((fheType: AdjustedFheType) =>
     res.push(handleSolidityTFHEConvertPlaintextAndEinputToRespectiveType(fheType)),
   );
@@ -926,8 +942,8 @@ function handleSolidityTFHEConvertPlaintextAndEinputToRespectiveType(fheType: Ad
     /** 
      * @dev Convert an inputHandle with corresponding inputProof to an encrypted e${fheType.type.toLowerCase()} integer.
      */
-    function asE${fheType.type.toLowerCase()}(einput inputHandle, bytes memory inputProof) internal returns (e${fheType.type.toLowerCase()}) {
-        return e${fheType.type.toLowerCase()}.wrap(Impl.verify(einput.unwrap(inputHandle), inputProof, FheType.${fheType.isAlias ? fheType.aliasType : fheType.type}));
+    function fromExternal(externalE${fheType.type.toLowerCase()} inputHandle, bytes memory inputProof) internal returns (e${fheType.type.toLowerCase()}) {
+        return e${fheType.type.toLowerCase()}.wrap(Impl.verify(externalE${fheType.type.toLowerCase()}.unwrap(inputHandle), inputProof, FheType.${fheType.isAlias ? fheType.aliasType : fheType.type}));
     }
 
     `;
