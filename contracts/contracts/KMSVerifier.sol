@@ -100,6 +100,7 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
      * @param initialSigners The list of initial KMS signers, should be non-empty and contain unique addresses, otherwise initialization will fail.
      * @param initialThreshold Initial threshold, should be non-null and less or equal to the initialSigners length.
      */
+    /// @custom:oz-upgrades-validate-as-initializer
     function reinitialize(
         address verifyingContractSource,
         uint64 chainIDSource,

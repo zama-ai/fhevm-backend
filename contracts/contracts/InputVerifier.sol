@@ -129,6 +129,7 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
     /**
      * @notice  Re-initializes the contract.
      */
+    /// @custom:oz-upgrades-validate-as-initializer
     function reinitialize(
         address verifyingContractSource,
         uint64 chainIDSource,
