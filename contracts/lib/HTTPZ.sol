@@ -27,6 +27,18 @@ type externalEbytes64 is bytes32;
 type externalEbytes128 is bytes32;
 type externalEbytes256 is bytes32;
 
+interface IKMSVerifier {
+    function verifyDecryptionEIP712KMSSignatures(
+        bytes32[] memory handlesList,
+        bytes memory decryptedResult,
+        bytes[] memory signatures
+    ) external returns (bool);
+}
+
+interface IDecryptionOracle {
+    function requestDecryption(uint256 requestID, bytes32[] calldata ctsHandles, bytes4 callbackSelector) external;
+}
+
 /**
  * @title   HTTPZ
  * @notice  This library is the interaction point for all smart contract developers
@@ -42,12 +54,27 @@ library HTTPZ {
     /// @notice Returned if the input's length is greater than 256 bytes.
     error InputLengthAbove256Bytes(uint256 inputLength);
 
+    error HandlesAlreadySavedForRequestID();
+    error NoHandleFoundForRequestID();
+    error InvalidKMSSignatures();
+    error UnsupportedHandleType();
+
+    event DecryptionFulfilled(uint256 indexed requestID);
+
     /**
      * @notice            Sets the coprocessor addresses.
      * @param httpzConfig HTTPZ config struct that contains contract addresses.
      */
     function setCoprocessor(HTTPZConfigStruct memory httpzConfig) internal {
         Impl.setCoprocessor(httpzConfig);
+    }
+
+    /**
+     * @notice                  Sets the decryption oracle address.
+     * @param decryptionOracle  The decryption oracle address.
+     */
+    function setDecryptionOracle(address decryptionOracle) internal {
+        Impl.setDecryptionOracle(decryptionOracle);
     }
 
     /**
@@ -9379,5 +9406,128 @@ library HTTPZ {
      */
     function isPubliclyDecryptable(ebytes256 value) internal view returns (bool) {
         return Impl.isPubliclyDecryptable(ebytes256.unwrap(value));
+    }
+
+    function saveRequestedHandles(uint256 requestID, bytes32[] memory handlesList) private {
+        DecryptionRequestsStruct storage $ = Impl.getDecryptionRequests();
+        if ($.requestedHandles[requestID].length != 0) {
+            revert HandlesAlreadySavedForRequestID();
+        }
+        $.requestedHandles[requestID] = handlesList;
+    }
+
+    function loadRequestedHandles(uint256 requestID) internal view returns (bytes32[] memory) {
+        DecryptionRequestsStruct storage $ = Impl.getDecryptionRequests();
+        if ($.requestedHandles[requestID].length == 0) {
+            revert NoHandleFoundForRequestID();
+        }
+        return $.requestedHandles[requestID];
+    }
+
+    function requestDecryption(
+        bytes32[] memory ctsHandles,
+        bytes4 callbackSelector
+    ) internal returns (uint256 requestID) {
+        DecryptionRequestsStruct storage $ = Impl.getDecryptionRequests();
+        requestID = $.counterRequest;
+        HTTPZConfigStruct storage $$ = Impl.getHTTPZConfig();
+        IACL($$.ACLAddress).allowForDecryption(ctsHandles);
+        IDecryptionOracle($.DecryptionOracleAddress).requestDecryption(requestID, ctsHandles, callbackSelector);
+        saveRequestedHandles(requestID, ctsHandles);
+        $.counterRequest++;
+    }
+
+    /// @dev this function should be called inside the callback function the dApp contract to verify the signatures
+    function verifySignatures(bytes32[] memory handlesList, bytes[] memory signatures) internal returns (bool) {
+        uint256 start = 4 + 32; // start position after skipping the selector (4 bytes) and the first argument (index, 32 bytes)
+        uint256 length = getSignedDataLength(handlesList);
+        bytes memory decryptedResult = new bytes(length);
+        assembly {
+            calldatacopy(add(decryptedResult, 0x20), start, length) // Copy the relevant part of calldata to decryptedResult memory
+        }
+        HTTPZConfigStruct storage $ = Impl.getHTTPZConfig();
+        return
+            IKMSVerifier($.KMSVerifierAddress).verifyDecryptionEIP712KMSSignatures(
+                handlesList,
+                decryptedResult,
+                signatures
+            );
+    }
+
+    function getSignedDataLength(bytes32[] memory handlesList) private pure returns (uint256) {
+        uint256 handlesListlen = handlesList.length;
+        uint256 signedDataLength;
+        for (uint256 i = 0; i < handlesListlen; i++) {
+            FheType typeCt = FheType(uint8(handlesList[i][30]));
+            if (uint8(typeCt) < 9) {
+                signedDataLength += 32;
+            } else if (typeCt == FheType.Uint512) {
+                //ebytes64
+                signedDataLength += 128;
+            } else if (typeCt == FheType.Uint1024) {
+                //ebytes128
+                signedDataLength += 192;
+            } else if (typeCt == FheType.Uint2048) {
+                //ebytes256
+                signedDataLength += 320;
+            } else {
+                revert UnsupportedHandleType();
+            }
+        }
+        signedDataLength += 32; // add offset of signatures
+        return signedDataLength;
+    }
+
+    function checkSignatures(uint256 requestID, bytes[] memory signatures) internal {
+        bytes32[] memory handlesList = loadRequestedHandles(requestID);
+        bool isVerified = verifySignatures(handlesList, signatures);
+        if (!isVerified) {
+            revert InvalidKMSSignatures();
+        }
+        emit DecryptionFulfilled(requestID);
+    }
+
+    function toBytes32(ebool value) internal pure returns (bytes32 ct) {
+        ct = ebool.unwrap(value);
+    }
+
+    function toBytes32(euint8 value) internal pure returns (bytes32 ct) {
+        ct = euint8.unwrap(value);
+    }
+
+    function toBytes32(euint16 value) internal pure returns (bytes32 ct) {
+        ct = euint16.unwrap(value);
+    }
+
+    function toBytes32(euint32 value) internal pure returns (bytes32 ct) {
+        ct = euint32.unwrap(value);
+    }
+
+    function toBytes32(euint64 value) internal pure returns (bytes32 ct) {
+        ct = euint64.unwrap(value);
+    }
+
+    function toBytes32(euint128 value) internal pure returns (bytes32 ct) {
+        ct = euint128.unwrap(value);
+    }
+
+    function toBytes32(eaddress value) internal pure returns (bytes32 ct) {
+        ct = eaddress.unwrap(value);
+    }
+
+    function toBytes32(euint256 value) internal pure returns (bytes32 ct) {
+        ct = euint256.unwrap(value);
+    }
+
+    function toBytes32(ebytes64 value) internal pure returns (bytes32 ct) {
+        ct = ebytes64.unwrap(value);
+    }
+
+    function toBytes32(ebytes128 value) internal pure returns (bytes32 ct) {
+        ct = ebytes128.unwrap(value);
+    }
+
+    function toBytes32(ebytes256 value) internal pure returns (bytes32 ct) {
+        ct = ebytes256.unwrap(value);
     }
 }
