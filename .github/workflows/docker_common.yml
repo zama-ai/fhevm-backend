@@ -110,13 +110,6 @@ jobs:
             - endpoint: "ssh://ec2-user@${{ inputs.graviton-build-host }}"
               platforms: linux/arm64
 
-      - name: Login to GitHub Container Registry
-        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_READ_TOKEN }}
-
       - name: Echo github event
         run: echo "Github event ==> ${{ github.event_name }}"
 
@@ -128,6 +121,33 @@ jobs:
         if: github.event_name == 'release'
         run: |
           echo "DOCKER_TAG_IMAGE=${{  github.ref_name }}" >> "$GITHUB_ENV"
+
+      - name: Login to GitHub Container Registry
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GHCR_READ_TOKEN }}
+
+      - name: Docker Build and Push
+        uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
+        with:
+          context: ${{ inputs.docker-context }}
+          platforms: linux/amd64,linux/arm64
+          build-args: |
+            GHCR_READ_TOKEN=${{ secrets.GHCR_READ_TOKEN }}
+          file: ${{ inputs.working-directory }}/${{ inputs.docker-file }}
+          push: false
+          pull: true
+          cache-from: ${{ inputs.cache-from }}
+          cache-to: ${{ inputs.cache-to }}
+
+      - name: Login to GitHub Container Registry for Pushing
+        uses: docker/login-action@9780b0c442fbb1117ed29e0efdff1e18412f7567 # v3.3.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.BLOCKCHAIN_ACTIONS_TOKEN }}
 
       - name: Docker Build and Push
         uses: docker/build-push-action@5cd11c3a4ced054e52742c5fd54dca954e0edd85 # v6.7.0
@@ -141,10 +161,10 @@ jobs:
           pull: false
           provenance: false
           sbom: false
-          tags:
-            ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }},ghcr.io/zama-ai/${{ inputs.image-name }}:latest
           cache-from: ${{ inputs.cache-from }}
           cache-to: ${{ inputs.cache-to }}
+          tags:
+            ghcr.io/zama-ai/${{ inputs.image-name }}:${{env.DOCKER_TAG_IMAGE }},ghcr.io/zama-ai/${{ inputs.image-name }}:latest
 
       - name: Extract Docker metadata
         if: ${{ inputs.generate-dev-image }}
