@@ -1,4 +1,3 @@
-import { HardhatEthersHelpers } from '@nomicfoundation/hardhat-ethers/types';
 import { HardhatUpgrades } from '@openzeppelin/hardhat-upgrades';
 import dotenv from 'dotenv';
 import fs from 'fs';
@@ -29,7 +28,9 @@ async function upgradeCurrentToNew(
   const currentImplementation = await ethers.getContractFactory(currentImplem, deployer);
   const proxy = await upgrades.forceImport(proxyAddress, currentImplementation);
   const newImplementationFactory = await ethers.getContractFactory(newImplem, deployer);
-  await upgrades.upgradeProxy(proxy, newImplementationFactory);
+  await upgrades.upgradeProxy(proxy, newImplementationFactory, {
+    call: { fn: 'reinitialize()' },
+  });
   if (verifyContract) {
     console.log('Waiting 2 minutes before contract verification... Please wait...');
     await new Promise((resolve) => setTimeout(resolve, 2 * 60 * 1000));

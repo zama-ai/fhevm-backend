@@ -106,7 +106,7 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
         uint64 chainIDSource,
         address[] calldata initialSigners,
         uint256 initialThreshold
-    ) public reinitializer(2) {
+    ) public virtual reinitializer(2) {
         __Ownable_init(owner());
         __EIP712_init(CONTRACT_NAME_SOURCE, "1", verifyingContractSource, chainIDSource);
         defineNewContext(initialSigners, initialThreshold);
