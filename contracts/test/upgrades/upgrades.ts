@@ -37,9 +37,7 @@ describe('Upgrades', function () {
     await acl.waitForDeployment();
     const ownerBef = await acl.owner();
     expect(await acl.getVersion()).to.equal('ACL v0.1.0');
-    const acl2 = await upgrades.upgradeProxy(acl, this.aclFactoryUpgraded, {
-      call: { fn: 'reinitialize' },
-    });
+    const acl2 = await upgrades.upgradeProxy(acl, this.aclFactoryUpgraded);
     await acl2.waitForDeployment();
     const ownerAft = await acl2.owner();
     expect(ownerBef).to.equal(ownerAft);
@@ -61,9 +59,7 @@ describe('Upgrades', function () {
     });
     await kms.waitForDeployment();
     expect(await kms.getVersion()).to.equal('KMSVerifier v0.1.0');
-    const kms2 = await upgrades.upgradeProxy(kms, this.kmsFactoryUpgraded, {
-      call: { fn: 'reinitialize()' },
-    });
+    const kms2 = await upgrades.upgradeProxy(kms, this.kmsFactoryUpgraded);
     await kms2.waitForDeployment();
     expect(await kms2.getVersion()).to.equal('KMSVerifier v0.2.0');
   });
@@ -78,9 +74,7 @@ describe('Upgrades', function () {
     });
     await executor.waitForDeployment();
     expect(await executor.getVersion()).to.equal('HTTPZExecutor v0.1.0');
-    const executor2 = await upgrades.upgradeProxy(executor, this.executorFactoryUpgraded, {
-      call: { fn: 'reinitialize' },
-    });
+    const executor2 = await upgrades.upgradeProxy(executor, this.executorFactoryUpgraded);
     await executor2.waitForDeployment();
     expect(await executor2.getVersion()).to.equal('HTTPZExecutor v0.2.0');
   });
@@ -95,9 +89,7 @@ describe('Upgrades', function () {
     });
     await payment.waitForDeployment();
     expect(await payment.getVersion()).to.equal('FHEGasLimit v0.1.0');
-    const payment2 = await upgrades.upgradeProxy(payment, this.paymentFactoryUpgraded, {
-      call: { fn: 'reinitialize' },
-    });
+    const payment2 = await upgrades.upgradeProxy(payment, this.paymentFactoryUpgraded);
     await payment2.waitForDeployment();
     expect(await payment2.getVersion()).to.equal('FHEGasLimit v0.2.0');
   });
@@ -112,9 +104,7 @@ describe('Upgrades', function () {
     });
     await decryptionOracle.waitForDeployment();
     expect(await decryptionOracle.getVersion()).to.equal('DecryptionOracle v0.1.0');
-    const decryptionOracle2 = await upgrades.upgradeProxy(decryptionOracle, this.decryptionOracleFactoryUpgraded, {
-      call: { fn: 'reinitialize' },
-    });
+    const decryptionOracle2 = await upgrades.upgradeProxy(decryptionOracle, this.decryptionOracleFactoryUpgraded);
     await decryptionOracle2.waitForDeployment();
     expect(await decryptionOracle2.getVersion()).to.equal('DecryptionOracle v0.2.0');
   });
@@ -125,9 +115,7 @@ describe('Upgrades', function () {
     const acl = (await this.aclFactory.attach(origACLAdd, deployer)) as ACL;
     expect(await acl.getVersion()).to.equal('ACL v0.1.0');
     const newaclFactoryUpgraded = await ethers.getContractFactory('ACLUpgradedExample', deployer);
-    const acl2 = (await upgrades.upgradeProxy(acl, newaclFactoryUpgraded, {
-      call: { fn: 'reinitialize' },
-    })) as unknown as ACLUpgradedExample;
+    const acl2 = (await upgrades.upgradeProxy(acl, newaclFactoryUpgraded)) as unknown as ACLUpgradedExample;
     await acl2.waitForDeployment();
     expect(await acl2.getVersion()).to.equal('ACL v0.2.0');
     expect(await acl2.getAddress()).to.equal(origACLAdd);
@@ -135,15 +123,9 @@ describe('Upgrades', function () {
     await acl2.transferOwnership(newSigner);
     await acl2.connect(newSigner).acceptOwnership();
     const newaclFactoryUpgraded2 = await ethers.getContractFactory('ACLUpgradedExample2', deployer);
-    await expect(
-      upgrades.upgradeProxy(acl2, newaclFactoryUpgraded2, {
-        call: { fn: 'reinitialize' },
-      }),
-    ).to.be.reverted; // old owner can no longer upgrade ACL
+    await expect(upgrades.upgradeProxy(acl2, newaclFactoryUpgraded2)).to.be.reverted; // old owner can no longer upgrade ACL
     const newaclFactoryUpgraded3 = await ethers.getContractFactory('ACLUpgradedExample2', newSigner);
-    const acl3 = await upgrades.upgradeProxy(acl2, newaclFactoryUpgraded3, {
-      call: { fn: 'reinitialize' },
-    }); // new owner can upgrade ACL
+    const acl3 = await upgrades.upgradeProxy(acl2, newaclFactoryUpgraded3); // new owner can upgrade ACL
     await acl3.waitForDeployment();
     expect(await acl3.getVersion()).to.equal('ACL v0.3.0');
   });

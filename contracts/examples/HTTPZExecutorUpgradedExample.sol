@@ -15,14 +15,6 @@ contract HTTPZExecutorUpgradedExample is HTTPZExecutor {
     uint256 private constant MINOR_VERSION = 2;
     uint256 private constant PATCH_VERSION = 0;
 
-    /**
-     * @notice  Re-initializes the contract.
-     */
-    /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public virtual override reinitializer(3) {
-        __Ownable_init(owner());
-    }
-
     /// @notice Returns the full version string of the contract
     /// @dev Concatenates the contract name and version numbers
     /// @return A string representing the full version of the contract

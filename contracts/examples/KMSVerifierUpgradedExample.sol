@@ -13,14 +13,6 @@ contract KMSVerifierUpgradedExample is KMSVerifier {
     uint256 private constant MINOR_VERSION = 2;
     uint256 private constant PATCH_VERSION = 0;
 
-    /**
-     * @notice  Re-initializes the contract.
-     */
-    /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public virtual reinitializer(2) {
-        __Ownable_init(owner());
-    }
-
     /// @notice Getter for the name and version of the contract
     /// @return string representing the name and the version of the contract
     function getVersion() external pure virtual override returns (string memory) {

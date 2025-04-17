@@ -28,9 +28,7 @@ async function upgradeCurrentToNew(
   const currentImplementation = await ethers.getContractFactory(currentImplem, deployer);
   const proxy = await upgrades.forceImport(proxyAddress, currentImplementation);
   const newImplementationFactory = await ethers.getContractFactory(newImplem, deployer);
-  await upgrades.upgradeProxy(proxy, newImplementationFactory, {
-    call: { fn: 'reinitialize()' },
-  });
+  await upgrades.upgradeProxy(proxy, newImplementationFactory);
   if (verifyContract) {
     console.log('Waiting 2 minutes before contract verification... Please wait...');
     await new Promise((resolve) => setTimeout(resolve, 2 * 60 * 1000));

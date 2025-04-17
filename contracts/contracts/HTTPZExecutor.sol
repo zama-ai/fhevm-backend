@@ -56,14 +56,6 @@ contract HTTPZExecutor is HTTPZExecutorNoEvents {
     }
 
     /**
-     * @notice  Re-initializes the contract.
-     */
-    /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public virtual override reinitializer(2) {
-        __Ownable_init(owner());
-    }
-
-    /**
      * @notice              Computes FHEAdd operation.
      * @param lhs           LHS.
      * @param rhs           RHS.
