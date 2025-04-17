@@ -4,5 +4,4 @@ pragma solidity ^0.8.24;
 
 import {DecryptionOracle as ZamaDecryptionOracle} from "@zama-fhe/oracle-solidity/contracts/DecryptionOracle.sol";
 
-
 contract DecryptionOracle is ZamaDecryptionOracle {}
