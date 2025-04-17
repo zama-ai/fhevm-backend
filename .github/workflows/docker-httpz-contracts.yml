@@ -26,7 +26,6 @@ jobs:
   # TODO: this should be replaced with once it's public zama-ai/httpz-templates/.github/workflows/docker_common.yml
     uses: ./.github/workflows/docker_common.yml
     secrets:
-      GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
       BLOCKCHAIN_ACTIONS_TOKEN: ${{ secrets.BLOCKCHAIN_ACTIONS_TOKEN }}
       GRAVITON_BUILDER_SSH_PRIVATE_KEY: ${{ secrets.GRAVITON_BUILDER_SSH_PRIVATE_KEY }}
     permissions:
