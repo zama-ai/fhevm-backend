@@ -17,10 +17,11 @@ RUN apk add --no-cache \
 WORKDIR /app
 
 # Copy only necessary files
-COPY contracts/package.json ./
+COPY contracts/package.json contracts/package-lock.json ./
 
 # Install dependencies
-RUN npm i
+RUN npm ci && \
+    npm prune
 
 # Copy the application files
 COPY contracts/*.ts contracts/tsconfig.json ./
