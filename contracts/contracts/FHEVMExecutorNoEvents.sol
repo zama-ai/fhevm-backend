@@ -18,19 +18,19 @@ import {FheType} from "./FheType.sol";
  */
 interface IInputVerifier {
     function verifyCiphertext(
-        HTTPZExecutorNoEvents.ContextUserInputs memory context,
+        FHEVMExecutorNoEvents.ContextUserInputs memory context,
         bytes32 inputHandle,
         bytes memory inputProof
     ) external returns (bytes32);
 }
 
 /**
- * @title    HTTPZExecutorNoEvents.
+ * @title    FHEVMExecutorNoEvents.
  * @notice   This contract implements symbolic execution on the blockchain and one of its
  *           main responsibilities is to deterministically generate ciphertext handles.
  * @dev      This contract is deployed using an UUPS proxy.
  */
-contract HTTPZExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
+contract FHEVMExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
     /// @notice         Returned when the handle is not allowed in the ACL for the account.
     /// @param handle   Handle.
     /// @param account  Address of the account.
@@ -73,8 +73,8 @@ contract HTTPZExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
         address contractAddress;
     }
 
-    /// @custom:storage-location erc7201:httpz.storage.HTTPZExecutor
-    struct HTTPZExecutorStorage {
+    /// @custom:storage-location erc7201:fhevm.storage.FHEVMExecutor
+    struct FHEVMExecutorStorage {
         /// @dev Counter used for computing handles of randomness operators. It is also used for OPRF, which is used to
         ///      generate pseudo-random ciphertexts.
         uint256 counterRand;
@@ -115,7 +115,7 @@ contract HTTPZExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
     uint8 public constant HANDLE_VERSION = 0;
 
     /// @notice Name of the contract.
-    string private constant CONTRACT_NAME = "HTTPZExecutor";
+    string private constant CONTRACT_NAME = "FHEVMExecutor";
 
     /// @notice Major version of the contract.
     uint256 private constant MAJOR_VERSION = 0;
@@ -135,9 +135,9 @@ contract HTTPZExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
     /// @notice IInputVerifier.
     IInputVerifier private constant inputVerifier = IInputVerifier(inputVerifierAdd);
 
-    /// keccak256(abi.encode(uint256(keccak256("httpz.storage.HTTPZExecutor")) - 1)) & ~bytes32(uint256(0xff))
-    bytes32 private constant HTTPZExecutorStorageLocation =
-        0x3d02b8d0de856b0609b3629cf5f3cd56c0504e3831cd53973d36422116206500;
+    /// keccak256(abi.encode(uint256(keccak256("fhevm.storage.FHEVMExecutor")) - 1)) & ~bytes32(uint256(0xff))
+    bytes32 private constant FHEVMExecutorStorageLocation =
+        0x4613e1771f6b755d243e536fb5a23c5b15e2826575fee921e8fe7a22a760c800;
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -954,7 +954,7 @@ contract HTTPZExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
     }
 
     function _generateSeed() internal virtual returns (bytes16 seed) {
-        HTTPZExecutorStorage storage $ = _getHTTPZExecutorStorage();
+        FHEVMExecutorStorage storage $ = _getFHEVMExecutorStorage();
         seed = bytes16(
             keccak256(abi.encodePacked($.counterRand, acl, block.chainid, blockhash(block.number - 1), block.timestamp))
         );
@@ -1010,11 +1010,11 @@ contract HTTPZExecutorNoEvents is UUPSUpgradeable, Ownable2StepUpgradeable {
     }
 
     /**
-     * @dev Returns the HTTPZExecutor storage location.
+     * @dev Returns the FHEVMExecutor storage location.
      */
-    function _getHTTPZExecutorStorage() internal pure returns (HTTPZExecutorStorage storage $) {
+    function _getFHEVMExecutorStorage() internal pure returns (FHEVMExecutorStorage storage $) {
         assembly {
-            $.slot := HTTPZExecutorStorageLocation
+            $.slot := FHEVMExecutorStorageLocation
         }
     }
 

@@ -48,11 +48,11 @@ interface IDecryptionOracle {
 }
 
 /**
- * @title   HTTPZ
+ * @title   FHE
  * @notice  This library is the interaction point for all smart contract developers
- *          that interact with the HTTPZ protocol.
+ *          that interact with the FHEVM protocol.
  */
-library HTTPZ {
+library FHE {
     /// @notice Returned if the input's length is greater than 64 bytes.
     error InputLengthAbove64Bytes(uint256 inputLength);
 
@@ -79,10 +79,10 @@ library HTTPZ {
 
     /**
      * @notice            Sets the coprocessor addresses.
-     * @param httpzConfig HTTPZ config struct that contains contract addresses.
+     * @param fhevmConfig FHEVM config struct that contains contract addresses.
      */
-    function setCoprocessor(HTTPZConfigStruct memory httpzConfig) internal {
-        Impl.setCoprocessor(httpzConfig);
+    function setCoprocessor(FHEVMConfigStruct memory fhevmConfig) internal {
+        Impl.setCoprocessor(fhevmConfig);
     }
 
     /**
@@ -8834,7 +8834,7 @@ library HTTPZ {
      * @dev This function cleans the transient storage for the ACL (accounts) and the InputVerifier
      *      (input proofs).
      *      This could be useful for integration with Account Abstraction when bundling several
-     *      UserOps calling the HTTPZExecutor.
+     *      UserOps calling the FHEVMExecutor.
      */
     function cleanTransientStorage() internal {
         Impl.cleanTransientStorageACL();
@@ -9445,7 +9445,7 @@ library HTTPZ {
     ) internal returns (uint256 requestID) {
         DecryptionRequestsStruct storage $ = Impl.getDecryptionRequests();
         requestID = $.counterRequest;
-        HTTPZConfigStruct storage $$ = Impl.getHTTPZConfig();
+        FHEVMConfigStruct storage $$ = Impl.getFHEVMConfig();
         IACL($$.ACLAddress).allowForDecryption(ctsHandles);
         IDecryptionOracle($.DecryptionOracleAddress).requestDecryption(requestID, ctsHandles, callbackSelector);
         saveRequestedHandles(requestID, ctsHandles);
@@ -9488,7 +9488,7 @@ library HTTPZ {
         assembly {
             calldatacopy(add(decryptedResult, 0x20), start, length) // Copy the relevant part of calldata to decryptedResult memory
         }
-        HTTPZConfigStruct storage $ = Impl.getHTTPZConfig();
+        FHEVMConfigStruct storage $ = Impl.getFHEVMConfig();
         return
             IKMSVerifier($.KMSVerifierAddress).verifyDecryptionEIP712KMSSignatures(
                 handlesList,

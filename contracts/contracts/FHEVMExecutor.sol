@@ -1,16 +1,16 @@
 // SPDX-License-Identifier: BSD-3-Clause-Clear
 pragma solidity ^0.8.24;
 
-import {HTTPZExecutorNoEvents} from "./HTTPZExecutorNoEvents.sol";
+import {FHEVMExecutorNoEvents} from "./FHEVMExecutorNoEvents.sol";
 import {FheType} from "./FheType.sol";
 
 /**
- * @title    HTTPZExecutor
- * @notice   This contract inherits HTTPZExecutorNoEvents and overrides its functions to emit
- *           events for all HTTPZ operations.
+ * @title    FHEVMExecutor
+ * @notice   This contract inherits FHEVMExecutorNoEvents and overrides its functions to emit
+ *           events for all FHEVM operations.
  * @dev      This contract is deployed using an UUPS proxy.
  */
-contract HTTPZExecutor is HTTPZExecutorNoEvents {
+contract FHEVMExecutor is FHEVMExecutorNoEvents {
     event FheAdd(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result);
     event FheSub(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result);
     event FheMul(address indexed caller, bytes32 lhs, bytes32 rhs, bytes1 scalarByte, bytes32 result);

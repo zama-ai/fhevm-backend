@@ -5,17 +5,17 @@ pragma solidity ^0.8.24;
 import "../addresses/ACLAddress.sol";
 import "../addresses/KMSVerifierAddress.sol";
 import "../addresses/InputVerifierAddress.sol";
-import "../addresses/HTTPZExecutorAddress.sol";
+import "../addresses/FHEVMExecutorAddress.sol";
 
-import {HTTPZConfigStruct} from "./HTTPZ.sol";
+import {FHEVMConfigStruct} from "./FHE.sol";
 
-library HTTPZConfig {
+library FHEVMConfig {
     /// @dev Function to return an immutable struct
-    function defaultConfig() internal pure returns (HTTPZConfigStruct memory) {
+    function defaultConfig() internal pure returns (FHEVMConfigStruct memory) {
         return
-            HTTPZConfigStruct({
+            FHEVMConfigStruct({
                 ACLAddress: aclAdd,
-                HTTPZExecutorAddress: httpzExecutorAdd,
+                FHEVMExecutorAddress: fhevmExecutorAdd,
                 KMSVerifierAddress: kmsVerifierAdd,
                 InputVerifierAddress: inputVerifierAdd
             });
