@@ -473,7 +473,7 @@ export function generateSolidityUnitTestContracts(os: OverloadShard): string {
  *
  * This function iterates over the overloads in the provided overload shard and generates
  * a Solidity function for each overload. The generated function includes the necessary
- * argument processing, type casting, and the appropriate FHEV library call. The result
+ * argument processing, type casting, and the appropriate FHE library call. The result
  * of the library call is then allowed and assigned to the corresponding state variable.
  */
 function generateLibCallTest(os: OverloadShard, res: string[]) {
