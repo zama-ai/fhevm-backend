@@ -30,7 +30,7 @@ async function deployFHEVMManualTestFixture(): Promise<FHEVMManualTestSuite> {
   return contract;
 }
 
-describe.only('FHEVM manual operations', function () {
+describe('FHEVM manual operations', function () {
   beforeEach(async function () {
     await initSigners(1);
     this.signers = await getSigners();
