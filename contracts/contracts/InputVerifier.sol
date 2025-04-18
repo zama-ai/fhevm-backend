@@ -86,11 +86,11 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
     }
 
     /// @notice The definition of the CiphertextVerification structure typed data.
-    string private constant EIP712_ZKPOK_TYPE =
+    string public constant EIP712_ZKPOK_TYPE =
         "CiphertextVerification(bytes32[] ctHandles,address userAddress,address contractAddress,uint256 contractChainId)";
 
     /// @notice The hash of the EIP712ZKPoK structure typed data definition used for signature validation.
-    bytes32 private constant EIP712_ZKPOK_TYPE_HASH = keccak256(bytes(EIP712_ZKPOK_TYPE));
+    bytes32 public constant EIP712_ZKPOK_TYPEHASH = keccak256(bytes(EIP712_ZKPOK_TYPE));
 
     /// @notice Handle version.
     uint8 public constant HANDLE_VERSION = 0;
@@ -375,7 +375,7 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
             _hashTypedDataV4(
                 keccak256(
                     abi.encode(
-                        EIP712_ZKPOK_TYPE_HASH,
+                        EIP712_ZKPOK_TYPEHASH,
                         keccak256(abi.encodePacked(ctVerification.ctHandles)),
                         ctVerification.userAddress,
                         ctVerification.contractAddress,
