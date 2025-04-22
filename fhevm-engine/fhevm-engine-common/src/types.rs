@@ -513,68 +513,32 @@ impl SupportedFheCiphertexts {
 
     pub fn compress(&self) -> (i16, Vec<u8>) {
         let type_num = self.type_num();
-        let mut builder = CompressedCiphertextListBuilder::new();
         match self {
-            SupportedFheCiphertexts::FheBool(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint4(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint8(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint16(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint32(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint64(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint128(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint160(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint256(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheBytes64(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheBytes128(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheBytes256(c) => builder.push(c.clone()),
+            SupportedFheCiphertexts::FheBool(c) => (type_num, safe_serialize(c)),
+            SupportedFheCiphertexts::FheUint4(c) => (type_num, safe_serialize(c)),
+            SupportedFheCiphertexts::FheUint64(c) => (type_num, safe_serialize(c)),
             SupportedFheCiphertexts::Scalar(_) => {
                 // TODO: Need to fix that, scalars are not ciphertexts.
                 panic!("cannot compress a scalar");
             }
-        };
-        let list = builder.build().expect("ciphertext compression");
-        (type_num, safe_serialize(&list))
+            _ => {
+                // TODO: Need to fix that, scalars are not ciphertexts.
+                panic!("cannot compress a scalar");
+            }
+        }
     }
 
     pub fn decompress(ct_type: i16, list: &[u8]) -> Result<Self> {
-        let list: CompressedCiphertextList = safe_deserialize(list)?;
         match ct_type {
-            0 => Ok(SupportedFheCiphertexts::FheBool(
-                list.get(0)?.ok_or(FhevmError::MissingTfheRsData)?,
-            )),
-            1 => Ok(SupportedFheCiphertexts::FheUint4(
-                list.get(0)?.ok_or(FhevmError::MissingTfheRsData)?,
-            )),
-            2 => Ok(SupportedFheCiphertexts::FheUint8(
-                list.get(0)?.ok_or(FhevmError::MissingTfheRsData)?,
-            )),
-            3 => Ok(SupportedFheCiphertexts::FheUint16(
-                list.get(0)?.ok_or(FhevmError::MissingTfheRsData)?,
-            )),
-            4 => Ok(SupportedFheCiphertexts::FheUint32(
-                list.get(0)?.ok_or(FhevmError::MissingTfheRsData)?,
-            )),
-            5 => Ok(SupportedFheCiphertexts::FheUint64(
-                list.get(0)?.ok_or(FhevmError::MissingTfheRsData)?,
-            )),
-            6 => Ok(SupportedFheCiphertexts::FheUint128(
-                list.get(0)?.ok_or(FhevmError::MissingTfheRsData)?,
-            )),
-            7 => Ok(SupportedFheCiphertexts::FheUint160(
-                list.get(0)?.ok_or(FhevmError::MissingTfheRsData)?,
-            )),
-            8 => Ok(SupportedFheCiphertexts::FheUint256(
-                list.get(0)?.ok_or(FhevmError::MissingTfheRsData)?,
-            )),
-            9 => Ok(SupportedFheCiphertexts::FheBytes64(
-                list.get(0)?.ok_or(FhevmError::MissingTfheRsData)?,
-            )),
-            10 => Ok(SupportedFheCiphertexts::FheBytes128(
-                list.get(0)?.ok_or(FhevmError::MissingTfheRsData)?,
-            )),
-            11 => Ok(SupportedFheCiphertexts::FheBytes256(
-                list.get(0)?.ok_or(FhevmError::MissingTfheRsData)?,
-            )),
+            0 => Ok(SupportedFheCiphertexts::FheBool(safe_deserialize::<
+                tfhe::FheBool,
+            >(list)?)),
+            1 => Ok(SupportedFheCiphertexts::FheUint4(safe_deserialize::<
+                tfhe::FheUint4,
+            >(list)?)),
+            5 => Ok(SupportedFheCiphertexts::FheUint64(safe_deserialize::<
+                tfhe::FheUint64,
+            >(list)?)),
             _ => Err(FhevmError::UnknownFheType(ct_type as i32).into()),
         }
     }
