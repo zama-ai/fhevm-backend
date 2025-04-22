@@ -1,8 +1,9 @@
 use anyhow::Result;
 use bigdecimal::num_bigint::BigInt;
+use tfhe::integer::bigint::static_signed::StaticSignedBigInt;
 use tfhe::integer::bigint::StaticUnsignedBigInt;
 use tfhe::integer::ciphertext::BaseRadixCiphertext;
-use tfhe::integer::U256;
+use tfhe::integer::{IntegerRadixCiphertext, RadixCiphertext, SignedRadixCiphertext};
 use tfhe::prelude::{CiphertextList, FheDecrypt};
 use tfhe::shortint::Ciphertext;
 use tfhe::{CompressedCiphertextList, CompressedCiphertextListBuilder};
@@ -311,6 +312,8 @@ impl std::fmt::Display for FhevmError {
     }
 }
 
+type Unsupported = ();
+
 #[derive(Clone)]
 pub enum SupportedFheCiphertexts {
     FheBool(tfhe::FheBool),
@@ -325,6 +328,79 @@ pub enum SupportedFheCiphertexts {
     FheBytes64(tfhe::FheUint512),
     FheBytes128(tfhe::FheUint1024),
     FheBytes256(tfhe::FheUint2048),
+    FheUint2(tfhe::FheUint2),
+    FheUint6(tfhe::FheUint6),
+    FheUint10(tfhe::FheUint10),
+    FheUint12(tfhe::FheUint12),
+    FheUint14(tfhe::FheUint14),
+
+    FheInt2(tfhe::FheInt2),
+    FheInt4(tfhe::FheInt4),
+    FheInt6(tfhe::FheInt6),
+    FheInt8(tfhe::FheInt8),
+    FheInt10(tfhe::FheInt10),
+    FheInt12(tfhe::FheInt12),
+    FheInt14(tfhe::FheInt14),
+    FheInt16(tfhe::FheInt16),
+    FheInt32(tfhe::FheInt32),
+    FheInt64(tfhe::FheInt64),
+    FheInt128(tfhe::FheInt128),
+    FheInt160(tfhe::FheInt160),
+    FheInt256(tfhe::FheInt256),
+    FheAsciiString(Unsupported),
+    FheInt512(Unsupported),
+    FheInt1024(Unsupported),
+    FheInt2048(Unsupported),
+    FheUint24(Unsupported),
+    FheUint40(Unsupported),
+    FheUint48(Unsupported),
+    FheUint56(Unsupported),
+    FheUint72(Unsupported),
+    FheUint80(Unsupported),
+    FheUint88(Unsupported),
+    FheUint96(Unsupported),
+    FheUint104(Unsupported),
+    FheUint112(Unsupported),
+    FheUint120(Unsupported),
+    FheUint136(Unsupported),
+    FheUint144(Unsupported),
+    FheUint152(Unsupported),
+    FheUint168(Unsupported),
+    FheUint176(Unsupported),
+    FheUint184(Unsupported),
+    FheUint192(Unsupported),
+    FheUint200(Unsupported),
+    FheUint208(Unsupported),
+    FheUint216(Unsupported),
+    FheUint224(Unsupported),
+    FheUint232(Unsupported),
+    FheUint240(Unsupported),
+    FheUint248(Unsupported),
+    FheInt24(Unsupported),
+    FheInt40(Unsupported),
+    FheInt48(Unsupported),
+    FheInt56(Unsupported),
+    FheInt72(Unsupported),
+    FheInt80(Unsupported),
+    FheInt88(Unsupported),
+    FheInt96(Unsupported),
+    FheInt104(Unsupported),
+    FheInt112(Unsupported),
+    FheInt120(Unsupported),
+    FheInt136(Unsupported),
+    FheInt144(Unsupported),
+    FheInt152(Unsupported),
+    FheInt168(Unsupported),
+    FheInt176(Unsupported),
+    FheInt184(Unsupported),
+    FheInt192(Unsupported),
+    FheInt200(Unsupported),
+    FheInt208(Unsupported),
+    FheInt216(Unsupported),
+    FheInt224(Unsupported),
+    FheInt232(Unsupported),
+    FheInt240(Unsupported),
+    FheInt248(Unsupported),
     // big endian unsigned integer bytes
     Scalar(Vec<u8>),
 }
@@ -369,72 +445,372 @@ pub enum FheOperationType {
     Other,
 }
 
+
+fn decrypt_big(ct: &impl FheDecrypt<StaticUnsignedBigInt<256>>, client_key: &tfhe::ClientKey) -> String {
+    let dec = FheDecrypt::<StaticUnsignedBigInt<256>>::decrypt(ct, client_key);
+    let mut slice: [u8; 256*8] = [0; 256*8];
+    dec.copy_to_be_byte_slice(&mut slice);
+    BigInt::from_bytes_be(bigdecimal::num_bigint::Sign::Plus, &slice).to_string()
+}
+
+fn decrypt_big_signed(ct: &impl FheDecrypt<StaticSignedBigInt<256>>, client_key: &tfhe::ClientKey) -> String {
+    let dec = FheDecrypt::<StaticSignedBigInt<256>>::decrypt(ct, client_key);
+    let dec_abs = dec.wrapping_abs();
+    let dec_unsigned = StaticUnsignedBigInt::<256>::from(dec_abs.data().clone());
+    let mut slice: [u8; 256*8] = [0; 256*8];
+    if dec.ge(&StaticSignedBigInt::<256>::ZERO) {
+        dec_unsigned.copy_to_be_byte_slice(&mut slice);
+        BigInt::from_bytes_be(bigdecimal::num_bigint::Sign::Plus, &slice).to_string()
+    } else {
+        dec_unsigned.copy_to_be_byte_slice(&mut slice);
+        BigInt::from_bytes_be(bigdecimal::num_bigint::Sign::Minus, &slice).to_string()
+    }
+}
+
 impl SupportedFheCiphertexts {
     pub fn serialize(&self) -> (i16, Vec<u8>) {
+        use SupportedFheCiphertexts as S;
         let type_num = self.type_num();
         match self {
-            SupportedFheCiphertexts::FheBool(v) => (type_num, safe_serialize(v)),
-            SupportedFheCiphertexts::FheUint4(v) => (type_num, safe_serialize(v)),
-            SupportedFheCiphertexts::FheUint8(v) => (type_num, safe_serialize(v)),
-            SupportedFheCiphertexts::FheUint16(v) => (type_num, safe_serialize(v)),
-            SupportedFheCiphertexts::FheUint32(v) => (type_num, safe_serialize(v)),
-            SupportedFheCiphertexts::FheUint64(v) => (type_num, safe_serialize(v)),
-            SupportedFheCiphertexts::FheUint128(v) => (type_num, safe_serialize(v)),
-            SupportedFheCiphertexts::FheUint160(v) => (type_num, safe_serialize(v)),
-            SupportedFheCiphertexts::FheUint256(v) => (type_num, safe_serialize(v)),
-            SupportedFheCiphertexts::FheBytes64(v) => (type_num, safe_serialize(v)),
-            SupportedFheCiphertexts::FheBytes128(v) => (type_num, safe_serialize(v)),
-            SupportedFheCiphertexts::FheBytes256(v) => (type_num, safe_serialize(v)),
-            SupportedFheCiphertexts::Scalar(_) => {
+            S::FheBool(v) => (type_num, safe_serialize(v)),
+            S::FheUint4(v) => (type_num, safe_serialize(v)),
+            S::FheUint8(v) => (type_num, safe_serialize(v)),
+            S::FheUint16(v) => (type_num, safe_serialize(v)),
+            S::FheUint32(v) => (type_num, safe_serialize(v)),
+            S::FheUint64(v) => (type_num, safe_serialize(v)),
+            S::FheUint128(v) => (type_num, safe_serialize(v)),
+            S::FheUint160(v) => (type_num, safe_serialize(v)),
+            S::FheUint256(v) => (type_num, safe_serialize(v)),
+            S::FheBytes64(v) => (type_num, safe_serialize(v)),
+            S::FheBytes128(v) => (type_num, safe_serialize(v)),
+            S::FheBytes256(v) => (type_num, safe_serialize(v)),
+            S::FheUint2(v) => (type_num, safe_serialize(v)),
+            S::FheUint6(v) => (type_num, safe_serialize(v)),
+            S::FheUint10(v) => (type_num, safe_serialize(v)),
+            S::FheUint12(v) => (type_num, safe_serialize(v)),
+            S::FheUint14(v) => (type_num, safe_serialize(v)),
+            S::FheInt2(v) => (type_num, safe_serialize(v)),
+            S::FheInt4(v) => (type_num, safe_serialize(v)),
+            S::FheInt6(v) => (type_num, safe_serialize(v)),
+            S::FheInt8(v) => (type_num, safe_serialize(v)),
+            S::FheInt10(v) => (type_num, safe_serialize(v)),
+            S::FheInt12(v) => (type_num, safe_serialize(v)),
+            S::FheInt14(v) => (type_num, safe_serialize(v)),
+            S::FheInt16(v) => (type_num, safe_serialize(v)),
+            S::FheInt32(v) => (type_num, safe_serialize(v)),
+            S::FheInt64(v) => (type_num, safe_serialize(v)),
+            S::FheInt128(v) => (type_num, safe_serialize(v)),
+            S::FheInt160(v) => (type_num, safe_serialize(v)),
+            S::FheInt256(v) => (type_num, safe_serialize(v)),
+            S::FheAsciiString(()) | S::FheInt512(()) | S::FheInt1024(()) | S::FheInt2048(()) |
+            S::FheUint24(()) | S::FheUint40(()) | S::FheUint48(()) | S::FheUint56(()) |S::FheUint72(()) |
+            S::FheUint80(()) | S::FheUint88(()) | S::FheUint96(()) | S::FheUint104(()) |
+            S::FheUint112(()) | S::FheUint120(()) | S::FheUint136(()) | S::FheUint144(()) |
+            S::FheUint152(()) | S::FheUint168(()) | S::FheUint176(()) | S::FheUint184(()) |
+            S::FheUint192(()) | S::FheUint200(()) | S::FheUint208(()) | S::FheUint216(()) |
+            S::FheUint224(()) | S::FheUint232(()) | S::FheUint240(()) | S::FheUint248(()) |
+            S::FheInt24(()) | S::FheInt40(()) | S::FheInt48(()) | S::FheInt56(()) |
+            S::FheInt72(()) | S::FheInt80(()) | S::FheInt88(()) | S::FheInt96(()) |
+            S::FheInt104(()) | S::FheInt112(()) | S::FheInt120(()) | S::FheInt136(()) |
+            S::FheInt144(()) | S::FheInt152(()) | S::FheInt168(()) | S::FheInt176(()) |
+            S::FheInt184(()) | S::FheInt192(()) | S::FheInt200(()) | S::FheInt208(()) |
+            S::FheInt216(()) | S::FheInt224(()) | S::FheInt232(()) | S::FheInt240(()) |
+            S::FheInt248(())
+            => {
+                panic!("unsupported ciphertext")
+            }
+            S::Scalar(_) => {
                 panic!("we should never need to serialize scalar")
             }
         }
     }
 
-    pub fn to_ciphertext64(self) -> BaseRadixCiphertext<Ciphertext> {
+    pub fn to_ciphertext64(self) -> Vec<Ciphertext> {
+        use SupportedFheCiphertexts as S;
         match self {
-            SupportedFheCiphertexts::FheBool(v) => {
-                BaseRadixCiphertext::from(vec![v.into_raw_parts()])
+            S::FheBool(v) => {
+                BaseRadixCiphertext::from(vec![v.into_raw_parts()]).into_blocks()
             }
-            SupportedFheCiphertexts::FheUint4(v) => v.into_raw_parts().0,
-            SupportedFheCiphertexts::FheUint8(v) => v.into_raw_parts().0,
-            SupportedFheCiphertexts::FheUint16(v) => v.into_raw_parts().0,
-            SupportedFheCiphertexts::FheUint32(v) => v.into_raw_parts().0,
-            SupportedFheCiphertexts::FheUint64(v) => v.into_raw_parts().0,
-            SupportedFheCiphertexts::FheUint128(v) => v.into_raw_parts().0,
-            SupportedFheCiphertexts::FheUint160(v) => v.into_raw_parts().0,
-            SupportedFheCiphertexts::FheUint256(v) => v.into_raw_parts().0,
-            SupportedFheCiphertexts::FheBytes64(v) => v.into_raw_parts().0,
-            SupportedFheCiphertexts::FheBytes128(v) => v.into_raw_parts().0,
-            SupportedFheCiphertexts::FheBytes256(v) => v.into_raw_parts().0,
-            SupportedFheCiphertexts::Scalar(_) => {
+            S::FheUint4(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheUint8(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheUint16(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheUint32(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheUint64(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheUint128(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheUint160(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheUint256(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheBytes64(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheBytes128(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheBytes256(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheUint2(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheUint6(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheUint10(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheUint12(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheUint14(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt2(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt4(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt6(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt8(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt10(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt12(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt14(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt16(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt32(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt64(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt128(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt160(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheInt256(v) => v.into_raw_parts().0.into_blocks(),
+            S::FheAsciiString(()) | S::FheInt512(()) | S::FheInt1024(()) | S::FheInt2048(()) |
+            S::FheUint24(()) | S::FheUint40(()) | S::FheUint48(()) | S::FheUint56(()) |S::FheUint72(()) |
+            S::FheUint80(()) | S::FheUint88(()) | S::FheUint96(()) | S::FheUint104(()) |
+            S::FheUint112(()) | S::FheUint120(()) | S::FheUint136(()) | S::FheUint144(()) |
+            S::FheUint152(()) | S::FheUint168(()) | S::FheUint176(()) | S::FheUint184(()) |
+            S::FheUint192(()) | S::FheUint200(()) | S::FheUint208(()) | S::FheUint216(()) |
+            S::FheUint224(()) | S::FheUint232(()) | S::FheUint240(()) | S::FheUint248(()) |
+            S::FheInt24(()) | S::FheInt40(()) | S::FheInt48(()) | S::FheInt56(()) |
+            S::FheInt72(()) | S::FheInt80(()) | S::FheInt88(()) | S::FheInt96(()) |
+            S::FheInt104(()) | S::FheInt112(()) | S::FheInt120(()) | S::FheInt136(()) |
+            S::FheInt144(()) | S::FheInt152(()) | S::FheInt168(()) | S::FheInt176(()) |
+            S::FheInt184(()) | S::FheInt192(()) | S::FheInt200(()) | S::FheInt208(()) |
+            S::FheInt216(()) | S::FheInt224(()) | S::FheInt232(()) | S::FheInt240(()) |
+            S::FheInt248(())
+            => {
+                panic!("unsupported ciphertext")
+            }
+            S::Scalar(_) => {
                 panic!("scalar cannot be converted to regular ciphertext")
             }
         }
     }
 
+    pub fn to_unsigned_radix_ciphertext(self) -> Result<RadixCiphertext, FhevmError> {
+        use SupportedFheCiphertexts as S;
+        match self {
+            S::FheBool(..) => Err(FhevmError::BadInputs),
+            S::FheUint4(v) => Ok(v.into_raw_parts().0),
+            S::FheUint8(v) => Ok(v.into_raw_parts().0),
+            S::FheUint16(v) => Ok(v.into_raw_parts().0),
+            S::FheUint32(v) => Ok(v.into_raw_parts().0),
+            S::FheUint64(v) => Ok(v.into_raw_parts().0),
+            S::FheUint128(v) => Ok(v.into_raw_parts().0),
+            S::FheUint160(v) => Ok(v.into_raw_parts().0),
+            S::FheUint256(v) => Ok(v.into_raw_parts().0),
+            S::FheBytes64(v) => Ok(v.into_raw_parts().0),
+            S::FheBytes128(v) => Ok(v.into_raw_parts().0),
+            S::FheBytes256(v) => Ok(v.into_raw_parts().0),
+            S::FheUint2(v) => Ok(v.into_raw_parts().0),
+            S::FheUint6(v) => Ok(v.into_raw_parts().0),
+            S::FheUint10(v) => Ok(v.into_raw_parts().0),
+            S::FheUint12(v) => Ok(v.into_raw_parts().0),
+            S::FheUint14(v) => Ok(v.into_raw_parts().0),
+
+            S::FheInt2(_) | S::FheInt4(_) | S::FheInt6(_) | S::FheInt8(_) | S::FheInt10(_) |
+            S::FheInt12(_) | S::FheInt14(_) | S::FheInt16(_) | S::FheInt32(_) | S::FheInt64(_) |
+            S::FheInt128(_) | S::FheInt160(_) | S::FheInt256(_)
+            => Err(FhevmError::BadInputs),
+
+            S::FheAsciiString(()) | S::FheInt512(()) | S::FheInt1024(()) | S::FheInt2048(()) |
+            S::FheUint24(()) | S::FheUint40(()) | S::FheUint48(()) | S::FheUint56(()) |S::FheUint72(()) |
+            S::FheUint80(()) | S::FheUint88(()) | S::FheUint96(()) | S::FheUint104(()) |
+            S::FheUint112(()) | S::FheUint120(()) | S::FheUint136(()) | S::FheUint144(()) |
+            S::FheUint152(()) | S::FheUint168(()) | S::FheUint176(()) | S::FheUint184(()) |
+            S::FheUint192(()) | S::FheUint200(()) | S::FheUint208(()) | S::FheUint216(()) |
+            S::FheUint224(()) | S::FheUint232(()) | S::FheUint240(()) | S::FheUint248(()) |
+            S::FheInt24(()) | S::FheInt40(()) | S::FheInt48(()) | S::FheInt56(()) |
+            S::FheInt72(()) | S::FheInt80(()) | S::FheInt88(()) | S::FheInt96(()) |
+            S::FheInt104(()) | S::FheInt112(()) | S::FheInt120(()) | S::FheInt136(()) |
+            S::FheInt144(()) | S::FheInt152(()) | S::FheInt168(()) | S::FheInt176(()) |
+            S::FheInt184(()) | S::FheInt192(()) | S::FheInt200(()) | S::FheInt208(()) |
+            S::FheInt216(()) | S::FheInt224(()) | S::FheInt232(()) | S::FheInt240(()) |
+            S::FheInt248(())
+            => Err(FhevmError::BadInputs),
+            S::Scalar(_)
+            => Err(FhevmError::BadInputs),
+        }
+    }
+
+    pub fn to_signed_radix_ciphertext(self) -> Result<SignedRadixCiphertext, FhevmError> {
+        use SupportedFheCiphertexts as S;
+        match self {
+            S::FheInt2(v) => Ok(v.into_raw_parts().0),
+            S::FheInt4(v) => Ok(v.into_raw_parts().0),
+            S::FheInt6(v) => Ok(v.into_raw_parts().0),
+            S::FheInt8(v) => Ok(v.into_raw_parts().0),
+            S::FheInt10(v) => Ok(v.into_raw_parts().0),
+            S::FheInt12(v) => Ok(v.into_raw_parts().0),
+            S::FheInt14(v) => Ok(v.into_raw_parts().0),
+            S::FheInt16(v) => Ok(v.into_raw_parts().0),
+            S::FheInt32(v) => Ok(v.into_raw_parts().0),
+            S::FheInt64(v) => Ok(v.into_raw_parts().0),
+            S::FheInt128(v) => Ok(v.into_raw_parts().0),
+            S::FheInt160(v) => Ok(v.into_raw_parts().0),
+            S::FheInt256(v) => Ok(v.into_raw_parts().0),
+
+            S::FheBool(_) | S::FheUint2(_) | S::FheUint4(_) | S::FheUint6(_) | S::FheUint8(_) |
+            S::FheUint10(_) | S::FheUint12(_) | S::FheUint14(_) | S::FheUint16(_) | S::FheUint32(_) |
+            S::FheUint64(_) | S::FheUint128(_) | S::FheUint160(_) | S::FheUint256(_) |
+            S::FheBytes64(_) | S::FheBytes128(_) | S::FheBytes256(_)
+            => Err(FhevmError::BadInputs),
+
+            S::FheAsciiString(()) | S::FheInt512(()) | S::FheInt1024(()) | S::FheInt2048(()) |
+            S::FheUint24(()) | S::FheUint40(()) | S::FheUint48(()) | S::FheUint56(()) |S::FheUint72(()) |
+            S::FheUint80(()) | S::FheUint88(()) | S::FheUint96(()) | S::FheUint104(()) |
+            S::FheUint112(()) | S::FheUint120(()) | S::FheUint136(()) | S::FheUint144(()) |
+            S::FheUint152(()) | S::FheUint168(()) | S::FheUint176(()) | S::FheUint184(()) |
+            S::FheUint192(()) | S::FheUint200(()) | S::FheUint208(()) | S::FheUint216(()) |
+            S::FheUint224(()) | S::FheUint232(()) | S::FheUint240(()) | S::FheUint248(()) |
+            S::FheInt24(()) | S::FheInt40(()) | S::FheInt48(()) | S::FheInt56(()) |
+            S::FheInt72(()) | S::FheInt80(()) | S::FheInt88(()) | S::FheInt96(()) |
+            S::FheInt104(()) | S::FheInt112(()) | S::FheInt120(()) | S::FheInt136(()) |
+            S::FheInt144(()) | S::FheInt152(()) | S::FheInt168(()) | S::FheInt176(()) |
+            S::FheInt184(()) | S::FheInt192(()) | S::FheInt200(()) | S::FheInt208(()) |
+            S::FheInt216(()) | S::FheInt224(()) | S::FheInt232(()) | S::FheInt240(()) |
+            S::FheInt248(())
+            => Err(FhevmError::BadInputs),
+            S::Scalar(_)
+            => Err(FhevmError::BadInputs),
+        }
+    }
+
     pub fn type_num(&self) -> i16 {
+        use SupportedFheCiphertexts as S;
         match self {
             // values taken to match with solidity library
-            SupportedFheCiphertexts::FheBool(_) => 0,
-            SupportedFheCiphertexts::FheUint4(_) => 1,
-            SupportedFheCiphertexts::FheUint8(_) => 2,
-            SupportedFheCiphertexts::FheUint16(_) => 3,
-            SupportedFheCiphertexts::FheUint32(_) => 4,
-            SupportedFheCiphertexts::FheUint64(_) => 5,
-            SupportedFheCiphertexts::FheUint128(_) => 6,
-            SupportedFheCiphertexts::FheUint160(_) => 7,
-            SupportedFheCiphertexts::FheUint256(_) => 8,
-            SupportedFheCiphertexts::FheBytes64(_) => 9,
-            SupportedFheCiphertexts::FheBytes128(_) => 10,
-            SupportedFheCiphertexts::FheBytes256(_) => 11,
-            SupportedFheCiphertexts::Scalar(_) => {
+            S::FheBool(_) => 0,
+            S::FheUint4(_) => 1,
+            S::FheUint8(_) => 2,
+            S::FheUint16(_) => 3,
+            S::FheUint32(_) => 4,
+            S::FheUint64(_) => 5,
+            S::FheUint128(_) => 6,
+            S::FheUint160(_) => 7,
+            S::FheUint256(_) => 8,
+            S::FheBytes64(_) => 9,
+            S::FheBytes128(_) => 10,
+            S::FheBytes256(_) => 11,
+            S::FheUint2(_) => 12,
+            S::FheUint6(_) => 13,
+            S::FheUint10(_) => 14,
+            S::FheUint12(_) => 15,
+            S::FheUint14(_) => 16,
+            S::FheInt2(_) => 17,
+            S::FheInt4(_) => 18,
+            S::FheInt6(_) => 19,
+            S::FheInt8(_) => 20,
+            S::FheInt10(_) => 21,
+            S::FheInt12(_) => 22,
+            S::FheInt14(_) => 23,
+            S::FheInt16(_) => 24,
+            S::FheInt32(_) => 25,
+            S::FheInt64(_) => 26,
+            S::FheInt128(_) => 27,
+            S::FheInt160(_) => 28,
+            S::FheInt256(_) => 29,
+            S::FheAsciiString(_) => 30,
+            S::FheInt512(_) => 31,
+            S::FheInt1024(_) => 32,
+            S::FheInt2048(_) => 33,
+            S::FheUint24(_) => 34,
+            S::FheUint40(_) => 35,
+            S::FheUint48(_) => 36,
+            S::FheUint56(_) => 37,
+            S::FheUint72(_) => 38,
+            S::FheUint80(_) => 39,
+            S::FheUint88(_) => 40,
+            S::FheUint96(_) => 41,
+            S::FheUint104(_) => 42,
+            S::FheUint112(_) => 43,
+            S::FheUint120(_) => 44,
+            S::FheUint136(_) => 45,
+            S::FheUint144(_) => 46,
+            S::FheUint152(_) => 47,
+            S::FheUint168(_) => 48,
+            S::FheUint176(_) => 49,
+            S::FheUint184(_) => 50,
+            S::FheUint192(_) => 51,
+            S::FheUint200(_) => 52,
+            S::FheUint208(_) => 53,
+            S::FheUint216(_) => 54,
+            S::FheUint224(_) => 55,
+            S::FheUint232(_) => 56,
+            S::FheUint240(_) => 57,
+            S::FheUint248(_) => 58,
+            S::FheInt24(_) => 59,
+            S::FheInt40(_) => 60,
+            S::FheInt48(_) => 61,
+            S::FheInt56(_) => 62,
+            S::FheInt72(_) => 63,
+            S::FheInt80(_) => 64,
+            S::FheInt88(_) => 65,
+            S::FheInt96(_) => 66,
+            S::FheInt104(_) => 67,
+            S::FheInt112(_) => 68,
+            S::FheInt120(_) => 69,
+            S::FheInt136(_) => 70,
+            S::FheInt144(_) => 71,
+            S::FheInt152(_) => 72,
+            S::FheInt168(_) => 73,
+            S::FheInt176(_) => 74,
+            S::FheInt184(_) => 75,
+            S::FheInt192(_) => 76,
+            S::FheInt200(_) => 77,
+            S::FheInt208(_) => 78,
+            S::FheInt216(_) => 79,
+            S::FheInt224(_) => 80,
+            S::FheInt232(_) => 81,
+            S::FheInt240(_) => 82,
+            S::FheInt248(_) => 83,
+            S::Scalar(_) => {
                 // need this for tracing as we join types of computation for a trace
                 200
             }
         }
     }
 
+    pub fn is_same_type(&self, other: &SupportedFheCiphertexts) -> bool {
+        self.type_num() == other.type_num()
+    }
+
+    pub fn is_signed(&self) -> bool {
+        use SupportedFheCiphertexts as S;
+        match self {
+            S::FheBool(_) => false,
+            // Fixed size unsigned integers
+            S::FheUint2(_) | S::FheUint4(_) | S::FheUint6(_) | S::FheUint8(_) |
+            S::FheUint16(_) | S::FheUint32(_) | S::FheUint64(_) | S::FheUint128(_) |
+            S::FheUint160(_) | S::FheUint256(_) => false,
+            // Bytes
+            S::FheBytes64(_) | S::FheBytes128(_) | S::FheBytes256(_) => false,
+            // Fixed size unsigned integers
+            S::FheUint10(_) | S::FheUint12(_) | S::FheUint14(_) => false,
+            // Fixed size signed integers
+            S::FheInt2(_) | S::FheInt4(_) | S::FheInt6(_) | S::FheInt8(_) |
+            S::FheInt10(_) | S::FheInt12(_) | S::FheInt14(_) | S::FheInt16(_) |
+            S::FheInt32(_) | S::FheInt64(_) | S::FheInt128(_) | S::FheInt160(_) |
+            S::FheInt256(_) => true,
+            // Ascii string
+            S::FheAsciiString(_) => true,
+            // Fixed size signed integers
+            S::FheInt512(_) | S::FheInt1024(_) | S::FheInt2048(_) => true,
+            // Fixed size unsigned integers
+            S::FheUint24(_) | S::FheUint40(_) | S::FheUint48(_) | S::FheUint56(_) |
+            S::FheUint72(_) | S::FheUint80(_) | S::FheUint88(_) | S::FheUint96(_) |
+            S::FheUint104(_) | S::FheUint112(_) | S::FheUint120(_) | S::FheUint136(_) |
+            S::FheUint144(_) | S::FheUint152(_) | S::FheUint168(_) | S::FheUint176(_) |
+            S::FheUint184(_) | S::FheUint192(_) | S::FheUint200(_) | S::FheUint208(_) |
+            S::FheUint216(_) | S::FheUint224(_) | S::FheUint232(_) | S::FheUint240(_) |
+            S::FheUint248(_) => false,
+            // Variable size signed integers
+            S::FheInt24(_) | S::FheInt40(_) | S::FheInt48(_) | S::FheInt56(_) |
+            S::FheInt72(_) | S::FheInt80(_) | S::FheInt88(_) | S::FheInt96(_) |
+            S::FheInt104(_) | S::FheInt112(_) | S::FheInt120(_) | S::FheInt136(_) |
+            S::FheInt144(_) | S::FheInt152(_) | S::FheInt168(_) | S::FheInt176(_) |
+            S::FheInt184(_) | S::FheInt192(_) | S::FheInt200(_) | S::FheInt208(_) |
+            S::FheInt216(_) | S::FheInt224(_) | S::FheInt232(_) | S::FheInt240(_) |
+            S::FheInt248(_) => true,
+            S::Scalar(_) => false,
+        }
+    }
     pub fn type_name(&self) -> &'static str {
         match self {
             SupportedFheCiphertexts::FheBool(..) => "FheBool",
@@ -449,85 +825,192 @@ impl SupportedFheCiphertexts {
             SupportedFheCiphertexts::FheBytes64(..) => "FheBytes64",
             SupportedFheCiphertexts::FheBytes128(..) => "FheBytes128",
             SupportedFheCiphertexts::FheBytes256(..) => "FheBytes256",
+            SupportedFheCiphertexts::FheUint2(..) => "FheUint2",
+            SupportedFheCiphertexts::FheUint6(..) => "FheUint6",
+            SupportedFheCiphertexts::FheUint10(..) => "FheUint10",
+            SupportedFheCiphertexts::FheUint12(..) => "FheUint12",
+            SupportedFheCiphertexts::FheUint14(..) => "FheUint14",
+            SupportedFheCiphertexts::FheInt2(..) => "FheInt2",
+            SupportedFheCiphertexts::FheInt4(..) => "FheInt4",
+            SupportedFheCiphertexts::FheInt6(..) => "FheInt6",
+            SupportedFheCiphertexts::FheInt8(..) => "FheInt8",
+            SupportedFheCiphertexts::FheInt10(..) => "FheInt10",
+            SupportedFheCiphertexts::FheInt12(..) => "FheInt12",
+            SupportedFheCiphertexts::FheInt14(..) => "FheInt14",
+            SupportedFheCiphertexts::FheInt16(..) => "FheInt16",
+            SupportedFheCiphertexts::FheInt32(..) => "FheInt32",
+            SupportedFheCiphertexts::FheInt64(..) => "FheInt64",
+            SupportedFheCiphertexts::FheInt128(..) => "FheInt128",
+            SupportedFheCiphertexts::FheInt160(..) => "FheInt160",
+            SupportedFheCiphertexts::FheInt256(..) => "FheInt256",
+            SupportedFheCiphertexts::FheAsciiString(..) => "FheAsciiString",
+            SupportedFheCiphertexts::FheInt512(..) => "FheInt512",
+            SupportedFheCiphertexts::FheInt1024(..) => "FheInt1024",
+            SupportedFheCiphertexts::FheInt2048(..) => "FheInt2048",
+            SupportedFheCiphertexts::FheInt24(..) => "FheInt24",
+            SupportedFheCiphertexts::FheInt40(..) => "FheInt40",
+            SupportedFheCiphertexts::FheInt48(..) => "FheInt48",
+            SupportedFheCiphertexts::FheInt56(..) => "FheInt56",
+            SupportedFheCiphertexts::FheInt72(..) => "FheInt72",
+            SupportedFheCiphertexts::FheInt80(..) => "FheInt80",
+            SupportedFheCiphertexts::FheInt88(..) => "FheInt88",
+            SupportedFheCiphertexts::FheInt96(..) => "FheInt96",
+            SupportedFheCiphertexts::FheInt104(..) => "FheInt104",
+            SupportedFheCiphertexts::FheInt112(..) => "FheInt112",
+            SupportedFheCiphertexts::FheInt120(..) => "FheInt120",
+            SupportedFheCiphertexts::FheInt136(..) => "FheInt136",
+            SupportedFheCiphertexts::FheInt144(..) => "FheInt144",
+            SupportedFheCiphertexts::FheInt152(..) => "FheInt152",
+            SupportedFheCiphertexts::FheInt168(..) => "FheInt168",
+            SupportedFheCiphertexts::FheInt176(..) => "FheInt176",
+            SupportedFheCiphertexts::FheInt184(..) => "FheInt184",
+            SupportedFheCiphertexts::FheInt192(..) => "FheInt192",
+            SupportedFheCiphertexts::FheInt200(..) => "FheInt200",
+            SupportedFheCiphertexts::FheInt208(..) => "FheInt208",
+            SupportedFheCiphertexts::FheInt216(..) => "FheInt216",
+            SupportedFheCiphertexts::FheInt224(..) => "FheInt224",
+            SupportedFheCiphertexts::FheInt232(..) => "FheInt232",
+            SupportedFheCiphertexts::FheInt240(..) => "FheInt240",
+            SupportedFheCiphertexts::FheInt248(..) => "FheInt248",
+            SupportedFheCiphertexts::FheUint24(..) => "FheUint24",
+            SupportedFheCiphertexts::FheUint40(..) => "FheUint40",
+            SupportedFheCiphertexts::FheUint48(..) => "FheUint48",
+            SupportedFheCiphertexts::FheUint56(..) => "FheUint56",
+            SupportedFheCiphertexts::FheUint72(..) => "FheUint72",
+            SupportedFheCiphertexts::FheUint80(..) => "FheUint80",
+            SupportedFheCiphertexts::FheUint88(..) => "FheUint88",
+            SupportedFheCiphertexts::FheUint96(..) => "FheUint96",
+            SupportedFheCiphertexts::FheUint104(..) => "FheUint104",
+            SupportedFheCiphertexts::FheUint112(..) => "FheUint112",
+            SupportedFheCiphertexts::FheUint120(..) => "FheUint120",
+            SupportedFheCiphertexts::FheUint136(..) => "FheUint136",
+            SupportedFheCiphertexts::FheUint144(..) => "FheUint144",
+            SupportedFheCiphertexts::FheUint152(..) => "FheUint152",
+            SupportedFheCiphertexts::FheUint168(..) => "FheUint168",
+            SupportedFheCiphertexts::FheUint176(..) => "FheUint176",
+            SupportedFheCiphertexts::FheUint184(..) => "FheUint184",
+            SupportedFheCiphertexts::FheUint192(..) => "FheUint192",
+            SupportedFheCiphertexts::FheUint200(..) => "FheUint200",
+            SupportedFheCiphertexts::FheUint208(..) => "FheUint208",
+            SupportedFheCiphertexts::FheUint216(..) => "FheUint216",
+            SupportedFheCiphertexts::FheUint224(..) => "FheUint224",
+            SupportedFheCiphertexts::FheUint232(..) => "FheUint232",
+            SupportedFheCiphertexts::FheUint240(..) => "FheUint240",
+            SupportedFheCiphertexts::FheUint248(..) => "FheUint248",
             SupportedFheCiphertexts::Scalar(..) => "Scalar",
         }
     }
 
+
     pub fn decrypt(&self, client_key: &tfhe::ClientKey) -> String {
+        use SupportedFheCiphertexts as S;
         match self {
-            SupportedFheCiphertexts::FheBool(v) => v.decrypt(client_key).to_string(),
-            SupportedFheCiphertexts::FheUint4(v) => {
-                FheDecrypt::<u8>::decrypt(v, client_key).to_string()
+            S::FheBool(v) => v.decrypt(client_key).to_string(),
+            S::FheUint4(v) => decrypt_big(v, client_key),
+            S::FheUint8(v) => decrypt_big(v, client_key),
+            S::FheUint16(v) => decrypt_big(v, client_key),
+            S::FheUint32(v) => decrypt_big(v, client_key),
+            S::FheUint64(v) => decrypt_big(v, client_key),
+            S::FheUint128(v) => decrypt_big(v, client_key),
+            S::FheUint160(v) => decrypt_big(v, client_key),
+            S::FheUint256(v) => decrypt_big(v, client_key),
+            S::FheBytes64(v) => decrypt_big(v, client_key),
+            S::FheBytes128(v) => decrypt_big(v, client_key),
+            S::FheBytes256(v) => decrypt_big(v, client_key),
+            S::FheUint2(v) => decrypt_big(v, client_key),
+            S::FheUint6(v) => decrypt_big(v, client_key),
+            S::FheUint10(v) => decrypt_big(v, client_key),
+            S::FheUint12(v) => decrypt_big(v, client_key),
+            S::FheUint14(v) => decrypt_big(v, client_key),
+            S::FheInt2(v) => decrypt_big_signed(v, client_key),
+            S::FheInt4(v) => decrypt_big_signed(v, client_key),
+            S::FheInt6(v) => decrypt_big_signed(v, client_key),
+            S::FheInt8(v) => decrypt_big_signed(v, client_key),
+            S::FheInt10(v) => decrypt_big_signed(v, client_key),
+            S::FheInt12(v) => decrypt_big_signed(v, client_key),
+            S::FheInt14(v) => decrypt_big_signed(v, client_key),
+            S::FheInt16(v) => decrypt_big_signed(v, client_key),
+            S::FheInt32(v) => decrypt_big_signed(v, client_key),
+            S::FheInt64(v) => decrypt_big_signed(v, client_key),
+            S::FheInt128(v) => decrypt_big_signed(v, client_key),
+            S::FheInt160(v) => decrypt_big_signed(v, client_key),
+            S::FheInt256(v) => decrypt_big_signed(v, client_key),
+            S::FheAsciiString(()) | S::FheInt512(()) | S::FheInt1024(()) | S::FheInt2048(()) |
+            S::FheUint24(()) | S::FheUint40(()) | S::FheUint48(()) | S::FheUint56(()) |S::FheUint72(()) |
+            S::FheUint80(()) | S::FheUint88(()) | S::FheUint96(()) | S::FheUint104(()) |
+            S::FheUint112(()) | S::FheUint120(()) | S::FheUint136(()) | S::FheUint144(()) |
+            S::FheUint152(()) | S::FheUint168(()) | S::FheUint176(()) | S::FheUint184(()) |
+            S::FheUint192(()) | S::FheUint200(()) | S::FheUint208(()) | S::FheUint216(()) |
+            S::FheUint224(()) | S::FheUint232(()) | S::FheUint240(()) | S::FheUint248(()) |
+            S::FheInt24(()) | S::FheInt40(()) | S::FheInt48(()) | S::FheInt56(()) |
+            S::FheInt72(()) | S::FheInt80(()) | S::FheInt88(()) | S::FheInt96(()) |
+            S::FheInt104(()) | S::FheInt112(()) | S::FheInt120(()) | S::FheInt136(()) |
+            S::FheInt144(()) | S::FheInt152(()) | S::FheInt168(()) | S::FheInt176(()) |
+            S::FheInt184(()) | S::FheInt192(()) | S::FheInt200(()) | S::FheInt208(()) |
+            S::FheInt216(()) | S::FheInt224(()) | S::FheInt232(()) | S::FheInt240(()) |
+            S::FheInt248(())
+            => {
+                panic!("unsupported ciphertext")
             }
-            SupportedFheCiphertexts::FheUint8(v) => {
-                FheDecrypt::<u8>::decrypt(v, client_key).to_string()
-            }
-            SupportedFheCiphertexts::FheUint16(v) => {
-                FheDecrypt::<u16>::decrypt(v, client_key).to_string()
-            }
-            SupportedFheCiphertexts::FheUint32(v) => {
-                FheDecrypt::<u32>::decrypt(v, client_key).to_string()
-            }
-            SupportedFheCiphertexts::FheUint64(v) => {
-                FheDecrypt::<u64>::decrypt(v, client_key).to_string()
-            }
-            SupportedFheCiphertexts::FheUint128(v) => {
-                FheDecrypt::<u128>::decrypt(v, client_key).to_string()
-            }
-            SupportedFheCiphertexts::FheUint160(v) => {
-                let dec = FheDecrypt::<U256>::decrypt(v, client_key);
-                let mut slice: [u8; 32] = [0; 32];
-                dec.copy_to_be_byte_slice(&mut slice);
-                let final_slice = &slice[slice.len() - 20..];
-                BigInt::from_bytes_be(bigdecimal::num_bigint::Sign::Plus, final_slice).to_string()
-            }
-            SupportedFheCiphertexts::FheUint256(v) => {
-                let dec = FheDecrypt::<U256>::decrypt(v, client_key);
-                let mut slice: [u8; 32] = [0; 32];
-                dec.copy_to_be_byte_slice(&mut slice);
-                BigInt::from_bytes_be(bigdecimal::num_bigint::Sign::Plus, &slice).to_string()
-            }
-            SupportedFheCiphertexts::FheBytes64(v) => {
-                let dec = FheDecrypt::<StaticUnsignedBigInt<8>>::decrypt(v, client_key);
-                let mut slice: [u8; 64] = [0; 64];
-                dec.copy_to_be_byte_slice(&mut slice);
-                BigInt::from_bytes_be(bigdecimal::num_bigint::Sign::Plus, &slice).to_string()
-            }
-            SupportedFheCiphertexts::FheBytes128(v) => {
-                let dec = FheDecrypt::<StaticUnsignedBigInt<16>>::decrypt(v, client_key);
-                let mut slice: [u8; 128] = [0; 128];
-                dec.copy_to_be_byte_slice(&mut slice);
-                BigInt::from_bytes_be(bigdecimal::num_bigint::Sign::Plus, &slice).to_string()
-            }
-            SupportedFheCiphertexts::FheBytes256(v) => {
-                let dec = FheDecrypt::<StaticUnsignedBigInt<32>>::decrypt(v, client_key);
-                let mut slice: [u8; 256] = [0; 256];
-                dec.copy_to_be_byte_slice(&mut slice);
-                BigInt::from_bytes_be(bigdecimal::num_bigint::Sign::Plus, &slice).to_string()
-            }
-            SupportedFheCiphertexts::Scalar(v) => {
-                BigInt::from_bytes_be(bigdecimal::num_bigint::Sign::Plus, v).to_string()
-            }
+            S::Scalar(..) => {
+                panic!("unsupported scalar decryption")
+            },
         }
     }
 
     pub fn compress(&self) -> (i16, Vec<u8>) {
+        use SupportedFheCiphertexts as S;
         let type_num = self.type_num();
         let mut builder = CompressedCiphertextListBuilder::new();
-        match self {
-            SupportedFheCiphertexts::FheBool(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint4(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint8(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint16(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint32(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint64(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint128(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint160(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheUint256(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheBytes64(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheBytes128(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::FheBytes256(c) => builder.push(c.clone()),
-            SupportedFheCiphertexts::Scalar(_) => {
+        match self.clone() {
+            S::FheBool(c) => builder.push(c),
+            S::FheUint4(c) => builder.push(c),
+            S::FheUint8(c) => builder.push(c),
+            S::FheUint16(c) => builder.push(c),
+            S::FheUint32(c) => builder.push(c),
+            S::FheUint64(c) => builder.push(c),
+            S::FheUint128(c) => builder.push(c),
+            S::FheUint160(c) => builder.push(c),
+            S::FheUint256(c) => builder.push(c),
+            S::FheBytes64(c) => builder.push(c),
+            S::FheBytes128(c) => builder.push(c),
+            S::FheBytes256(c) => builder.push(c),
+            S::FheUint2(c) => builder.push(c),
+            S::FheUint6(c) => builder.push(c),
+            S::FheUint10(c) => builder.push(c),
+            S::FheUint12(c) => builder.push(c),
+            S::FheUint14(c) => builder.push(c),
+            S::FheInt2(c) => builder.push(c),
+            S::FheInt4(c) => builder.push(c),
+            S::FheInt6(c) => builder.push(c),
+            S::FheInt8(c) => builder.push(c),
+            S::FheInt10(c) => builder.push(c),
+            S::FheInt12(c) => builder.push(c),
+            S::FheInt14(c) => builder.push(c),
+            S::FheInt16(c) => builder.push(c),
+            S::FheInt32(c) => builder.push(c),
+            S::FheInt64(c) => builder.push(c),
+            S::FheInt128(c) => builder.push(c),
+            S::FheInt160(c) => builder.push(c),
+            S::FheInt256(c) => builder.push(c),
+            S::FheAsciiString(()) | S::FheInt512(()) | S::FheInt1024(()) | S::FheInt2048(()) |
+            S::FheUint24(()) | S::FheUint40(()) | S::FheUint48(()) | S::FheUint56(()) |S::FheUint72(()) |
+            S::FheUint80(()) | S::FheUint88(()) | S::FheUint96(()) | S::FheUint104(()) |
+            S::FheUint112(()) | S::FheUint120(()) | S::FheUint136(()) | S::FheUint144(()) |
+            S::FheUint152(()) | S::FheUint168(()) | S::FheUint176(()) | S::FheUint184(()) |
+            S::FheUint192(()) | S::FheUint200(()) | S::FheUint208(()) | S::FheUint216(()) |
+            S::FheUint224(()) | S::FheUint232(()) | S::FheUint240(()) | S::FheUint248(()) |
+            S::FheInt24(()) | S::FheInt40(()) | S::FheInt48(()) | S::FheInt56(()) |
+            S::FheInt72(()) | S::FheInt80(()) | S::FheInt88(()) | S::FheInt96(()) |
+            S::FheInt104(()) | S::FheInt112(()) | S::FheInt120(()) | S::FheInt136(()) |
+            S::FheInt144(()) | S::FheInt152(()) | S::FheInt168(()) | S::FheInt176(()) |
+            S::FheInt184(()) | S::FheInt192(()) | S::FheInt200(()) | S::FheInt208(()) |
+            S::FheInt216(()) | S::FheInt224(()) | S::FheInt232(()) | S::FheInt240(()) |
+            S::FheInt248(())
+            => {
+                panic!("unsupported ciphertext")
+            }
+            S::Scalar(_) => {
                 // TODO: Need to fix that, scalars are not ciphertexts.
                 panic!("cannot compress a scalar");
             }
@@ -580,20 +1063,93 @@ impl SupportedFheCiphertexts {
     }
 
     pub fn is_ebytes(&self) -> bool {
+        use SupportedFheCiphertexts as S;
         match self {
-            SupportedFheCiphertexts::FheBytes64(_)
-            | SupportedFheCiphertexts::FheBytes128(_)
-            | SupportedFheCiphertexts::FheBytes256(_) => true,
-            SupportedFheCiphertexts::FheBool(_)
-            | SupportedFheCiphertexts::FheUint4(_)
-            | SupportedFheCiphertexts::FheUint8(_)
-            | SupportedFheCiphertexts::FheUint16(_)
-            | SupportedFheCiphertexts::FheUint32(_)
-            | SupportedFheCiphertexts::FheUint64(_)
-            | SupportedFheCiphertexts::FheUint128(_)
-            | SupportedFheCiphertexts::FheUint160(_)
-            | SupportedFheCiphertexts::FheUint256(_)
-            | SupportedFheCiphertexts::Scalar(_) => false,
+            S::FheBytes64(_)
+            | S::FheBytes128(_)
+            | S::FheBytes256(_) => true,
+            S::FheBool(_)
+            | S::FheUint2(_)
+            | S::FheUint4(_)
+            | S::FheUint6(_)
+            | S::FheUint8(_)
+            | S::FheUint10(_)
+            | S::FheUint12(_)
+            | S::FheUint14(_)
+            | S::FheUint16(_)
+            | S::FheUint32(_)
+            | S::FheUint64(_)
+            | S::FheUint128(_)
+            | S::FheUint160(_)
+            | S::FheUint256(_)
+            | S::FheUint24(_)
+            | S::FheUint40(_)
+            | S::FheUint48(_)
+            | S::FheUint56(_)
+            | S::FheUint72(_)
+            | S::FheUint80(_)
+            | S::FheUint88(_)
+            | S::FheUint96(_)
+            | S::FheUint104(_)
+            | S::FheUint112(_)
+            | S::FheUint120(_)
+            | S::FheUint136(_)
+            | S::FheUint144(_)
+            | S::FheUint152(_)
+            | S::FheUint168(_)
+            | S::FheUint176(_)
+            | S::FheUint184(_)
+            | S::FheUint192(_)
+            | S::FheUint200(_)
+            | S::FheUint208(_)
+            | S::FheUint216(_)
+            | S::FheUint224(_)
+            | S::FheUint232(_)
+            | S::FheUint240(_)
+            | S::FheUint248(_)
+            | S::FheInt2(_)
+            | S::FheInt4(_)
+            | S::FheInt6(_)
+            | S::FheInt8(_)
+            | S::FheInt10(_)
+            | S::FheInt12(_)
+            | S::FheInt14(_)
+            | S::FheInt16(_)
+            | S::FheInt24(_)
+            | S::FheInt32(_)
+            | S::FheInt64(_)
+            | S::FheInt128(_)
+            | S::FheInt160(_)
+            | S::FheInt256(_)
+            | S::FheInt40(_)
+            | S::FheInt48(_)
+            | S::FheInt56(_)
+            | S::FheInt72(_)
+            | S::FheInt80(_)
+            | S::FheInt88(_)
+            | S::FheInt96(_)
+            | S::FheInt104(_)
+            | S::FheInt112(_)
+            | S::FheInt120(_)
+            | S::FheInt136(_)
+            | S::FheInt144(_)
+            | S::FheInt152(_)
+            | S::FheInt168(_)
+            | S::FheInt176(_)
+            | S::FheInt184(_)
+            | S::FheInt192(_)
+            | S::FheInt200(_)
+            | S::FheInt208(_)
+            | S::FheInt216(_)
+            | S::FheInt224(_)
+            | S::FheInt232(_)
+            | S::FheInt240(_)
+            | S::FheInt248(_)
+            | S::Scalar(_)
+            => false,
+            | S::FheAsciiString(()) | S::FheInt512(()) | S::FheInt1024(()) | S::FheInt2048(()) => {
+                panic!("cannot check if this ciphertext is an ebytes");
+            }
         }
     }
 }

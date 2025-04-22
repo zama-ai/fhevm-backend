@@ -150,9 +150,8 @@ impl SwitchAndSquashKey {
     /// computes SnS on all blocks in parallel.
     pub fn to_large_ciphertext(
         &self,
-        raw_small_ct: &Ciphertext64,
+        blocks: &[Ciphertext64Block],
     ) -> anyhow::Result<Ciphertext128> {
-        let blocks = raw_small_ct.blocks();
         // do switch and squash on all blocks in parallel
         let inner = blocks
             .par_iter()

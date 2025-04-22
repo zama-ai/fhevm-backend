@@ -237,13 +237,13 @@ fn process_tasks(tasks: &mut [HandleItem], keys: &KeySet) -> Result<(), Executio
 
     for task in tasks.iter_mut() {
         let ct = decompress_ct(&task.handle, &task.ct64_compressed)?;
-        let raw_ct = ct.to_ciphertext64();
+        let raw_ct_blocks = ct.to_ciphertext64();
         let handle = compact_hex(&task.handle);
 
-        let blocks = raw_ct.blocks().len();
-        info!(target: "sns",  { handle, blocks }, "Converting ciphertext");
+        let nb_blocks = raw_ct_blocks.len();
+        info!(target: "sns",  { handle, nb_blocks }, "Converting ciphertext");
 
-        let ciphertext128 = keys.sns_key.to_large_ciphertext(&raw_ct)?;
+        let ciphertext128 = keys.sns_key.to_large_ciphertext(&raw_ct_blocks)?;
 
         info!(target: "sns",  { handle }, "Ciphertext converted, blocks: {}", ciphertext128.len());
 
