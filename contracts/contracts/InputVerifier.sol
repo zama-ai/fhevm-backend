@@ -370,7 +370,9 @@ contract InputVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgrad
     /// @notice Computes the hash of a given CiphertextVerification structured data
     /// @param ctVerification The CiphertextVerification structure
     /// @return The hash of the CiphertextVerification structure
-    function _hashEIP712InputVerification(CiphertextVerification memory ctVerification) internal view virtual returns (bytes32) {
+    function _hashEIP712InputVerification(
+        CiphertextVerification memory ctVerification
+    ) internal view virtual returns (bytes32) {
         return
             _hashTypedDataV4(
                 keccak256(
