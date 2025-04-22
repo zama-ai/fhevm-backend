@@ -34,7 +34,14 @@ fn main() {
     let bench_name = "synthetic";
 
     let mut group = c.benchmark_group(bench_name);
-    for num_elems in [10, 50, 200, 500] {
+    for num_elems in [
+        10,
+        50,
+        200,
+        500,
+        #[cfg(feature = "gpu")]
+        2000,
+    ] {
         group.throughput(Throughput::Elements(num_elems));
         let bench_id = format!("{bench_name}::throughput::counter::FHEUint64::{num_elems}_elems");
         group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
