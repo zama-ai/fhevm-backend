@@ -34,7 +34,14 @@ fn main() {
     let bench_name = "erc20::transfer";
 
     let mut group = c.benchmark_group(bench_name);
-    for num_elems in [10, 50, 200, 500, 2000] {
+    for num_elems in [
+        10,
+        50,
+        200,
+        500,
+        #[cfg(feature = "gpu")]
+        2000,
+    ] {
         group.throughput(Throughput::Elements(num_elems));
         let bench_id =
             format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
