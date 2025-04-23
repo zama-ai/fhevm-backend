@@ -88,7 +88,7 @@ impl<'a> Scheduler<'a> {
 
     pub async fn schedule(&mut self) -> Result<()> {
         let schedule_type = std::env::var("FHEVM_DF_SCHEDULE");
-        //self.decompress_ciphertexts().await?;
+        self.decompress_ciphertexts().await?;
         match schedule_type {
             Ok(val) => match val.as_str() {
                 "MAX_PARALLELISM" => {
@@ -113,32 +113,32 @@ impl<'a> Scheduler<'a> {
         }
     }
 
-    // async fn decompress_ciphertexts(&mut self) -> Result<()> {
-    //     #[cfg(feature = "gpu")]
-    //     let sks = self.csks.clone();
-    //     #[cfg(not(feature = "gpu"))]
-    //     let sks = self.sks.clone();
-    //     tfhe::set_server_key(sks.clone());
-    //     rayon::broadcast(|_| {
-    //         tfhe::set_server_key(sks.clone());
-    //     });
-    //     self.graph.node_weights_mut().par_bridge().for_each(|node| {
-    //         let inputs = node
-    //             .inputs
-    //             .iter()
-    //             .map(|i| match i {
-    //                 DFGTaskInput::Value(i) => DFGTaskInput::Value(i.clone()),
-    //                 DFGTaskInput::Compressed((t, c)) => DFGTaskInput::Value(
-    //                     SupportedFheCiphertexts::decompress(*t, c)
-    //                         .expect("Could not decompress ciphertext"),
-    //                 ),
-    //                 DFGTaskInput::Dependence(d) => DFGTaskInput::Dependence(*d),
-    //             })
-    //             .collect();
-    //         node.inputs = inputs;
-    //     });
-    //     Ok(())
-    // }
+    async fn decompress_ciphertexts(&mut self) -> Result<()> {
+        #[cfg(feature = "gpu")]
+        let sks = self.csks.clone();
+        #[cfg(not(feature = "gpu"))]
+        let sks = self.sks.clone();
+        tfhe::set_server_key(sks.clone());
+        rayon::broadcast(|_| {
+            tfhe::set_server_key(sks.clone());
+        });
+        self.graph.node_weights_mut().par_bridge().for_each(|node| {
+            let inputs = node
+                .inputs
+                .iter()
+                .map(|i| match i {
+                    DFGTaskInput::Value(i) => DFGTaskInput::Value(i.clone()),
+                    DFGTaskInput::Compressed((t, c)) => DFGTaskInput::Value(
+                        SupportedFheCiphertexts::decompress(*t, c)
+                            .expect("Could not decompress ciphertext"),
+                    ),
+                    DFGTaskInput::Dependence(d) => DFGTaskInput::Dependence(*d),
+                })
+                .collect();
+            node.inputs = inputs;
+        });
+        Ok(())
+    }
 
     async fn schedule_fine_grain(&mut self) -> Result<()> {
         let mut set: JoinSet<TaskResult> = JoinSet::new();
@@ -610,7 +610,7 @@ fn run_computation(
         Ok(_) => match perform_fhe_operation(operation as i16, &inputs) {
             Ok(result) => {
                 let (ct_type, ct_bytes) = result.compress();
-                (graph_node_index, Ok((result.clone(), ct_type, ct_bytes)))
+                (graph_node_index, Ok((result, ct_type, ct_bytes)))
             }
             Err(e) => (graph_node_index, Err(e.into())),
         },
