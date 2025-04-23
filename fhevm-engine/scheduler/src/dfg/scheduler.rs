@@ -88,7 +88,6 @@ impl<'a> Scheduler<'a> {
 
     pub async fn schedule(&mut self) -> Result<()> {
         let schedule_type = std::env::var("FHEVM_DF_SCHEDULE");
-        self.decompress_ciphertexts().await?;
         match schedule_type {
             Ok(val) => match val.as_str() {
                 "MAX_PARALLELISM" => {
@@ -111,33 +110,6 @@ impl<'a> Scheduler<'a> {
             #[cfg(feature = "gpu")]
             _ => self.schedule_component_loop_gpu().await,
         }
-    }
-
-    async fn decompress_ciphertexts(&mut self) -> Result<()> {
-        #[cfg(feature = "gpu")]
-        let sks = self.csks.clone();
-        #[cfg(not(feature = "gpu"))]
-        let sks = self.sks.clone();
-        tfhe::set_server_key(sks.clone());
-        rayon::broadcast(|_| {
-            tfhe::set_server_key(sks.clone());
-        });
-        self.graph.node_weights_mut().par_bridge().for_each(|node| {
-            let inputs = node
-                .inputs
-                .iter()
-                .map(|i| match i {
-                    DFGTaskInput::Value(i) => DFGTaskInput::Value(i.clone()),
-                    DFGTaskInput::Compressed((t, c)) => DFGTaskInput::Value(
-                        SupportedFheCiphertexts::decompress(*t, c)
-                            .expect("Could not decompress ciphertext"),
-                    ),
-                    DFGTaskInput::Dependence(d) => DFGTaskInput::Dependence(*d),
-                })
-                .collect();
-            node.inputs = inputs;
-        });
-        Ok(())
     }
 
     async fn schedule_fine_grain(&mut self) -> Result<()> {
