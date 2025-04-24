@@ -98,17 +98,11 @@ impl<'a> Scheduler<'a> {
                     self.schedule_coarse_grain(PartitionStrategy::MaxLocality)
                         .await
                 }
-                #[cfg(not(feature = "gpu"))]
                 "LOOP" => self.schedule_component_loop().await,
-                #[cfg(feature = "gpu")]
-                "LOOP" => self.schedule_component_loop_gpu().await,
                 "FINE_GRAIN" => self.schedule_fine_grain().await,
                 unhandled => panic!("Scheduling strategy {:?} does not exist", unhandled),
             },
-            #[cfg(not(feature = "gpu"))]
             _ => self.schedule_component_loop().await,
-            #[cfg(feature = "gpu")]
-            _ => self.schedule_component_loop_gpu().await,
         }
     }
 
@@ -336,7 +330,7 @@ impl<'a> Scheduler<'a> {
     }
 
     #[cfg(feature = "gpu")]
-    async fn schedule_component_loop_gpu(&mut self) -> Result<()> {
+    async fn schedule_component_loop(&mut self) -> Result<()> {
         let mut execution_graph: Dag<ExecNode, ()> = Dag::default();
         let _ = partition_components(self.graph, &mut execution_graph);
         let mut comps = vec![];
@@ -367,7 +361,7 @@ impl<'a> Scheduler<'a> {
         let keys = self.csks.clone();
         let (src, dest) = channel();
         tokio::task::spawn_blocking(move || {
-            let num_streams_per_gpu = 8; // TODO: add config variable for this
+            let num_streams_per_gpu = 10; // TODO: add config variable for this
             let chunk_size = comps.len() / keys.len() + (comps.len() % keys.len() != 0) as usize;
 
             comps
