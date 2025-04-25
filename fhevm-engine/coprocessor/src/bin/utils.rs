@@ -19,11 +19,6 @@ pub struct Args {
 /// Extracts the server key without noise squashing from the given path and saves it to the destination path.
 pub fn extract_server_key_without_ns(src_path: String, dest_path: String) {
     let dest_path = Path::new(&dest_path);
-    if dest_path.exists() {
-        error!("Destination file already exists");
-        return;
-    }
-
     let src_path = Path::new(&src_path);
     info!("Reading server key from file {:?}", src_path);
 
