@@ -11,7 +11,7 @@ RUN apt-get update && \
 
 # Copy migrations and initialization script
 COPY fhevm-engine/ /fhevm-engine
-COPY ./proto/ ./proto/
+COPY proto/ /proto/
 
 WORKDIR /fhevm-engine
 # Build utils binary
