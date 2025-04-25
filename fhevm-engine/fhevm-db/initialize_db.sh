@@ -39,7 +39,7 @@ KEY_ID_HEX="\\x${KEY_ID}"
 
 # Extract small ServerKey from ServerKey with noise squashing keys
 SKS_FILE="/tmp/sks"
-/usr/local/bin/utils --src-path $SNS_PK_FILE --dst-path $SKS_FILE
+/usr/local/bin/utils extract-sks-without-noise --src-path $SNS_PK_FILE --dst-path $SKS_FILE
 
 for file in "$PKS_FILE" "$SKS_FILE" "$PUBLIC_PARAMS_FILE" "$SNS_PK_FILE"; do
     if [[ ! -f $file ]]; then
