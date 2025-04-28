@@ -173,16 +173,16 @@ async fn setup_test_app_custom_docker() -> Result<TestInstance, Box<dyn std::err
 }
 
 pub async fn wait_until_all_ciphertexts_computed(
-    test_instance: &TestInstance,
+    db_url: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let pool = sqlx::postgres::PgPoolOptions::new()
         .max_connections(2)
-        .connect(test_instance.db_url())
+        .connect(&db_url)
         .await?;
 
     loop {
         tokio::time::sleep(tokio::time::Duration::from_millis(3000)).await;
-        let count = sqlx::query!("SELECT count(*) FROM computations WHERE NOT is_completed")
+        let count = sqlx::query!("SELECT count(1) FROM computations WHERE NOT is_completed")
             .fetch_one(&pool)
             .await?;
         let current_count = count.count.unwrap();

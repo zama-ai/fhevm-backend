@@ -222,9 +222,15 @@ async fn schedule_erc20_whitepaper(
     let _resp = client.async_compute(compute_request).await.unwrap();
 
     bencher.to_async(FuturesExecutor).iter(|| async {
+        let db_url = app.db_url().to_string();
         let now = SystemTime::now();
-        wait_until_all_ciphertexts_computed(&app).await.unwrap();
-        println!("Execution time: {}", now.elapsed().unwrap().as_millis());
+        let _ = tokio::task::spawn_blocking(move || {
+            Runtime::new()
+                .unwrap()
+                .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
+            println!("Execution time: {}", now.elapsed().unwrap().as_millis());
+        })
+        .await;
     });
 
     let params = keys.cks.computation_parameters();
@@ -388,9 +394,15 @@ async fn schedule_erc20_no_cmux(
     let _resp = client.async_compute(compute_request).await?;
 
     bencher.to_async(FuturesExecutor).iter(|| async {
+        let db_url = app.db_url().to_string();
         let now = SystemTime::now();
-        wait_until_all_ciphertexts_computed(&app).await.unwrap();
-        println!("Execution time: {}", now.elapsed().unwrap().as_millis());
+        let _ = tokio::task::spawn_blocking(move || {
+            Runtime::new()
+                .unwrap()
+                .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
+            println!("Execution time: {}", now.elapsed().unwrap().as_millis());
+        })
+        .await;
     });
 
     let params = keys.cks.computation_parameters();
@@ -580,9 +592,15 @@ async fn schedule_dependent_erc20_no_cmux(
     let _resp = client.async_compute(compute_request).await?;
 
     bencher.to_async(FuturesExecutor).iter(|| async {
+        let db_url = app.db_url().to_string();
         let now = SystemTime::now();
-        wait_until_all_ciphertexts_computed(&app).await.unwrap();
-        println!("Execution time: {}", now.elapsed().unwrap().as_millis());
+        let _ = tokio::task::spawn_blocking(move || {
+            Runtime::new()
+                .unwrap()
+                .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
+            println!("Execution time: {}", now.elapsed().unwrap().as_millis());
+        })
+        .await;
     });
 
     let params = keys.cks.computation_parameters();
