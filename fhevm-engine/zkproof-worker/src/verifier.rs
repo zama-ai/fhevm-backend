@@ -25,6 +25,7 @@ use tokio::{select, time::Duration};
 use tracing::{debug, error, info};
 
 const MAX_CACHED_TENANT_KEYS: usize = 100;
+const EVENT_CIPHERTEXT_COMPUTED: &str = "event_ciphertext_computed";
 
 pub(crate) struct Ciphertext {
     handle: Vec<u8>,
@@ -358,6 +359,15 @@ pub(crate) async fn insert_ciphertexts(
         .execute(&mut *tx)
         .await?;
     }
+
+    // Notify all workers that new ciphertext is inserted
+    // For now, it's only the SnS workers that are listening for these events
+    let _ = sqlx::query!(
+        "SELECT pg_notify($1, 'zk-worker')",
+        EVENT_CIPHERTEXT_COMPUTED
+    )
+    .execute(&mut *tx)
+    .await?;
 
     tx.commit().await?;
     Ok(())
