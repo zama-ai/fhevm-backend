@@ -33,7 +33,8 @@ pub(crate) struct Ciphertext {
     ct_version: i16,
 }
 
-/// Executes the main loop for handling verify_proofs requests inserted in the database
+/// Executes the main loop for handling verify_proofs requests inserted in the
+/// database
 pub async fn execute_verify_proofs_loop(conf: &Config) -> Result<(), ExecutionError> {
     info!("Starting with config {:?}", conf);
 
