@@ -361,7 +361,7 @@ impl<'a> Scheduler<'a> {
         let keys = self.csks.clone();
         let (src, dest) = channel();
         tokio::task::spawn_blocking(move || {
-            let num_streams_per_gpu = 4; // TODO: add config variable for this
+            let num_streams_per_gpu = 8; // TODO: add config variable for this
             let chunk_size = comps.len() / keys.len() + (comps.len() % keys.len() != 0) as usize;
 
             comps
