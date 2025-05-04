@@ -95,9 +95,9 @@ async fn start_coprocessor(rx: Receiver<bool>, app_port: u16, db_url: &str, batc
         server_maximum_ciphertexts_to_get: 20000,
         work_items_batch_size: batch_size,
         tenant_key_cache_size: 4,
-        coprocessor_fhe_threads: 4,
+        coprocessor_fhe_threads: 64,
         maximum_handles_per_input: 255,
-        tokio_threads: 2,
+        tokio_threads: 16,
         pg_pool_max_connections: 2,
         server_addr: format!("127.0.0.1:{app_port}"),
         metrics_addr: "".to_string(),
@@ -181,7 +181,7 @@ pub async fn wait_until_all_ciphertexts_computed(
         .await?;
 
     loop {
-        tokio::time::sleep(tokio::time::Duration::from_millis(3000)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
         let count = sqlx::query!("SELECT count(1) FROM computations WHERE NOT is_completed")
             .fetch_one(&pool)
             .await?;

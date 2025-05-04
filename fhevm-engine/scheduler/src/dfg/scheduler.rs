@@ -348,7 +348,6 @@ impl<'a> Scheduler<'a> {
         // Prime the scheduler with all nodes without dependences
         let mut rr = 0;
         for idx in 0..execution_graph.node_count() {
-            let sks = sks.clone();
             let index = NodeIndex::new(idx);
             let node = execution_graph
                 .node_weight_mut(index)
@@ -399,7 +398,6 @@ impl<'a> Scheduler<'a> {
                 self.graph[node_index].result = Some(node_result);
             }
             for edge in task_dependences.edges_directed(task_index, Direction::Outgoing) {
-                let sks = sks.clone();
                 let dependent_task_index = edge.target();
                 let dependent_task = execution_graph
                     .node_weight_mut(dependent_task_index)
