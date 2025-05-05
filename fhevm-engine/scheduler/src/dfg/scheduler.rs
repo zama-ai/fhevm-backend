@@ -25,6 +25,8 @@ use tokio::task::JoinSet;
 struct ExecNode {
     df_nodes: Vec<NodeIndex>,
     dependence_counter: AtomicUsize,
+    #[cfg(feature = "gpu")]
+    locality: i32,
 }
 
 pub enum PartitionStrategy {
@@ -333,7 +335,7 @@ impl<'a> Scheduler<'a> {
     #[cfg(feature = "gpu")]
     async fn schedule_coarse_grain(&mut self, strategy: PartitionStrategy) -> Result<()> {
         let keys = self.csks.clone();
-        let mut set: JoinSet<(Vec<TaskResult>, NodeIndex)> = JoinSet::new();
+        let mut set: JoinSet<Vec<(Vec<TaskResult>, NodeIndex)>> = JoinSet::new();
         let mut execution_graph: Dag<ExecNode, ()> = Dag::default();
         let _ = match strategy {
             PartitionStrategy::MaxLocality => {
@@ -346,81 +348,121 @@ impl<'a> Scheduler<'a> {
         let task_dependences = execution_graph.map(|_, _| (), |_, edge| *edge);
 
         // Prime the scheduler with all nodes without dependences
-        let mut rr = 0;
-        for idx in 0..execution_graph.node_count() {
-            let index = NodeIndex::new(idx);
-            let node = execution_graph
-                .node_weight_mut(index)
-                .ok_or(SchedulerError::DataflowGraphError)?;
-            if self.is_ready_task(node) {
-                let mut args = Vec::with_capacity(node.df_nodes.len());
-                for nidx in node.df_nodes.iter() {
-                    let n = self
-                        .graph
-                        .node_weight_mut(*nidx)
+        // Split the execution graph in as many partitions as we have GPUs
+        let num_components = execution_graph.node_count();
+        let num_streams_per_gpu = 8; // TODO: add config variable for this
+        let chunk_size = num_components / keys.len() + (num_components % keys.len() != 0) as usize;
+
+        // Split into as many chunks as we have GPUs
+        let mut gpu_id = 0;
+        for chunk in (0..num_components).collect::<Vec<_>>().chunks(chunk_size) {
+            let stream_chunk_size = chunk.len() / num_streams_per_gpu
+                + (chunk.len() % num_streams_per_gpu != 0) as usize;
+            let key = keys[gpu_id].clone();
+            for stream_chunk in chunk.chunks(stream_chunk_size) {
+	        let key = key.clone();
+	        let mut params = vec![];
+                for idx in stream_chunk {
+                    let index = NodeIndex::new(*idx);
+                    let node = execution_graph
+                        .node_weight_mut(index)
                         .ok_or(SchedulerError::DataflowGraphError)?;
-                    let opcode = n.opcode;
-                    args.push((opcode, std::mem::take(&mut n.inputs), *nidx));
+                    if self.is_ready_task(node) {
+                        let mut args = Vec::with_capacity(node.df_nodes.len());
+                        for nidx in node.df_nodes.iter() {
+                            let n = self
+                                .graph
+                                .node_weight_mut(*nidx)
+                                .ok_or(SchedulerError::DataflowGraphError)?;
+                            let opcode = n.opcode;
+                            args.push((opcode, std::mem::take(&mut n.inputs), *nidx));
+                        }
+                        node.locality = gpu_id as i32;
+                        params.push((args, index));
+                    }
                 }
-                let key = keys[rr % keys.len()].clone();
-                rr += 1;
                 set.spawn_blocking(move || {
                     tfhe::set_server_key(key);
-                    execute_partition(args, index)
+                    let mut res = vec![];
+                    for p in params {
+                        res.push(execute_partition(p.0, p.1));
+                    }
+                    res
                 });
             }
+            gpu_id += 1;
         }
         // Get results from computations and update dependences of remaining computations
-        while let Some(result) = set.join_next().await {
-            let mut result = result?;
-            let task_index = result.1;
-            while let Some((node_index, node_result)) = result.0.pop() {
-                let node_index = NodeIndex::new(node_index);
-                // If this node result is an error, we can't satisfy
-                // any dependences with it, so skip - all dependences
-                // on this will remain unsatisfied and result in
-                // further errors.
-                if node_result.is_ok() {
-                    // Satisfy deps from the executed computation in the DFG
-                    for edge in self.edges.edges_directed(node_index, Direction::Outgoing) {
-                        let child_index = edge.target();
-                        let child_node = self
-                            .graph
-                            .node_weight_mut(child_index)
-                            .ok_or(SchedulerError::DataflowGraphError)?;
-                        if !child_node.inputs.is_empty() {
-                            // Here cannot be an error
-                            child_node.inputs[*edge.weight() as usize] =
-                                DFGTaskInput::Value(node_result.as_ref().unwrap().0.clone());
+        while let Some(results) = set.join_next().await {
+            for mut result in results? {
+                let task_index = result.1;
+                while let Some((node_index, node_result)) = result.0.pop() {
+                    let node_index = NodeIndex::new(node_index);
+                    // If this node result is an error, we can't satisfy
+                    // any dependences with it, so skip - all dependences
+                    // on this will remain unsatisfied and result in
+                    // further errors.
+                    if node_result.is_ok() {
+                        // Satisfy deps from the executed computation in the DFG
+                        for edge in self.edges.edges_directed(node_index, Direction::Outgoing) {
+                            let child_index = edge.target();
+                            let child_node = self
+                                .graph
+                                .node_weight_mut(child_index)
+                                .ok_or(SchedulerError::DataflowGraphError)?;
+                            if !child_node.inputs.is_empty() {
+                                // Here cannot be an error
+                                child_node.inputs[*edge.weight() as usize] =
+                                    DFGTaskInput::Value(node_result.as_ref().unwrap().0.clone());
+                            }
                         }
                     }
+                    self.graph[node_index].result = Some(node_result);
                 }
-                self.graph[node_index].result = Some(node_result);
-            }
-            for edge in task_dependences.edges_directed(task_index, Direction::Outgoing) {
-                let dependent_task_index = edge.target();
-                let dependent_task = execution_graph
-                    .node_weight_mut(dependent_task_index)
-                    .ok_or(SchedulerError::DataflowGraphError)?;
-                dependent_task
-                    .dependence_counter
-                    .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
-                if self.is_ready_task(dependent_task) {
-                    let mut args = Vec::with_capacity(dependent_task.df_nodes.len());
-                    for nidx in dependent_task.df_nodes.iter() {
-                        let n = self
-                            .graph
-                            .node_weight_mut(*nidx)
-                            .ok_or(SchedulerError::DataflowGraphError)?;
-                        let opcode = n.opcode;
-                        args.push((opcode, std::mem::take(&mut n.inputs), *nidx));
+                for edge in task_dependences.edges_directed(task_index, Direction::Outgoing) {
+                    let dependent_task_index = edge.target();
+                    let dependent_task = execution_graph
+                        .node_weight_mut(dependent_task_index)
+                        .ok_or(SchedulerError::DataflowGraphError)?;
+                    dependent_task
+                        .dependence_counter
+                        .fetch_sub(1, std::sync::atomic::Ordering::SeqCst);
+                    if self.is_ready_task(dependent_task) {
+                        let mut args = Vec::with_capacity(dependent_task.df_nodes.len());
+                        for nidx in dependent_task.df_nodes.iter() {
+                            let n = self
+                                .graph
+                                .node_weight_mut(*nidx)
+                                .ok_or(SchedulerError::DataflowGraphError)?;
+                            let opcode = n.opcode;
+                            args.push((opcode, std::mem::take(&mut n.inputs), *nidx));
+                        }
+                        // Determine best fit for data locality (which GPU has most data already)
+                        let mut in_sources = vec![0; keys.len()];
+                        for e in task_dependences
+                            .edges_directed(dependent_task_index, Direction::Incoming)
+                        {
+                            let source_index = e.source();
+                            let source_task = execution_graph
+                                .node_weight(source_index)
+                                .ok_or(SchedulerError::DataflowGraphError)?;
+                            in_sources[source_task.locality as usize] += 1;
+                        }
+                        let loc = in_sources
+                            .iter()
+                            .enumerate()
+                            .max_by_key(|(_idx, &val)| val)
+                            .unwrap().0;
+                    let dependent_task = execution_graph
+                        .node_weight_mut(dependent_task_index)
+                        .ok_or(SchedulerError::DataflowGraphError)?;
+                        dependent_task.locality = loc as i32;
+                        let key = keys[loc].clone();
+                        set.spawn_blocking(move || {
+                            tfhe::set_server_key(key);
+                            vec![execute_partition(args, dependent_task_index)]
+                        });
                     }
-                    let key = keys[rr % keys.len()].clone();
-                    rr += 1;
-                    set.spawn_blocking(move || {
-                        tfhe::set_server_key(key);
-                        execute_partition(args, dependent_task_index)
-                    });
                 }
             }
         }
@@ -563,6 +605,7 @@ fn partition_preserving_parallelism(
             let ex_node = execution_graph.add_node(ExecNode {
                 df_nodes: vec![],
                 dependence_counter: AtomicUsize::new(usize::MAX),
+                locality: -1,
             });
             for n in df_nodes.iter() {
                 node_map.insert(*n, ex_node);
@@ -605,6 +648,7 @@ fn partition_components(
                 .add_node(ExecNode {
                     df_nodes,
                     dependence_counter: AtomicUsize::new(0),
+                    locality: -1,
                 })
                 .index();
         }
