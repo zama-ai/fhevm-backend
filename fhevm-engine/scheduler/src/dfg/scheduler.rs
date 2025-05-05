@@ -360,8 +360,8 @@ impl<'a> Scheduler<'a> {
                 + (chunk.len() % num_streams_per_gpu != 0) as usize;
             let key = keys[gpu_id].clone();
             for stream_chunk in chunk.chunks(stream_chunk_size) {
-	        let key = key.clone();
-	        let mut params = vec![];
+                let key = key.clone();
+                let mut params = vec![];
                 for idx in stream_chunk {
                     let index = NodeIndex::new(*idx);
                     let node = execution_graph
@@ -438,24 +438,26 @@ impl<'a> Scheduler<'a> {
                             args.push((opcode, std::mem::take(&mut n.inputs), *nidx));
                         }
                         // Determine best fit for data locality (which GPU has most data already)
-                        let mut in_sources = vec![0; keys.len()];
-                        for e in task_dependences
-                            .edges_directed(dependent_task_index, Direction::Incoming)
-                        {
-                            let source_index = e.source();
-                            let source_task = execution_graph
-                                .node_weight(source_index)
-                                .ok_or(SchedulerError::DataflowGraphError)?;
-                            in_sources[source_task.locality as usize] += 1;
-                        }
-                        let loc = in_sources
-                            .iter()
-                            .enumerate()
-                            .max_by_key(|(_idx, &val)| val)
-                            .unwrap().0;
-                    let dependent_task = execution_graph
-                        .node_weight_mut(dependent_task_index)
-                        .ok_or(SchedulerError::DataflowGraphError)?;
+                        // let mut in_sources = vec![0; keys.len()];
+                        // for e in task_dependences
+                        //     .edges_directed(dependent_task_index, Direction::Incoming)
+                        // {
+                        //     let source_index = e.source();
+                        //     let source_task = execution_graph
+                        //         .node_weight(source_index)
+                        //         .ok_or(SchedulerError::DataflowGraphError)?;
+                        //     in_sources[source_task.locality as usize] += 1;
+                        // }
+                        // let loc = in_sources
+                        //     .iter()
+                        //     .enumerate()
+                        //     .max_by_key(|(_idx, &val)| val)
+                        //     .unwrap().0;
+                        let loc = gpu_id % keys.len();
+                        gpu_id += 1;
+                        let dependent_task = execution_graph
+                            .node_weight_mut(dependent_task_index)
+                            .ok_or(SchedulerError::DataflowGraphError)?;
                         dependent_task.locality = loc as i32;
                         let key = keys[loc].clone();
                         set.spawn_blocking(move || {
