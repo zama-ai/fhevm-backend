@@ -347,6 +347,7 @@ impl<'a> Scheduler<'a> {
         };
         let task_dependences = execution_graph.map(|_, _| (), |_, edge| *edge);
 
+        let now = std::time::SystemTime::now();
         // Prime the scheduler with all nodes without dependences
         let mut rr = 0;
         for idx in 0..execution_graph.node_count() {
@@ -426,6 +427,11 @@ impl<'a> Scheduler<'a> {
                 }
             }
         }
+        println!(
+            "Scheduler time for block of {}: {}",
+            self.graph.node_count(),
+            now.elapsed().unwrap().as_millis()
+        );
         Ok(())
     }
 
