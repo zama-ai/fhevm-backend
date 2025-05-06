@@ -95,7 +95,7 @@ async fn start_coprocessor(rx: Receiver<bool>, app_port: u16, db_url: &str, batc
         server_maximum_ciphertexts_to_get: 20000,
         work_items_batch_size: batch_size,
         tenant_key_cache_size: 4,
-        coprocessor_fhe_threads: 64,
+        coprocessor_fhe_threads: 128,
         maximum_handles_per_input: 255,
         tokio_threads: 16,
         pg_pool_max_connections: 2,
