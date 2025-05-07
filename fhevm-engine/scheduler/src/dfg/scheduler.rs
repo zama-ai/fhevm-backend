@@ -108,6 +108,7 @@ impl<'a> Scheduler<'a> {
         }
     }
 
+    #[cfg(not(feature = "gpu"))]
     async fn schedule_fine_grain(&mut self) -> Result<()> {
         let mut set: JoinSet<TaskResult> = JoinSet::new();
         //#[cfg(feature = "gpu")]
@@ -333,6 +334,88 @@ impl<'a> Scheduler<'a> {
     }
 
     #[cfg(feature = "gpu")]
+    async fn schedule_fine_grain(&mut self) -> Result<()> {
+        let now = std::time::SystemTime::now();
+        let mut set: JoinSet<TaskResult> = JoinSet::new();
+        let keys = self.csks.clone();
+        let mut rr = 0;
+        // Prime the scheduler with all nodes without dependences
+        for idx in 0..self.graph.node_count() {
+            let index = NodeIndex::new(idx);
+            let node = self
+                .graph
+                .node_weight_mut(index)
+                .ok_or(SchedulerError::DataflowGraphError)?;
+            if Self::is_ready(node) {
+                let opcode = node.opcode;
+                let inputs: Vec<SupportedFheCiphertexts> = node
+                    .inputs
+                    .iter()
+                    .map(|i| match i {
+                        DFGTaskInput::Value(i) => Ok(i.clone()),
+                        DFGTaskInput::Compressed((t, c)) => {
+                            SupportedFheCiphertexts::decompress(*t, c)
+                        }
+                        _ => Err(SchedulerError::UnsatisfiedDependence.into()),
+                    })
+                    .collect::<Result<Vec<_>>>()?;
+                let key = keys[rr % keys.len()].clone();
+                rr += 1;
+                set.spawn_blocking(move || {
+                    tfhe::set_server_key(key);
+                    run_computation(opcode, inputs, idx)
+                });
+            }
+        }
+        // Get results from computations and update dependences of remaining computations
+        while let Some(result) = set.join_next().await {
+            let result = result?;
+            let index = result.0;
+            let node_index = NodeIndex::new(index);
+            if let Ok(output) = &result.1 {
+                // Satisfy deps from the executed task
+                for edge in self.edges.edges_directed(node_index, Direction::Outgoing) {
+                    let child_index = edge.target();
+                    let child_node = self
+                        .graph
+                        .node_weight_mut(child_index)
+                        .ok_or(SchedulerError::DataflowGraphError)?;
+                    child_node.inputs[*edge.weight() as usize] =
+                        DFGTaskInput::Value(output.0.clone());
+                    if Self::is_ready(child_node) {
+                        let opcode = child_node.opcode;
+                        let inputs: Vec<SupportedFheCiphertexts> = child_node
+                            .inputs
+                            .iter()
+                            .map(|i| match i {
+                                DFGTaskInput::Value(i) => Ok(i.clone()),
+                                DFGTaskInput::Compressed((t, c)) => {
+                                    SupportedFheCiphertexts::decompress(*t, c)
+                                }
+                                _ => Err(SchedulerError::UnsatisfiedDependence.into()),
+                            })
+                            .collect::<Result<Vec<_>>>()?;
+                        let key = keys[rr % keys.len()].clone();
+                        rr += 1;
+                        set.spawn_blocking(move || {
+                            tfhe::set_server_key(key);
+                            run_computation(opcode, inputs, child_index.index())
+                        });
+                    }
+                }
+            }
+            let node_index = NodeIndex::new(result.0);
+            self.graph[node_index].result = Some(result.1);
+        }
+        println!(
+            "Scheduler time for block of {}: {}",
+            self.graph.node_count(),
+            now.elapsed().unwrap().as_millis()
+        );
+        Ok(())
+    }
+
+    #[cfg(feature = "gpu")]
     async fn schedule_coarse_grain(&mut self, strategy: PartitionStrategy) -> Result<()> {
         let keys = self.csks.clone();
         let mut set: JoinSet<(Vec<TaskResult>, NodeIndex)> = JoinSet::new();
@@ -346,7 +429,6 @@ impl<'a> Scheduler<'a> {
             }
         };
         let task_dependences = execution_graph.map(|_, _| (), |_, edge| *edge);
-
         let now = std::time::SystemTime::now();
         // Prime the scheduler with all nodes without dependences
         let mut rr = 0;
@@ -580,6 +662,7 @@ impl<'a> Scheduler<'a> {
         let _ = partition_components(self.graph, &mut execution_graph);
         let mut comps = vec![];
 
+        let now = std::time::SystemTime::now();
         // Prime the scheduler with all nodes without dependences
         for idx in 0..execution_graph.node_count() {
             let index = NodeIndex::new(idx);
@@ -643,6 +726,11 @@ impl<'a> Scheduler<'a> {
                 self.graph[node_index].result = Some(o.1);
             }
         }
+        println!(
+            "Scheduler time for block of {}: {}",
+            self.graph.node_count(),
+            now.elapsed().unwrap().as_millis()
+        );
         Ok(())
     }
 }
