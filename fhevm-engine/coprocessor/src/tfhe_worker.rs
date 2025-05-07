@@ -105,6 +105,7 @@ async fn tfhe_worker_cycle(
         s.end();
         // This query locks our work items so other worker doesn't select them.
         let mut s = tracer.start_with_context("query_work_items", &loop_ctx);
+        let now = std::time::SystemTime::now();
         let the_work = query!(
             "
             SELECT tenant_id, output_handle, dependencies, fhe_operation, is_scalar
@@ -119,6 +120,11 @@ async fn tfhe_worker_cycle(
         )
         .fetch_all(trx.as_mut())
         .await?;
+        println!(
+            "Query work time for block of {}: {}",
+            the_work.len(),
+            now.elapsed().unwrap().as_millis()
+        );
         s.set_attribute(KeyValue::new("count", the_work.len() as i64));
         s.end();
         immedially_poll_more_work = !the_work.is_empty();
