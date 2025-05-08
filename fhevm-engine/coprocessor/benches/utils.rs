@@ -181,7 +181,7 @@ pub async fn wait_until_all_ciphertexts_computed(
         .await?;
 
     loop {
-        tokio::time::sleep(tokio::time::Duration::from_millis(300)).await;
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
         let count = sqlx::query!("SELECT count(1) FROM computations WHERE NOT is_completed")
             .fetch_one(&pool)
             .await?;
