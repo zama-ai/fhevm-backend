@@ -360,6 +360,7 @@ impl<'a> Scheduler<'a> {
                     })
                     .collect::<Result<Vec<_>>>()?;
                 let key = keys[rr % keys.len()].clone();
+                node.locality = (rr % keys.len()) as i32;
                 rr += 1;
                 set.spawn_blocking(move || {
                     tfhe::set_server_key(key);
@@ -372,6 +373,7 @@ impl<'a> Scheduler<'a> {
             let result = result?;
             let index = result.0;
             let node_index = NodeIndex::new(index);
+            let loc = self.graph[node_index].locality;
             if let Ok(output) = &result.1 {
                 // Satisfy deps from the executed task
                 for edge in self.edges.edges_directed(node_index, Direction::Outgoing) {
@@ -380,6 +382,7 @@ impl<'a> Scheduler<'a> {
                         .graph
                         .node_weight_mut(child_index)
                         .ok_or(SchedulerError::DataflowGraphError)?;
+                    child_node.locality = loc;
                     child_node.inputs[*edge.weight() as usize] =
                         DFGTaskInput::Value(output.0.clone());
                     if Self::is_ready(child_node) {
@@ -395,8 +398,14 @@ impl<'a> Scheduler<'a> {
                                 _ => Err(SchedulerError::UnsatisfiedDependence.into()),
                             })
                             .collect::<Result<Vec<_>>>()?;
-                        let key = keys[rr % keys.len()].clone();
-                        rr += 1;
+                        let loc = if child_node.locality == -1 {
+                            let loc = rr % keys.len();
+                            rr += 1;
+                            loc
+                        } else {
+                            child_node.locality as usize
+                        };
+                        let key = keys[loc].clone();
                         set.spawn_blocking(move || {
                             tfhe::set_server_key(key);
                             run_computation(opcode, inputs, child_index.index())

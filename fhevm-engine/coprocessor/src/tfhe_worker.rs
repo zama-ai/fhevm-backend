@@ -77,6 +77,9 @@ async fn tfhe_worker_cycle(
         .connect(&db_url)
         .await?;
 
+    #[cfg(feature = "bench")]
+    populate_cache_with_tenant_keys(vec![1i32], &pool, &tenant_key_cache).await?;
+
     let mut listener = PgListener::connect_with(&pool).await.unwrap();
     listener.listen("work_available").await?;
 
@@ -464,5 +467,10 @@ async fn tfhe_worker_cycle(
         trx.commit().await?;
 
         let _guard = loop_ctx.attach();
+
+        println!(
+            "Full worker cycle work time for block: {}",
+            now.elapsed().unwrap().as_millis()
+        );
     }
 }
