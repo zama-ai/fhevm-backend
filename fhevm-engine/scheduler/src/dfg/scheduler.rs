@@ -807,6 +807,7 @@ fn partition_preserving_parallelism(
             let ex_node = execution_graph.add_node(ExecNode {
                 df_nodes: vec![],
                 dependence_counter: AtomicUsize::new(usize::MAX),
+                #[cfg(feature = "gpu")]
                 locality: -1,
             });
             for n in df_nodes.iter() {
@@ -850,6 +851,7 @@ fn partition_components(
                 .add_node(ExecNode {
                     df_nodes,
                     dependence_counter: AtomicUsize::new(0),
+                    #[cfg(feature = "gpu")]
                     locality: -1,
                 })
                 .index();
