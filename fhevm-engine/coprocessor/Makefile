@@ -41,25 +41,25 @@ clean_run:
 
 .PHONY: benchmark_erc20_gpu # Run ECR20 transfer benchmarks on GPU
 benchmark_erc20_gpu:
-	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench erc20 --features=gpu --
+	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench erc20 --features=gpu,bench --
 
 .PHONY: benchmark_synthetics_gpu # Run all benchmarks on GPU
 benchmark_synthetics_gpu:
-	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench synthetics --features=gpu --
+	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench synthetics --features=gpu,bench --
 
 .PHONY: benchmark_all_gpu # Run all benchmarks on GPU
 benchmark_all_gpu:
-	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench erc20 --bench synthetics --features=gpu --
+	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench erc20 --bench synthetics --features=gpu,bench --
 
 
 .PHONY: benchmark_erc20_cpu # Run ECR20 transfer benchmarks on CPU
 benchmark_erc20_cpu:
-	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench erc20 --
+	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench erc20 --features=bench --
 
 .PHONY: benchmark_synthetics_cpu # Run all benchmarks on CPU
 benchmark_synthetics_cpu:
-	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench synthetics --
+	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench synthetics --features=bench --
 
 .PHONY: benchmark_all_cpu # Run all benchmarks on CPU
 benchmark_all_cpu:
-	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench erc20 --bench synthetics --
+	RUSTFLAGS="-C target-cpu=native" $(DB_URL) cargo +nightly bench --bench erc20 --bench synthetics --features=bench --
