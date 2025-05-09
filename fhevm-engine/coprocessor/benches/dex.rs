@@ -350,7 +350,6 @@ async fn swap_request_whitepaper(
                 from_balance_0.clone(),
             ],
         });
-
         // Second transfer
         let has_enough_funds_handle_1 = next_handle();
         let new_to_amount_target_handle_1 = next_handle();
@@ -398,7 +397,6 @@ async fn swap_request_whitepaper(
                 from_balance_1.clone(),
             ],
         });
-
         let new_current_balance_0 = AsyncComputationInput {
             input: Some(Input::InputHandle(new_to_amount_handle_0.clone())),
         };
