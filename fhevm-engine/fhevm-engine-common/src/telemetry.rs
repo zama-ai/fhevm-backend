@@ -1,10 +1,10 @@
 use opentelemetry::{
     global::{BoxedSpan, BoxedTracer, ObjectSafeSpan},
-    trace::{TraceContextExt, Tracer},
+    trace::{SpanBuilder, Status, TraceContextExt, Tracer},
     KeyValue,
 };
 use opentelemetry_sdk::Resource;
-use std::error::Error;
+use std::time::SystemTime;
 
 use crate::utils::compact_hex;
 
@@ -30,7 +30,6 @@ pub fn setup_otlp(
 
 pub struct OtelTracer {
     ctx: opentelemetry::Context,
-    service_name: String,
     tracer: BoxedTracer,
 }
 
@@ -39,53 +38,77 @@ impl OtelTracer {
         self.tracer.start_with_context(name, &self.ctx)
     }
 
-    pub fn set_error(&self, e: impl Error) {
+    /// Sets attribute to the root span
+    pub fn set_attribute(&self, key: &str, value: String) {
         self.ctx
             .span()
-            .set_status(opentelemetry::trace::Status::Error {
-                description: e.to_string().into(),
-            });
+            .set_attribute(KeyValue::new(key.to_owned(), value));
     }
-}
 
-impl Clone for OtelTracer {
-    fn clone(&self) -> Self {
-        OtelTracer {
-            ctx: self.ctx.clone(),
-            service_name: self.service_name.clone(),
-            tracer: opentelemetry::global::tracer(self.service_name.clone()),
-        }
+    /// Consumes and ends the tracer with status Ok
+    pub fn end(self) {
+        self.ctx.span().set_status(Status::Ok);
+        self.ctx.span().end();
     }
 }
 
 #[derive(Debug, PartialEq)]
 struct Handle(String);
 
-pub fn otel_with_handle(
-    service_name: String,
-    func_name: &'static str,
+pub fn tracer_with_handle(
+    tracer_name: String,
+    span_name: &'static str,
     handle: Vec<u8>,
 ) -> OtelTracer {
-    let tracer = opentelemetry::global::tracer(service_name.clone());
-    let span = tracer.start(func_name);
+    let tracer = opentelemetry::global::tracer(tracer_name.clone());
+    let root_span = tracer.start(span_name);
 
-    // Add a short hex of the handle to the context
-    let otel_handle = compact_hex(&handle)
-        .get(0..8)
-        .unwrap_or_default()
-        .to_owned();
+    let ctx = opentelemetry::Context::default().with_span(root_span);
+    if handle.is_empty() {
+        OtelTracer { ctx, tracer }
+    } else {
+        // Add a short hex of the handle to the context
+        let otel_handle = compact_hex(&handle)
+            .get(0..8)
+            .unwrap_or_default()
+            .to_owned();
 
-    let ctx = opentelemetry::Context::current()
-        .with_value(Handle(otel_handle))
-        .with_span(span);
-
-    OtelTracer {
-        ctx,
-        tracer,
-        service_name,
+        let ctx = ctx.with_value(Handle(otel_handle));
+        OtelTracer { ctx, tracer }
     }
 }
 
-pub fn end_span(span: &mut BoxedSpan) {
+/// Create a new span with start and end time
+pub fn tracer_with_start_time(span_name: &'static str, start_time: SystemTime) -> OtelTracer {
+    let tracer = opentelemetry::global::tracer(span_name.to_owned());
+    let root_span = tracer.build(SpanBuilder::from_name(span_name).with_start_time(start_time));
+    let ctx = opentelemetry::Context::default().with_span(root_span);
+    OtelTracer { ctx, tracer }
+}
+
+pub fn tracer(service_name: String, span_name: &'static str) -> OtelTracer {
+    tracer_with_handle(service_name, span_name, vec![])
+}
+
+pub fn attribute(span: &mut BoxedSpan, key: &str, value: String) {
+    span.set_attribute(KeyValue::new(key.to_owned(), value));
+}
+
+/// Ends span with status Ok
+pub fn end_span(mut span: BoxedSpan) {
+    span.set_status(Status::Ok);
+    span.end();
+}
+
+pub fn end_span_with_timestamp(mut span: BoxedSpan, timestamp: SystemTime) {
+    span.set_status(Status::Ok);
+    span.end_with_timestamp(timestamp);
+}
+
+/// Ends span with status Error with description
+pub fn end_span_with_err(mut span: BoxedSpan, desc: String) {
+    span.set_status(Status::Error {
+        description: desc.into(),
+    });
     span.end();
 }
