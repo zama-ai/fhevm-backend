@@ -30,7 +30,7 @@ fn test_random_contract_address() -> String {
 }
 
 fn main() {
-    let mut c = Criterion::default().sample_size(5).configure_from_args();
+    let mut c = Criterion::default().sample_size(10).configure_from_args();
     let bench_name = "dex::swap_request";
 
     let mut group = c.benchmark_group(bench_name);
