@@ -81,3 +81,8 @@ harness = false
 name = "synthetics"
 path = "benches/synthetics.rs"
 harness = false
+
+[[bench]]
+name = "dex"
+path = "benches/dex.rs"
+harness = false

@@ -1,0 +1,456 @@
+#[path = "./utils.rs"]
+mod utils;
+use crate::utils::{
+    default_api_key, default_tenant_id, query_tenant_keys, random_handle, setup_test_app,
+    wait_until_all_ciphertexts_computed, write_to_json, OperatorType,
+};
+use coprocessor::server::common::FheOperation;
+use coprocessor::server::coprocessor::{async_computation_input::Input, AsyncComputationInput};
+use coprocessor::server::coprocessor::{
+    fhevm_coprocessor_client::FhevmCoprocessorClient, AsyncComputation, AsyncComputeRequest,
+    InputToUpload, InputUploadBatch,
+};
+use criterion::{
+    async_executor::FuturesExecutor, measurement::WallTime, Bencher, Criterion, Throughput,
+};
+use fhevm_engine_common::utils::safe_serialize;
+use std::str::FromStr;
+use std::time::SystemTime;
+use tokio::runtime::Runtime;
+use tonic::metadata::MetadataValue;
+
+fn test_random_user_address() -> String {
+    let _private_key = "bd2400c676871534a682ca1c5e4cd647ec9c3e122f188c6e3f54e6900d586c7b";
+    let public_key = "0x1BdA2a485c339C95a9AbfDe52E80ca38e34C199E";
+    public_key.to_string()
+}
+
+fn test_random_contract_address() -> String {
+    "0x76c222560Db6b8937B291196eAb4Dad8930043aE".to_string()
+}
+
+fn main() {
+    let mut c = Criterion::default().sample_size(10).configure_from_args();
+    let bench_name = "dex::swap_request";
+
+    let mut group = c.benchmark_group(bench_name);
+    for num_elems in [
+        10,
+        50,
+        200,
+        500,
+        #[cfg(feature = "gpu")]
+        2000,
+    ] {
+        group.throughput(Throughput::Elements(num_elems));
+        let bench_id =
+            format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
+        group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
+            let _ = Runtime::new().unwrap().block_on(swap_request(
+                b,
+                num_elems as usize,
+                bench_id.clone(),
+            ));
+        });
+    }
+    group.finish();
+
+    c.final_summary();
+}
+
+// pub(crate) fn transfer_whitepaper<FheType>(
+//     from_amount: &FheType,
+//     to_amount: &FheType,
+//     amount: &FheType,
+// ) -> (FheType, FheType)
+// where
+//     FheType: Add<Output = FheType> + for<'a> FheOrd<&'a FheType>,
+//     FheBool: IfThenElse<FheType>,
+//     for<'a> &'a FheType: Add<Output = FheType> + Sub<Output = FheType>,
+// {
+//     let has_enough_funds = (from_amount).ge(amount);
+
+//     let mut new_to_amount = to_amount + amount;
+//     new_to_amount = has_enough_funds.if_then_else(&new_to_amount, to_amount);
+
+//     let mut new_from_amount = from_amount - amount;
+//     new_from_amount = has_enough_funds.if_then_else(&new_from_amount, from_amount);
+
+//     (new_from_amount, new_to_amount)
+// }
+
+// #[allow(clippy::too_many_arguments)]
+// fn swap_request<FheType>(
+//     from_balance_0: &FheType,
+//     from_balance_1: &FheType,
+//     current_dex_balance_0: &FheType,
+//     current_dex_balance_1: &FheType,
+//     to_balance_0: &FheType,
+//     to_balance_1: &FheType,
+//     total_dex_token_0_in: &FheType,
+//     total_dex_token_1_in: &FheType,
+//     amount0: &FheType,
+//     amount1: &FheType,
+// ) -> (FheType, FheType, FheType, FheType)
+// where
+//     FheType: Add<Output = FheType> + for<'a> FheOrd<&'a FheType> + Clone,
+//     FheBool: IfThenElse<FheType>,
+//     for<'a> &'a FheType: Add<Output = FheType> + Sub<Output = FheType>,
+// {
+//     let (_, new_current_balance_0) =
+//         transfer_whitepaper(from_balance_0, current_dex_balance_0, amount0);
+//     let (_, new_current_balance_1) =
+//         transfer_whitepaper(from_balance_1, current_dex_balance_1, amount1);
+//     let sent0 = &new_current_balance_0 - current_dex_balance_0;
+//     let sent1 = &new_current_balance_1 - current_dex_balance_1;
+//     let pending_0_in = to_balance_0 + &sent0;
+//     let pending_total_token_0_in = total_dex_token_0_in + &sent0;
+//     let pending_1_in = to_balance_1 + &sent1;
+//     let pending_total_token_1_in = total_dex_token_1_in + &sent1;
+//     (
+//         pending_0_in,
+//         pending_total_token_0_in,
+//         pending_1_in,
+//         pending_total_token_1_in,
+//     )
+// }
+
+// #[allow(clippy::too_many_arguments)]
+// fn swap_claim<FheType, BigFheType>(
+//     pending_0_in: &FheType,
+//     pending_1_in: &FheType,
+//     total_dex_token_0_in: u64,
+//     total_dex_token_1_in: u64,
+//     total_dex_token_0_out: u64,
+//     total_dex_token_1_out: u64,
+//     old_balance_0: &FheType,
+//     old_balance_1: &FheType,
+//     current_dex_balance_0: &FheType,
+//     current_dex_balance_1: &FheType,
+// ) -> (FheType, FheType)
+// where
+//     FheType: CastFrom<FheBool>
+//         + for<'a> FheOrd<&'a FheType>
+//         + CastFrom<BigFheType>
+//         + Clone
+//         + Add<Output = FheType>,
+//     BigFheType: CastFrom<FheType> + Mul<u128, Output = BigFheType> + Div<u128, Output = BigFheType>,
+//     FheBool: IfThenElse<FheType>,
+//     for<'a> &'a FheType: Add<Output = FheType> + Sub<Output = FheType>,
+// {
+//     let mut new_balance_0 = old_balance_0.clone();
+//     let mut new_balance_1 = old_balance_1.clone();
+//     if total_dex_token_1_in != 0 {
+//         let big_pending_1_in = BigFheType::cast_from(pending_1_in.clone());
+//         let big_amount_0_out =
+//             (big_pending_1_in * total_dex_token_0_out as u128) / total_dex_token_1_in as u128;
+//         let amount_0_out = FheType::cast_from(big_amount_0_out);
+//         let (_, new_balance_0_tmp) =
+//             transfer_whitepaper(current_dex_balance_0, old_balance_0, &amount_0_out);
+//         new_balance_0 = new_balance_0_tmp;
+//     }
+//     if total_dex_token_0_in != 0 {
+//         let big_pending_0_in = BigFheType::cast_from(pending_0_in.clone());
+//         let big_amount_1_out =
+//             (big_pending_0_in * total_dex_token_1_out as u128) / total_dex_token_0_in as u128;
+//         let amount_1_out = FheType::cast_from(big_amount_1_out);
+//         let (_, new_balance_1_tmp) =
+//             transfer_whitepaper(current_dex_balance_1, old_balance_1, &amount_1_out);
+//         new_balance_1 = new_balance_1_tmp;
+//     }
+
+//     (new_balance_0, new_balance_1)
+// }
+
+async fn swap_request(
+    bencher: &mut Bencher<'_, WallTime>,
+    num_tx: usize,
+    bench_id: String,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let app = setup_test_app().await?;
+    let pool = sqlx::postgres::PgPoolOptions::new()
+        .max_connections(2)
+        .connect(app.db_url())
+        .await?;
+    let mut client = FhevmCoprocessorClient::connect(app.app_url().to_string()).await?;
+
+    let mut handle_counter: u64 = random_handle();
+    let mut next_handle = || {
+        let out: u64 = handle_counter;
+        handle_counter += 1;
+        out.to_be_bytes().to_vec()
+    };
+    let api_key_header = format!("bearer {}", default_api_key());
+
+    let mut async_computations = vec![];
+    let mut num_samples: usize = num_tx;
+    let samples = std::env::var("FHEVM_TEST_NUM_SAMPLES");
+    if let Ok(samples) = samples {
+        num_samples = samples.parse::<usize>().unwrap();
+    }
+
+    let keys = query_tenant_keys(vec![default_tenant_id()], &pool)
+        .await
+        .map_err(|e| {
+            let e: Box<dyn std::error::Error> = e;
+            e
+        })?;
+    let keys = &keys[0];
+
+    let mut builder = tfhe::ProvenCompactCiphertextList::builder(&keys.pks);
+    let the_list = builder
+        .push(100_u64) // From balance 0
+        .push(200_u64) // From balance 1
+        .push(700_u64) // Current dex balance 0
+        .push(900_u64) // Current dex balance 1
+        .push(100_u64) // To balance 0
+        .push(200_u64) // To balance 1
+        .push(100_u64) // Total dex token in 0
+        .push(200_u64) // Total dex token in 1
+        .push(10_u64) // Amount 0
+        .push(20_u64) // Amount 1
+        .build_with_proof_packed(&keys.public_params, &[], tfhe::zk::ZkComputeLoad::Proof)
+        .unwrap();
+
+    let serialized = safe_serialize(&the_list);
+    let mut input_request = tonic::Request::new(InputUploadBatch {
+        input_ciphertexts: vec![InputToUpload {
+            input_payload: serialized,
+            signatures: Vec::new(),
+            user_address: test_random_user_address(),
+            contract_address: test_random_contract_address(),
+        }],
+    });
+    input_request.metadata_mut().append(
+        "authorization",
+        MetadataValue::from_str(&api_key_header).unwrap(),
+    );
+    let resp = client.upload_inputs(input_request).await?;
+    let resp = resp.get_ref();
+    assert_eq!(resp.upload_responses.len(), 1);
+    let first_resp = &resp.upload_responses[0];
+    assert_eq!(first_resp.input_handles.len(), 10);
+
+    for _ in 0..=(num_samples - 1) as u32 {
+        // Swap request inputs
+        let from_balance_0 = first_resp.input_handles[0].handle.clone();
+        let from_balance_0 = AsyncComputationInput {
+            input: Some(Input::InputHandle(from_balance_0.clone())),
+        };
+        let from_balance_1 = first_resp.input_handles[1].handle.clone();
+        let from_balance_1 = AsyncComputationInput {
+            input: Some(Input::InputHandle(from_balance_1.clone())),
+        };
+        let current_dex_balance_0 = first_resp.input_handles[2].handle.clone();
+        let current_dex_balance_0 = AsyncComputationInput {
+            input: Some(Input::InputHandle(current_dex_balance_0.clone())),
+        };
+        let current_dex_balance_1 = first_resp.input_handles[3].handle.clone();
+        let current_dex_balance_1 = AsyncComputationInput {
+            input: Some(Input::InputHandle(current_dex_balance_1.clone())),
+        };
+        let to_balance_0 = first_resp.input_handles[4].handle.clone();
+        let to_balance_0 = AsyncComputationInput {
+            input: Some(Input::InputHandle(to_balance_0.clone())),
+        };
+        let to_balance_1 = first_resp.input_handles[5].handle.clone();
+        let to_balance_1 = AsyncComputationInput {
+            input: Some(Input::InputHandle(to_balance_1.clone())),
+        };
+        let total_dex_token_0_in = first_resp.input_handles[6].handle.clone();
+        let total_dex_token_0_in = AsyncComputationInput {
+            input: Some(Input::InputHandle(total_dex_token_0_in.clone())),
+        };
+        let total_dex_token_1_in = first_resp.input_handles[7].handle.clone();
+        let total_dex_token_1_in = AsyncComputationInput {
+            input: Some(Input::InputHandle(total_dex_token_1_in.clone())),
+        };
+        let amount_0 = first_resp.input_handles[8].handle.clone();
+        let amount_0 = AsyncComputationInput {
+            input: Some(Input::InputHandle(amount_0.clone())),
+        };
+        let amount_1 = first_resp.input_handles[9].handle.clone();
+        let amount_1 = AsyncComputationInput {
+            input: Some(Input::InputHandle(amount_1.clone())),
+        };
+
+        // First transfer
+        let has_enough_funds_handle_0 = next_handle();
+        let new_to_amount_target_handle_0 = next_handle();
+        let new_to_amount_handle_0 = next_handle();
+        let new_from_amount_target_handle_0 = next_handle();
+        let new_from_amount_handle_0 = next_handle();
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheGe.into(),
+            output_handle: has_enough_funds_handle_0.clone(),
+            inputs: vec![from_balance_0.clone(), amount_0.clone()],
+        });
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheAdd.into(),
+            output_handle: new_to_amount_target_handle_0.clone(),
+            inputs: vec![current_dex_balance_0.clone(), amount_0.clone()],
+        });
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheIfThenElse.into(),
+            output_handle: new_to_amount_handle_0.clone(),
+            inputs: vec![
+                AsyncComputationInput {
+                    input: Some(Input::InputHandle(has_enough_funds_handle_0.clone())),
+                },
+                AsyncComputationInput {
+                    input: Some(Input::InputHandle(new_to_amount_target_handle_0.clone())),
+                },
+                current_dex_balance_0.clone(),
+            ],
+        });
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheSub.into(),
+            output_handle: new_from_amount_target_handle_0.clone(),
+            inputs: vec![from_balance_0.clone(), amount_0.clone()],
+        });
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheIfThenElse.into(),
+            output_handle: new_from_amount_handle_0.clone(),
+            inputs: vec![
+                AsyncComputationInput {
+                    input: Some(Input::InputHandle(has_enough_funds_handle_0.clone())),
+                },
+                AsyncComputationInput {
+                    input: Some(Input::InputHandle(new_from_amount_target_handle_0.clone())),
+                },
+                from_balance_0.clone(),
+            ],
+        });
+
+        // Second transfer
+        let has_enough_funds_handle_1 = next_handle();
+        let new_to_amount_target_handle_1 = next_handle();
+        let new_to_amount_handle_1 = next_handle();
+        let new_from_amount_target_handle_1 = next_handle();
+        let new_from_amount_handle_1 = next_handle();
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheGe.into(),
+            output_handle: has_enough_funds_handle_1.clone(),
+            inputs: vec![from_balance_1.clone(), amount_1.clone()],
+        });
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheAdd.into(),
+            output_handle: new_to_amount_target_handle_1.clone(),
+            inputs: vec![current_dex_balance_1.clone(), amount_1.clone()],
+        });
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheIfThenElse.into(),
+            output_handle: new_to_amount_handle_1.clone(),
+            inputs: vec![
+                AsyncComputationInput {
+                    input: Some(Input::InputHandle(has_enough_funds_handle_1.clone())),
+                },
+                AsyncComputationInput {
+                    input: Some(Input::InputHandle(new_to_amount_target_handle_1.clone())),
+                },
+                current_dex_balance_1.clone(),
+            ],
+        });
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheSub.into(),
+            output_handle: new_from_amount_target_handle_1.clone(),
+            inputs: vec![from_balance_1.clone(), amount_1.clone()],
+        });
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheIfThenElse.into(),
+            output_handle: new_from_amount_handle_1.clone(),
+            inputs: vec![
+                AsyncComputationInput {
+                    input: Some(Input::InputHandle(has_enough_funds_handle_1.clone())),
+                },
+                AsyncComputationInput {
+                    input: Some(Input::InputHandle(new_from_amount_target_handle_1.clone())),
+                },
+                from_balance_1.clone(),
+            ],
+        });
+
+        let new_current_balance_0 = AsyncComputationInput {
+            input: Some(Input::InputHandle(new_to_amount_handle_0.clone())),
+        };
+        let new_current_balance_1 = AsyncComputationInput {
+            input: Some(Input::InputHandle(new_to_amount_handle_1.clone())),
+        };
+        let sent_0_handle = next_handle();
+        let sent_1_handle = next_handle();
+        let pending_0_in_handle = next_handle();
+        let pending_1_in_handle = next_handle();
+        let pending_total_token_0_in = next_handle();
+        let pending_total_token_1_in = next_handle();
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheSub.into(),
+            output_handle: sent_0_handle.clone(),
+            inputs: vec![new_current_balance_0.clone(), current_dex_balance_0.clone()],
+        });
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheSub.into(),
+            output_handle: sent_1_handle.clone(),
+            inputs: vec![new_current_balance_1.clone(), current_dex_balance_1.clone()],
+        });
+        let sent_0 = AsyncComputationInput {
+            input: Some(Input::InputHandle(sent_0_handle.clone())),
+        };
+        let sent_1 = AsyncComputationInput {
+            input: Some(Input::InputHandle(sent_1_handle.clone())),
+        };
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheAdd.into(),
+            output_handle: pending_0_in_handle.clone(),
+            inputs: vec![to_balance_0.clone(), sent_0.clone()],
+        });
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheAdd.into(),
+            output_handle: pending_1_in_handle.clone(),
+            inputs: vec![to_balance_1.clone(), sent_1.clone()],
+        });
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheAdd.into(),
+            output_handle: pending_total_token_0_in.clone(),
+            inputs: vec![total_dex_token_0_in.clone(), sent_0.clone()],
+        });
+        async_computations.push(AsyncComputation {
+            operation: FheOperation::FheAdd.into(),
+            output_handle: pending_total_token_1_in.clone(),
+            inputs: vec![total_dex_token_1_in.clone(), sent_1.clone()],
+        });
+    }
+
+    let mut compute_request = tonic::Request::new(AsyncComputeRequest {
+        computations: async_computations,
+    });
+    compute_request.metadata_mut().append(
+        "authorization",
+        MetadataValue::from_str(&api_key_header).unwrap(),
+    );
+    let _resp = client.async_compute(compute_request).await.unwrap();
+
+    bencher.to_async(FuturesExecutor).iter(|| async {
+        let db_url = app.db_url().to_string();
+        let now = SystemTime::now();
+        let _ = tokio::task::spawn_blocking(move || {
+            Runtime::new()
+                .unwrap()
+                .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
+            println!("Execution time: {}", now.elapsed().unwrap().as_millis());
+        })
+        .await;
+    });
+
+    let params = keys.cks.computation_parameters();
+    write_to_json::<u64, _>(
+        &bench_id,
+        params,
+        "",
+        "swap-request",
+        &OperatorType::Atomic,
+        64,
+        vec![],
+    );
+
+    Ok(())
+}
