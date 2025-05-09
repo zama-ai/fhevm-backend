@@ -589,7 +589,9 @@ async fn swap_claim(
                         input: Some(Input::InputHandle(big_pending_1_in.clone())),
                     },
                     AsyncComputationInput {
-                        input: Some(Input::Scalar((total_dex_token_0_out as u128).to_be_bytes())),
+                        input: Some(Input::Scalar(
+                            (total_dex_token_0_out as u128).to_be_bytes().to_vec(),
+                        )),
                     },
                 ],
             });
@@ -601,7 +603,9 @@ async fn swap_claim(
                         input: Some(Input::InputHandle(mul_temp.clone())),
                     },
                     AsyncComputationInput {
-                        input: Some(Input::Scalar((total_dex_token_1_in as u128).to_be_bytes())),
+                        input: Some(Input::Scalar(
+                            (total_dex_token_1_in as u128).to_be_bytes().to_vec(),
+                        )),
                     },
                 ],
             });
@@ -626,12 +630,22 @@ async fn swap_claim(
             async_computations.push(AsyncComputation {
                 operation: FheOperation::FheGe.into(),
                 output_handle: has_enough_funds_handle_0.clone(),
-                inputs: vec![current_dex_balance_0.clone(), amount_0_out.clone()],
+                inputs: vec![
+                    current_dex_balance_0.clone(),
+                    AsyncComputationInput {
+                        input: Some(Input::InputHandle(amount_0_out.clone())),
+                    },
+                ],
             });
             async_computations.push(AsyncComputation {
                 operation: FheOperation::FheAdd.into(),
                 output_handle: new_to_amount_target_handle_0.clone(),
-                inputs: vec![old_balance_0.clone(), amount_0_out.clone()],
+                inputs: vec![
+                    old_balance_0.clone(),
+                    AsyncComputationInput {
+                        input: Some(Input::InputHandle(amount_0_out.clone())),
+                    },
+                ],
             });
             async_computations.push(AsyncComputation {
                 operation: FheOperation::FheIfThenElse.into(),
@@ -649,7 +663,12 @@ async fn swap_claim(
             async_computations.push(AsyncComputation {
                 operation: FheOperation::FheSub.into(),
                 output_handle: new_from_amount_target_handle_0.clone(),
-                inputs: vec![current_dex_balance_0.clone(), amount_0_out.clone()],
+                inputs: vec![
+                    current_dex_balance_0.clone(),
+                    AsyncComputationInput {
+                        input: Some(Input::InputHandle(amount_0_out.clone())),
+                    },
+                ],
             });
             async_computations.push(AsyncComputation {
                 operation: FheOperation::FheIfThenElse.into(),
@@ -685,7 +704,9 @@ async fn swap_claim(
                         input: Some(Input::InputHandle(big_pending_0_in.clone())),
                     },
                     AsyncComputationInput {
-                        input: Some(Input::Scalar((total_dex_token_1_out as u128).to_be_bytes())),
+                        input: Some(Input::Scalar(
+                            (total_dex_token_1_out as u128).to_be_bytes().to_vec(),
+                        )),
                     },
                 ],
             });
@@ -697,7 +718,9 @@ async fn swap_claim(
                         input: Some(Input::InputHandle(mul_temp.clone())),
                     },
                     AsyncComputationInput {
-                        input: Some(Input::Scalar((total_dex_token_0_in as u128).to_be_bytes())),
+                        input: Some(Input::Scalar(
+                            (total_dex_token_0_in as u128).to_be_bytes().to_vec(),
+                        )),
                     },
                 ],
             });
@@ -722,12 +745,22 @@ async fn swap_claim(
             async_computations.push(AsyncComputation {
                 operation: FheOperation::FheGe.into(),
                 output_handle: has_enough_funds_handle_1.clone(),
-                inputs: vec![current_dex_balance_1.clone(), amount_1_out.clone()],
+                inputs: vec![
+                    current_dex_balance_1.clone(),
+                    AsyncComputationInput {
+                        input: Some(Input::InputHandle(amount_1_out.clone())),
+                    },
+                ],
             });
             async_computations.push(AsyncComputation {
                 operation: FheOperation::FheAdd.into(),
                 output_handle: new_to_amount_target_handle_1.clone(),
-                inputs: vec![old_balance_1.clone(), amount_1_out.clone()],
+                inputs: vec![
+                    old_balance_1.clone(),
+                    AsyncComputationInput {
+                        input: Some(Input::InputHandle(amount_1_out.clone())),
+                    },
+                ],
             });
             async_computations.push(AsyncComputation {
                 operation: FheOperation::FheIfThenElse.into(),
@@ -745,7 +778,12 @@ async fn swap_claim(
             async_computations.push(AsyncComputation {
                 operation: FheOperation::FheSub.into(),
                 output_handle: new_from_amount_target_handle_1.clone(),
-                inputs: vec![current_dex_balance_1.clone(), amount_1_out.clone()],
+                inputs: vec![
+                    current_dex_balance_1.clone(),
+                    AsyncComputationInput {
+                        input: Some(Input::InputHandle(amount_1_out.clone())),
+                    },
+                ],
             });
             async_computations.push(AsyncComputation {
                 operation: FheOperation::FheIfThenElse.into(),
