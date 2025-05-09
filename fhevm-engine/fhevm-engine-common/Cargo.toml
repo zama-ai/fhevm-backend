@@ -28,10 +28,10 @@ rand_chacha = "0.3.1"
 strum = { version = "0.26", features = ["derive"] }
 
 # opentelemetry support
-opentelemetry = "0.25.0"
-opentelemetry-otlp = "0.25.0"
-opentelemetry_sdk = { version = "0.25.0", features = ["rt-tokio"] }
-opentelemetry-semantic-conventions = "0.27.0"
+opentelemetry = { workspace = true }
+opentelemetry-otlp = { workspace = true }
+opentelemetry_sdk = { workspace = true }
+opentelemetry-semantic-conventions = { workspace = true }
 
 [features]
 nightly-avx512 = ["tfhe/nightly-avx512"]

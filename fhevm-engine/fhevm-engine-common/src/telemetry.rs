@@ -55,12 +55,8 @@ impl OtelTracer {
 #[derive(Debug, PartialEq)]
 struct Handle(String);
 
-pub fn tracer_with_handle(
-    tracer_name: String,
-    span_name: &'static str,
-    handle: Vec<u8>,
-) -> OtelTracer {
-    let tracer = opentelemetry::global::tracer(tracer_name.clone());
+pub fn tracer_with_handle(span_name: &'static str, handle: Vec<u8>) -> OtelTracer {
+    let tracer = opentelemetry::global::tracer(format!("tracer_{}", span_name));
     let root_span = tracer.start(span_name);
 
     let ctx = opentelemetry::Context::default().with_span(root_span);
@@ -80,14 +76,14 @@ pub fn tracer_with_handle(
 
 /// Create a new span with start and end time
 pub fn tracer_with_start_time(span_name: &'static str, start_time: SystemTime) -> OtelTracer {
-    let tracer = opentelemetry::global::tracer(span_name.to_owned());
+    let tracer = opentelemetry::global::tracer(span_name);
     let root_span = tracer.build(SpanBuilder::from_name(span_name).with_start_time(start_time));
     let ctx = opentelemetry::Context::default().with_span(root_span);
     OtelTracer { ctx, tracer }
 }
 
-pub fn tracer(service_name: String, span_name: &'static str) -> OtelTracer {
-    tracer_with_handle(service_name, span_name, vec![])
+pub fn tracer(span_name: &'static str) -> OtelTracer {
+    tracer_with_handle(span_name, vec![])
 }
 
 pub fn attribute(span: &mut BoxedSpan, key: &str, value: String) {
