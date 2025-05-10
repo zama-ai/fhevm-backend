@@ -32,57 +32,57 @@ fn test_random_contract_address() -> String {
 fn main() {
     let mut c = Criterion::default().sample_size(10).configure_from_args();
 
-    // let bench_name = "dex::swap_request";
-    // let mut group = c.benchmark_group(bench_name);
-    // for num_elems in [10, 50, 200] {
-    //     group.throughput(Throughput::Elements(num_elems));
-    //     let bench_id =
-    //         format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
-    //     group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
-    //         let _ = Runtime::new().unwrap().block_on(swap_request_whitepaper(
-    //             b,
-    //             num_elems as usize,
-    //             bench_id.clone(),
-    //         ));
-    //     });
+    let bench_name = "dex::swap_request";
+    let mut group = c.benchmark_group(bench_name);
+    for num_elems in [10, 50, 200] {
+        group.throughput(Throughput::Elements(num_elems));
+        let bench_id =
+            format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
+        group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
+            let _ = Runtime::new().unwrap().block_on(swap_request_whitepaper(
+                b,
+                num_elems as usize,
+                bench_id.clone(),
+            ));
+        });
 
-    //     group.throughput(Throughput::Elements(num_elems));
-    //     let bench_id = format!("{bench_name}::throughput::no_cmux::FHEUint64::{num_elems}_elems");
-    //     group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
-    //         let _ = Runtime::new().unwrap().block_on(swap_request_no_cmux(
-    //             b,
-    //             num_elems as usize,
-    //             bench_id.clone(),
-    //         ));
-    //     });
-    // }
-    // group.finish();
+        group.throughput(Throughput::Elements(num_elems));
+        let bench_id = format!("{bench_name}::throughput::no_cmux::FHEUint64::{num_elems}_elems");
+        group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
+            let _ = Runtime::new().unwrap().block_on(swap_request_no_cmux(
+                b,
+                num_elems as usize,
+                bench_id.clone(),
+            ));
+        });
+    }
+    group.finish();
 
-    // let bench_name = "dex::swap_claim";
-    // let mut group = c.benchmark_group(bench_name);
-    // for num_elems in [10, 50, 200] {
-    //     group.throughput(Throughput::Elements(num_elems));
-    //     let bench_id =
-    //         format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
-    //     group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
-    //         let _ = Runtime::new().unwrap().block_on(swap_claim_whitepaper(
-    //             b,
-    //             num_elems as usize,
-    //             bench_id.clone(),
-    //         ));
-    //     });
+    let bench_name = "dex::swap_claim";
+    let mut group = c.benchmark_group(bench_name);
+    for num_elems in [10, 50, 200] {
+        group.throughput(Throughput::Elements(num_elems));
+        let bench_id =
+            format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
+        group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
+            let _ = Runtime::new().unwrap().block_on(swap_claim_whitepaper(
+                b,
+                num_elems as usize,
+                bench_id.clone(),
+            ));
+        });
 
-    //     group.throughput(Throughput::Elements(num_elems));
-    //     let bench_id = format!("{bench_name}::throughput::no_cmux::FHEUint64::{num_elems}_elems");
-    //     group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
-    //         let _ = Runtime::new().unwrap().block_on(swap_claim_no_cmux(
-    //             b,
-    //             num_elems as usize,
-    //             bench_id.clone(),
-    //         ));
-    //     });
-    // }
-    // group.finish();
+        group.throughput(Throughput::Elements(num_elems));
+        let bench_id = format!("{bench_name}::throughput::no_cmux::FHEUint64::{num_elems}_elems");
+        group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
+            let _ = Runtime::new().unwrap().block_on(swap_claim_no_cmux(
+                b,
+                num_elems as usize,
+                bench_id.clone(),
+            ));
+        });
+    }
+    group.finish();
 
     let bench_name = "dex::swap_request_dep";
     let mut group = c.benchmark_group(bench_name);
@@ -140,110 +140,6 @@ fn main() {
 
     c.final_summary();
 }
-
-// pub(crate) fn transfer_whitepaper<FheType>(
-//     from_amount: &FheType,
-//     to_amount: &FheType,
-//     amount: &FheType,
-// ) -> (FheType, FheType)
-// where
-//     FheType: Add<Output = FheType> + for<'a> FheOrd<&'a FheType>,
-//     FheBool: IfThenElse<FheType>,
-//     for<'a> &'a FheType: Add<Output = FheType> + Sub<Output = FheType>,
-// {
-//     let has_enough_funds = (from_amount).ge(amount);
-
-//     let mut new_to_amount = to_amount + amount;
-//     new_to_amount = has_enough_funds.if_then_else(&new_to_amount, to_amount);
-
-//     let mut new_from_amount = from_amount - amount;
-//     new_from_amount = has_enough_funds.if_then_else(&new_from_amount, from_amount);
-
-//     (new_from_amount, new_to_amount)
-// }
-
-// #[allow(clippy::too_many_arguments)]
-// fn swap_request<FheType>(
-//     from_balance_0: &FheType,
-//     from_balance_1: &FheType,
-//     current_dex_balance_0: &FheType,
-//     current_dex_balance_1: &FheType,
-//     to_balance_0: &FheType,
-//     to_balance_1: &FheType,
-//     total_dex_token_0_in: &FheType,
-//     total_dex_token_1_in: &FheType,
-//     amount0: &FheType,
-//     amount1: &FheType,
-// ) -> (FheType, FheType, FheType, FheType)
-// where
-//     FheType: Add<Output = FheType> + for<'a> FheOrd<&'a FheType> + Clone,
-//     FheBool: IfThenElse<FheType>,
-//     for<'a> &'a FheType: Add<Output = FheType> + Sub<Output = FheType>,
-// {
-//     let (_, new_current_balance_0) =
-//         transfer_whitepaper(from_balance_0, current_dex_balance_0, amount0);
-//     let (_, new_current_balance_1) =
-//         transfer_whitepaper(from_balance_1, current_dex_balance_1, amount1);
-//     let sent0 = &new_current_balance_0 - current_dex_balance_0;
-//     let sent1 = &new_current_balance_1 - current_dex_balance_1;
-//     let pending_0_in = to_balance_0 + &sent0;
-//     let pending_total_token_0_in = total_dex_token_0_in + &sent0;
-//     let pending_1_in = to_balance_1 + &sent1;
-//     let pending_total_token_1_in = total_dex_token_1_in + &sent1;
-//     (
-//         pending_0_in,
-//         pending_total_token_0_in,
-//         pending_1_in,
-//         pending_total_token_1_in,
-//     )
-// }
-
-// #[allow(clippy::too_many_arguments)]
-// fn swap_claim<FheType, BigFheType>(
-//     pending_0_in: &FheType,
-//     pending_1_in: &FheType,
-//     total_dex_token_0_in: u64,
-//     total_dex_token_1_in: u64,
-//     total_dex_token_0_out: u64,
-//     total_dex_token_1_out: u64,
-//     old_balance_0: &FheType,
-//     old_balance_1: &FheType,
-//     current_dex_balance_0: &FheType,
-//     current_dex_balance_1: &FheType,
-// ) -> (FheType, FheType)
-// where
-//     FheType: CastFrom<FheBool>
-//         + for<'a> FheOrd<&'a FheType>
-//         + CastFrom<BigFheType>
-//         + Clone
-//         + Add<Output = FheType>,
-//     BigFheType: CastFrom<FheType> + Mul<u128, Output = BigFheType> + Div<u128, Output = BigFheType>,
-//     FheBool: IfThenElse<FheType>,
-//     for<'a> &'a FheType: Add<Output = FheType> + Sub<Output = FheType>,
-// {
-//     let mut new_balance_0 = old_balance_0.clone();
-//     let mut new_balance_1 = old_balance_1.clone();
-//     if total_dex_token_1_in != 0 {
-//         let big_pending_1_in = BigFheType::cast_from(pending_1_in.clone());
-//         let big_amount_0_out =
-//             (big_pending_1_in * total_dex_token_0_out as u128) / total_dex_token_1_in as u128;
-//         let amount_0_out = FheType::cast_from(big_amount_0_out);
-//         let (_, new_balance_0_tmp) =
-//             transfer_whitepaper(current_dex_balance_0, old_balance_0, &amount_0_out);
-//         new_balance_0 = new_balance_0_tmp;
-//     }
-//     if total_dex_token_0_in != 0 {
-//         let big_pending_0_in = BigFheType::cast_from(pending_0_in.clone());
-//         let big_amount_1_out =
-//             (big_pending_0_in * total_dex_token_1_out as u128) / total_dex_token_0_in as u128;
-//         let amount_1_out = FheType::cast_from(big_amount_1_out);
-//         let (_, new_balance_1_tmp) =
-//             transfer_whitepaper(current_dex_balance_1, old_balance_1, &amount_1_out);
-//         new_balance_1 = new_balance_1_tmp;
-//     }
-
-//     (new_balance_0, new_balance_1)
-// }
 
 async fn swap_request_whitepaper(
     bencher: &mut Bencher<'_, WallTime>,
