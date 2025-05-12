@@ -19,6 +19,9 @@ contract FHEGasLimit is UUPSUpgradeable, Ownable2StepUpgradeable {
     /// @notice Returned if the block limit is higher than limit for FHE operation.
     error FHEGasBlockLimitExceeded();
 
+    /// @notice Returned if the transaction limit is higher than limit for FHE operation.
+    error FHEGasTransactionLimitExceeded();
+
     /// @notice Returned if the operation is not supported.
     error UnsupportedOperation();
 
@@ -40,8 +43,11 @@ contract FHEGasLimit is UUPSUpgradeable, Ownable2StepUpgradeable {
     /// @notice FHEVMExecutor address.
     address private constant fhevmExecutorAddress = fhevmExecutorAdd;
 
-    /// @notice Gas block limit for FHEGas operation.
+    /// @notice FHE gas block limit.
     uint256 private constant FHE_GAS_BLOCKLIMIT = 20_000_000;
+
+    /// @notice FHE gas transaction limit.
+    uint256 private constant FHE_GAS_TRANSACTION_LIMIT = 5_000_000;
 
     /// @custom:storage-location erc7201:fhevm.storage.FHEGasLimit
     struct FHEGasLimitStorage {
@@ -59,7 +65,7 @@ contract FHEGasLimit is UUPSUpgradeable, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice  Re-initializes the contract.
+     * @notice Re-initializes the contract.
      */
     /// @custom:oz-upgrades-validate-as-initializer
     function reinitialize() public virtual reinitializer(2) {
@@ -67,1072 +73,1274 @@ contract FHEGasLimit is UUPSUpgradeable, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice              Computes the gas required for FheAdd.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheAdd.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheAdd(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheAdd(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (scalarByte == 0x01) {
             if (resultType == FheType.Uint8) {
-                _updateFunding(94000);
+                fheGas = 94_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(133000);
+                fheGas = 133_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(162000);
+                fheGas = 162_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(188000);
+                fheGas = 188_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(218000);
+                fheGas = 218_000;
             } else {
                 revert UnsupportedOperation();
             }
         } else {
             if (resultType == FheType.Uint8) {
-                _updateFunding(94000);
+                fheGas = 94_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(133000);
+                fheGas = 133_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(162000);
+                fheGas = 162_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(188000);
+                fheGas = 188_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(218000);
+                fheGas = 218_000;
             } else {
                 revert UnsupportedOperation();
             }
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheSub.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheSub.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheSub(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheSub(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
+
         if (scalarByte == 0x01) {
             if (resultType == FheType.Uint8) {
-                _updateFunding(94000);
+                fheGas = 94_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(133000);
+                fheGas = 133_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(162000);
+                fheGas = 162_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(188000);
+                fheGas = 188_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(218000);
+                fheGas = 218_000;
             } else {
                 revert UnsupportedOperation();
             }
         } else {
             if (resultType == FheType.Uint8) {
-                _updateFunding(94000);
+                fheGas = 94_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(133000);
+                fheGas = 133_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(162000);
+                fheGas = 162_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(188000);
+                fheGas = 188_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(218000);
+                fheGas = 218_000;
             } else {
                 revert UnsupportedOperation();
             }
         }
-        _checkFHEGasBlockLimit();
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheMul.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheMul.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheMul(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheMul(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (scalarByte == 0x01) {
             if (resultType == FheType.Uint8) {
-                _updateFunding(159000);
+                fheGas = 159_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(208000);
+                fheGas = 208_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(264000);
+                fheGas = 264_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(356000);
+                fheGas = 356_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(480000);
+                fheGas = 480_000;
             } else {
                 revert UnsupportedOperation();
             }
         } else {
             if (resultType == FheType.Uint8) {
-                _updateFunding(197000);
+                fheGas = 197_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(262000);
+                fheGas = 262_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(359000);
+                fheGas = 359_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(641000);
+                fheGas = 641_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(1145000);
+                fheGas = 1145_000;
             } else {
                 revert UnsupportedOperation();
             }
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheDiv.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheDiv.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheDiv(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheDiv(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (scalarByte != 0x01) revert OnlyScalarOperationsAreSupported();
         if (resultType == FheType.Uint8) {
-            _updateFunding(238000);
+            fheGas = 238_000;
         } else if (resultType == FheType.Uint16) {
-            _updateFunding(314000);
+            fheGas = 314_000;
         } else if (resultType == FheType.Uint32) {
-            _updateFunding(398000);
+            fheGas = 398_000;
         } else if (resultType == FheType.Uint64) {
-            _updateFunding(584000);
+            fheGas = 584_000;
         } else if (resultType == FheType.Uint128) {
-            _updateFunding(857000);
+            fheGas = 857_000;
         } else {
             revert UnsupportedOperation();
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheRem.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheRem.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheRem(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheRem(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (scalarByte != 0x01) revert OnlyScalarOperationsAreSupported();
         if (resultType == FheType.Uint8) {
-            _updateFunding(460000);
+            fheGas = 460_000;
         } else if (resultType == FheType.Uint16) {
-            _updateFunding(622000);
+            fheGas = 622_000;
         } else if (resultType == FheType.Uint32) {
-            _updateFunding(805000);
+            fheGas = 805_000;
         } else if (resultType == FheType.Uint64) {
-            _updateFunding(1095000);
+            fheGas = 1095_000;
         } else if (resultType == FheType.Uint128) {
-            _updateFunding(1499000);
+            fheGas = 1_499_000;
         } else {
             revert UnsupportedOperation();
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheBitAnd.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheBitAnd.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheBitAnd(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheBitAnd(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
-        if (scalarByte == 0x01) {
-            if (resultType == FheType.Bool) {
-                _updateFunding(26000);
-            } else if (resultType == FheType.Uint8) {
-                _updateFunding(34000);
-            } else if (resultType == FheType.Uint16) {
-                _updateFunding(34000);
-            } else if (resultType == FheType.Uint32) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint64) {
-                _updateFunding(38000);
-            } else if (resultType == FheType.Uint128) {
-                _updateFunding(41000);
-            } else if (resultType == FheType.Uint256) {
-                _updateFunding(44000);
-            } else {
-                revert UnsupportedOperation();
-            }
-        } else {
-            if (resultType == FheType.Bool) {
-                _updateFunding(26000);
-            } else if (resultType == FheType.Uint8) {
-                _updateFunding(34000);
-            } else if (resultType == FheType.Uint16) {
-                _updateFunding(34000);
-            } else if (resultType == FheType.Uint32) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint64) {
-                _updateFunding(38000);
-            } else if (resultType == FheType.Uint128) {
-                _updateFunding(41000);
-            } else if (resultType == FheType.Uint256) {
-                _updateFunding(44000);
-            } else {
-                revert UnsupportedOperation();
-            }
-        }
-        _checkFHEGasBlockLimit();
-    }
+        uint256 fheGas;
 
-    /**
-     * @notice              Computes the gas required for FheBitOr.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
-     */
-    function payForFheBitOr(FheType resultType, bytes1 scalarByte) external virtual {
-        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
-        _checkIfNewBlock();
         if (scalarByte == 0x01) {
             if (resultType == FheType.Bool) {
-                _updateFunding(26000);
+                fheGas = 26_000;
             } else if (resultType == FheType.Uint8) {
-                _updateFunding(34000);
+                fheGas = 34_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(34000);
+                fheGas = 34_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(35000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(38000);
+                fheGas = 38_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(41000);
+                fheGas = 41_000;
             } else if (resultType == FheType.Uint256) {
-                _updateFunding(44000);
+                fheGas = 44_000;
             } else {
                 revert UnsupportedOperation();
             }
         } else {
             if (resultType == FheType.Bool) {
-                _updateFunding(26000);
+                fheGas = 26_000;
             } else if (resultType == FheType.Uint8) {
-                _updateFunding(34000);
+                fheGas = 34_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(34000);
+                fheGas = 34_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(35000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(38000);
+                fheGas = 38_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(41000);
+                fheGas = 41_000;
             } else if (resultType == FheType.Uint256) {
-                _updateFunding(44000);
+                fheGas = 44_000;
             } else {
                 revert UnsupportedOperation();
             }
         }
-        _checkFHEGasBlockLimit();
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheBitXor.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheBitOr.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheBitXor(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheBitOr(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (scalarByte == 0x01) {
             if (resultType == FheType.Bool) {
-                _updateFunding(26000);
+                fheGas = 26_000;
             } else if (resultType == FheType.Uint8) {
-                _updateFunding(34000);
+                fheGas = 34_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(34000);
+                fheGas = 34_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(35000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(38000);
+                fheGas = 38_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(41000);
+                fheGas = 41_000;
             } else if (resultType == FheType.Uint256) {
-                _updateFunding(44000);
-            } else {
-                revert UnsupportedOperation();
-            }
-        } else {
-            if (resultType == FheType.Bool) {
-                _updateFunding(26000);
-            } else if (resultType == FheType.Uint8) {
-                _updateFunding(34000);
-            } else if (resultType == FheType.Uint16) {
-                _updateFunding(34000);
-            } else if (resultType == FheType.Uint32) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint64) {
-                _updateFunding(38000);
-            } else if (resultType == FheType.Uint128) {
-                _updateFunding(41000);
-            } else if (resultType == FheType.Uint256) {
-                _updateFunding(44000);
-            } else {
-                revert UnsupportedOperation();
-            }
-        }
-        _checkFHEGasBlockLimit();
-    }
-
-    /**
-     * @notice              Computes the gas required for FheShl.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
-     */
-    function payForFheShl(FheType resultType, bytes1 scalarByte) external virtual {
-        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
-        _checkIfNewBlock();
-        if (scalarByte == 0x01) {
-            if (resultType == FheType.Uint8) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint16) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint32) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint64) {
-                _updateFunding(38000);
-            } else if (resultType == FheType.Uint128) {
-                _updateFunding(41000);
-            } else if (resultType == FheType.Uint256) {
-                _updateFunding(44000);
-            } else {
-                revert UnsupportedOperation();
-            }
-        } else {
-            if (resultType == FheType.Uint8) {
-                _updateFunding(133000);
-            } else if (resultType == FheType.Uint16) {
-                _updateFunding(153000);
-            } else if (resultType == FheType.Uint32) {
-                _updateFunding(183000);
-            } else if (resultType == FheType.Uint64) {
-                _updateFunding(227000);
-            } else if (resultType == FheType.Uint128) {
-                _updateFunding(282000);
-            } else if (resultType == FheType.Uint256) {
-                _updateFunding(350000);
-            } else {
-                revert UnsupportedOperation();
-            }
-        }
-        _checkFHEGasBlockLimit();
-    }
-
-    /**
-     * @notice              Computes the gas required for FheShr.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
-     */
-    function payForFheShr(FheType resultType, bytes1 scalarByte) external virtual {
-        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
-        _checkIfNewBlock();
-        if (scalarByte == 0x01) {
-            if (resultType == FheType.Uint8) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint16) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint32) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint64) {
-                _updateFunding(38000);
-            } else if (resultType == FheType.Uint128) {
-                _updateFunding(41000);
-            } else if (resultType == FheType.Uint256) {
-                _updateFunding(44000);
-            } else {
-                revert UnsupportedOperation();
-            }
-        } else {
-            if (resultType == FheType.Uint8) {
-                _updateFunding(133000);
-            } else if (resultType == FheType.Uint16) {
-                _updateFunding(153000);
-            } else if (resultType == FheType.Uint32) {
-                _updateFunding(183000);
-            } else if (resultType == FheType.Uint64) {
-                _updateFunding(227000);
-            } else if (resultType == FheType.Uint128) {
-                _updateFunding(282000);
-            } else if (resultType == FheType.Uint256) {
-                _updateFunding(350000);
-            } else {
-                revert UnsupportedOperation();
-            }
-        }
-        _checkFHEGasBlockLimit();
-    }
-
-    /**
-     * @notice              Computes the gas required for FheRotl.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
-     */
-    function payForFheRotl(FheType resultType, bytes1 scalarByte) external virtual {
-        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
-        _checkIfNewBlock();
-        if (scalarByte == 0x01) {
-            if (resultType == FheType.Uint8) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint16) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint32) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint64) {
-                _updateFunding(38000);
-            } else if (resultType == FheType.Uint128) {
-                _updateFunding(41000);
-            } else if (resultType == FheType.Uint256) {
-                _updateFunding(44000);
-            } else {
-                revert UnsupportedOperation();
-            }
-        } else {
-            if (resultType == FheType.Uint8) {
-                _updateFunding(133000);
-            } else if (resultType == FheType.Uint16) {
-                _updateFunding(153000);
-            } else if (resultType == FheType.Uint32) {
-                _updateFunding(183000);
-            } else if (resultType == FheType.Uint64) {
-                _updateFunding(227000);
-            } else if (resultType == FheType.Uint128) {
-                _updateFunding(282000);
-            } else if (resultType == FheType.Uint256) {
-                _updateFunding(350000);
-            } else {
-                revert UnsupportedOperation();
-            }
-        }
-        _checkFHEGasBlockLimit();
-    }
-
-    /**
-     * @notice              Computes the gas required for FheRotr.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
-     */
-    function payForFheRotr(FheType resultType, bytes1 scalarByte) external virtual {
-        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
-        _checkIfNewBlock();
-        if (scalarByte == 0x01) {
-            if (resultType == FheType.Uint8) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint16) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint32) {
-                _updateFunding(35000);
-            } else if (resultType == FheType.Uint64) {
-                _updateFunding(38000);
-            } else if (resultType == FheType.Uint128) {
-                _updateFunding(41000);
-            } else if (resultType == FheType.Uint256) {
-                _updateFunding(44000);
-            } else {
-                revert UnsupportedOperation();
-            }
-        } else {
-            if (resultType == FheType.Uint8) {
-                _updateFunding(133000);
-            } else if (resultType == FheType.Uint16) {
-                _updateFunding(153000);
-            } else if (resultType == FheType.Uint32) {
-                _updateFunding(183000);
-            } else if (resultType == FheType.Uint64) {
-                _updateFunding(227000);
-            } else if (resultType == FheType.Uint128) {
-                _updateFunding(282000);
-            } else if (resultType == FheType.Uint256) {
-                _updateFunding(350000);
-            } else {
-                revert UnsupportedOperation();
-            }
-        }
-        _checkFHEGasBlockLimit();
-    }
-
-    /**
-     * @notice              Computes the gas required for FheEq.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
-     */
-    function payForFheEq(FheType resultType, bytes1 scalarByte) external virtual {
-        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
-        _checkIfNewBlock();
-        if (scalarByte == 0x01) {
-            if (resultType == FheType.Bool) {
-                _updateFunding(49000);
-            } else if (resultType == FheType.Uint8) {
-                _updateFunding(53000);
-            } else if (resultType == FheType.Uint16) {
-                _updateFunding(54000);
-            } else if (resultType == FheType.Uint32) {
-                _updateFunding(82000);
-            } else if (resultType == FheType.Uint64) {
-                _updateFunding(86000);
-            } else if (resultType == FheType.Uint128) {
-                _updateFunding(88000);
-            } else if (resultType == FheType.Uint160) {
-                _updateFunding(90000);
-            } else if (resultType == FheType.Uint256) {
-                _updateFunding(100000);
-            } else if (resultType == FheType.Uint512) {
-                _updateFunding(150000);
-            } else if (resultType == FheType.Uint1024) {
-                _updateFunding(200000);
-            } else if (resultType == FheType.Uint2048) {
-                _updateFunding(300000);
+                fheGas = 44_000;
             } else {
                 revert UnsupportedOperation();
             }
         } else {
             if (resultType == FheType.Bool) {
-                _updateFunding(49000);
+                fheGas = 26_000;
             } else if (resultType == FheType.Uint8) {
-                _updateFunding(53000);
+                fheGas = 34_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(54000);
+                fheGas = 34_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(82000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(86000);
+                fheGas = 38_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(88000);
-            } else if (resultType == FheType.Uint160) {
-                _updateFunding(90000);
+                fheGas = 41_000;
             } else if (resultType == FheType.Uint256) {
-                _updateFunding(100000);
-            } else if (resultType == FheType.Uint512) {
-                _updateFunding(150000);
-            } else if (resultType == FheType.Uint1024) {
-                _updateFunding(200000);
-            } else if (resultType == FheType.Uint2048) {
-                _updateFunding(300000);
+                fheGas = 44_000;
             } else {
                 revert UnsupportedOperation();
             }
         }
-        _checkFHEGasBlockLimit();
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheNe.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheBitXor.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheNe(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheBitXor(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (scalarByte == 0x01) {
             if (resultType == FheType.Bool) {
-                _updateFunding(49000);
+                fheGas = 26_000;
             } else if (resultType == FheType.Uint8) {
-                _updateFunding(53000);
+                fheGas = 34_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(54000);
+                fheGas = 34_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(82000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(86000);
+                fheGas = 38_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(88000);
-            } else if (resultType == FheType.Uint160) {
-                _updateFunding(90000);
+                fheGas = 41_000;
             } else if (resultType == FheType.Uint256) {
-                _updateFunding(100000);
-            } else if (resultType == FheType.Uint512) {
-                _updateFunding(150000);
-            } else if (resultType == FheType.Uint1024) {
-                _updateFunding(200000);
-            } else if (resultType == FheType.Uint2048) {
-                _updateFunding(300000);
+                fheGas = 44_000;
             } else {
                 revert UnsupportedOperation();
             }
         } else {
             if (resultType == FheType.Bool) {
-                _updateFunding(49000);
+                fheGas = 26_000;
             } else if (resultType == FheType.Uint8) {
-                _updateFunding(53000);
+                fheGas = 34_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(54000);
+                fheGas = 34_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(82000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(86000);
+                fheGas = 38_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(88000);
-            } else if (resultType == FheType.Uint160) {
-                _updateFunding(90000);
+                fheGas = 41_000;
             } else if (resultType == FheType.Uint256) {
-                _updateFunding(100000);
-            } else if (resultType == FheType.Uint512) {
-                _updateFunding(150000);
-            } else if (resultType == FheType.Uint1024) {
-                _updateFunding(200000);
-            } else if (resultType == FheType.Uint2048) {
-                _updateFunding(300000);
+                fheGas = 44_000;
             } else {
                 revert UnsupportedOperation();
             }
         }
-        _checkFHEGasBlockLimit();
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheGe.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheShl.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheGe(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheShl(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (scalarByte == 0x01) {
             if (resultType == FheType.Uint8) {
-                _updateFunding(82000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(105000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(128000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(156000);
+                fheGas = 38_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(190000);
+                fheGas = 41_000;
+            } else if (resultType == FheType.Uint256) {
+                fheGas = 44_000;
             } else {
                 revert UnsupportedOperation();
             }
         } else {
             if (resultType == FheType.Uint8) {
-                _updateFunding(82000);
+                fheGas = 133_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(105000);
+                fheGas = 153_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(128000);
+                fheGas = 183_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(156000);
+                fheGas = 227_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(190000);
+                fheGas = 282_000;
+            } else if (resultType == FheType.Uint256) {
+                fheGas = 350_000;
             } else {
                 revert UnsupportedOperation();
             }
         }
-        _checkFHEGasBlockLimit();
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheGt.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheShr.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheGt(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheShr(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (scalarByte == 0x01) {
             if (resultType == FheType.Uint8) {
-                _updateFunding(82000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(105000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(128000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(156000);
+                fheGas = 38_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(190000);
+                fheGas = 41_000;
+            } else if (resultType == FheType.Uint256) {
+                fheGas = 44_000;
             } else {
                 revert UnsupportedOperation();
             }
         } else {
             if (resultType == FheType.Uint8) {
-                _updateFunding(82000);
+                fheGas = 133_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(105000);
+                fheGas = 153_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(128000);
+                fheGas = 183_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(156000);
+                fheGas = 227_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(190000);
+                fheGas = 282_000;
+            } else if (resultType == FheType.Uint256) {
+                fheGas = 350_000;
             } else {
                 revert UnsupportedOperation();
             }
         }
-        _checkFHEGasBlockLimit();
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheLe.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheRotl.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheLe(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheRotl(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
+
         if (scalarByte == 0x01) {
             if (resultType == FheType.Uint8) {
-                _updateFunding(82000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(105000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(128000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(156000);
+                fheGas = 38_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(190000);
+                fheGas = 41_000;
+            } else if (resultType == FheType.Uint256) {
+                fheGas = 44_000;
             } else {
                 revert UnsupportedOperation();
             }
         } else {
             if (resultType == FheType.Uint8) {
-                _updateFunding(82000);
+                fheGas = 133_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(105000);
+                fheGas = 153_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(128000);
+                fheGas = 183_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(156000);
+                fheGas = 227_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(190000);
+                fheGas = 282_000;
+            } else if (resultType == FheType.Uint256) {
+                fheGas = 350_000;
             } else {
                 revert UnsupportedOperation();
             }
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheLt.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheRotr.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheLt(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheRotr(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
+
         if (scalarByte == 0x01) {
             if (resultType == FheType.Uint8) {
-                _updateFunding(82000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(105000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(128000);
+                fheGas = 35_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(156000);
+                fheGas = 38_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(190000);
+                fheGas = 41_000;
+            } else if (resultType == FheType.Uint256) {
+                fheGas = 44_000;
             } else {
                 revert UnsupportedOperation();
             }
         } else {
             if (resultType == FheType.Uint8) {
-                _updateFunding(82000);
+                fheGas = 133_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(105000);
+                fheGas = 153_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(128000);
+                fheGas = 183_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(156000);
+                fheGas = 227_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(190000);
+                fheGas = 282_000;
+            } else if (resultType == FheType.Uint256) {
+                fheGas = 350_000;
             } else {
                 revert UnsupportedOperation();
             }
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheMin.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheEq.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param result Result of the operation.
+     * @dev Rhs is not relevant for fheGas calculation.
      */
-    function payForFheMin(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheEqBytes(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas = _checkTypeAndReturnGasForFheEq(resultType, scalarByte);
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitUnaryOp(fheGas, result, lhs);
+    }
+
+    /**
+     * @notice Computes the gas required for FheEq.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
+     */
+    function checkGasLimitForFheEq(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
+        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
+        _checkIfNewBlock();
+        uint256 fheGas = _checkTypeAndReturnGasForFheEq(resultType, scalarByte);
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
+    }
+
+    /**
+     * @notice Computes the gas required for FheNe.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
+     */
+    function checkGasLimitForFheNe(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
+        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
+        _checkIfNewBlock();
+        uint256 fheGas = _checkTypeAndReturnGasForFheNe(resultType, scalarByte);
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
+    }
+
+    /**
+     * @notice Computes the gas required for FheNe.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param result Result of the operation.
+     * @dev Rhs is not relevant for fheGas calculation.
+     */
+    function checkGasLimitForFheNeBytes(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 result
+    ) external virtual {
+        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
+        _checkIfNewBlock();
+        uint256 fheGas = _checkTypeAndReturnGasForFheNe(resultType, scalarByte);
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitUnaryOp(fheGas, result, lhs);
+    }
+
+    /**
+     * @notice Computes the gas required for FheGe.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
+     */
+    function checkGasLimitForFheGe(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
+        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
+        _checkIfNewBlock();
+        uint256 fheGas;
         if (scalarByte == 0x01) {
             if (resultType == FheType.Uint8) {
-                _updateFunding(128000);
+                fheGas = 82_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(150000);
+                fheGas = 105_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(164000);
+                fheGas = 128_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(192000);
+                fheGas = 156_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(225000);
+                fheGas = 190_000;
             } else {
                 revert UnsupportedOperation();
             }
         } else {
             if (resultType == FheType.Uint8) {
-                _updateFunding(128000);
+                fheGas = 82_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(153000);
+                fheGas = 105_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(183000);
+                fheGas = 128_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(210000);
+                fheGas = 156_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(241000);
+                fheGas = 190_000;
             } else {
                 revert UnsupportedOperation();
             }
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheMax.
-     * @param resultType    Result type.
-     * @param scalarByte    Scalar byte.
+     * @notice Computes the gas required for FheGt.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheMax(FheType resultType, bytes1 scalarByte) external virtual {
+    function checkGasLimitForFheGt(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
+
         if (scalarByte == 0x01) {
             if (resultType == FheType.Uint8) {
-                _updateFunding(128000);
+                fheGas = 82_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(150000);
+                fheGas = 105_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(164000);
+                fheGas = 128_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(192000);
+                fheGas = 156_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(225000);
+                fheGas = 190_000;
             } else {
                 revert UnsupportedOperation();
             }
         } else {
             if (resultType == FheType.Uint8) {
-                _updateFunding(128000);
+                fheGas = 82_000;
             } else if (resultType == FheType.Uint16) {
-                _updateFunding(153000);
+                fheGas = 105_000;
             } else if (resultType == FheType.Uint32) {
-                _updateFunding(183000);
+                fheGas = 128_000;
             } else if (resultType == FheType.Uint64) {
-                _updateFunding(210000);
+                fheGas = 156_000;
             } else if (resultType == FheType.Uint128) {
-                _updateFunding(241000);
+                fheGas = 190_000;
             } else {
                 revert UnsupportedOperation();
             }
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheNeg.
-     * @param resultType    Result type.
+     * @notice Computes the gas required for FheLe.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
      */
-    function payForFheNeg(FheType resultType) external virtual {
+    function checkGasLimitForFheLe(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
+        if (scalarByte == 0x01) {
+            if (resultType == FheType.Uint8) {
+                fheGas = 82_000;
+            } else if (resultType == FheType.Uint16) {
+                fheGas = 105_000;
+            } else if (resultType == FheType.Uint32) {
+                fheGas = 128_000;
+            } else if (resultType == FheType.Uint64) {
+                fheGas = 156_000;
+            } else if (resultType == FheType.Uint128) {
+                fheGas = 190_000;
+            } else {
+                revert UnsupportedOperation();
+            }
+        } else {
+            if (resultType == FheType.Uint8) {
+                fheGas = 82_000;
+            } else if (resultType == FheType.Uint16) {
+                fheGas = 105_000;
+            } else if (resultType == FheType.Uint32) {
+                fheGas = 128_000;
+            } else if (resultType == FheType.Uint64) {
+                fheGas = 156_000;
+            } else if (resultType == FheType.Uint128) {
+                fheGas = 190_000;
+            } else {
+                revert UnsupportedOperation();
+            }
+        }
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
+    }
+
+    /**
+     * @notice Computes the gas required for FheLt.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
+     */
+    function checkGasLimitForFheLt(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
+        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
+        _checkIfNewBlock();
+        uint256 fheGas;
+        if (scalarByte == 0x01) {
+            if (resultType == FheType.Uint8) {
+                fheGas = 82_000;
+            } else if (resultType == FheType.Uint16) {
+                fheGas = 105_000;
+            } else if (resultType == FheType.Uint32) {
+                fheGas = 128_000;
+            } else if (resultType == FheType.Uint64) {
+                fheGas = 156_000;
+            } else if (resultType == FheType.Uint128) {
+                fheGas = 190_000;
+            } else {
+                revert UnsupportedOperation();
+            }
+        } else {
+            if (resultType == FheType.Uint8) {
+                fheGas = 82_000;
+            } else if (resultType == FheType.Uint16) {
+                fheGas = 105_000;
+            } else if (resultType == FheType.Uint32) {
+                fheGas = 128_000;
+            } else if (resultType == FheType.Uint64) {
+                fheGas = 156_000;
+            } else if (resultType == FheType.Uint128) {
+                fheGas = 190_000;
+            } else {
+                revert UnsupportedOperation();
+            }
+        }
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
+    }
+
+    /**
+     * @notice Computes the gas required for FheMin.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
+     */
+    function checkGasLimitForFheMin(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
+        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
+        _checkIfNewBlock();
+        uint256 fheGas;
+        if (scalarByte == 0x01) {
+            if (resultType == FheType.Uint8) {
+                fheGas = 128_000;
+            } else if (resultType == FheType.Uint16) {
+                fheGas = 150_000;
+            } else if (resultType == FheType.Uint32) {
+                fheGas = 164_000;
+            } else if (resultType == FheType.Uint64) {
+                fheGas = 192_000;
+            } else if (resultType == FheType.Uint128) {
+                fheGas = 225_000;
+            } else {
+                revert UnsupportedOperation();
+            }
+        } else {
+            if (resultType == FheType.Uint8) {
+                fheGas = 128_000;
+            } else if (resultType == FheType.Uint16) {
+                fheGas = 153_000;
+            } else if (resultType == FheType.Uint32) {
+                fheGas = 183_000;
+            } else if (resultType == FheType.Uint64) {
+                fheGas = 210_000;
+            } else if (resultType == FheType.Uint128) {
+                fheGas = 241_000;
+            } else {
+                revert UnsupportedOperation();
+            }
+        }
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
+    }
+
+    /**
+     * @notice Computes the gas required for FheMax.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     * @param lhs Left-hand side operand.
+     * @param rhs Right-hand side operand.
+     * @param result Result of the operation.
+     */
+    function checkGasLimitForFheMax(
+        FheType resultType,
+        bytes1 scalarByte,
+        bytes32 lhs,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
+        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
+        _checkIfNewBlock();
+        uint256 fheGas;
+        if (scalarByte == 0x01) {
+            if (resultType == FheType.Uint8) {
+                fheGas = 128_000;
+            } else if (resultType == FheType.Uint16) {
+                fheGas = 150_000;
+            } else if (resultType == FheType.Uint32) {
+                fheGas = 164_000;
+            } else if (resultType == FheType.Uint64) {
+                fheGas = 192_000;
+            } else if (resultType == FheType.Uint128) {
+                fheGas = 225_000;
+            } else {
+                revert UnsupportedOperation();
+            }
+        } else {
+            if (resultType == FheType.Uint8) {
+                fheGas = 128_000;
+            } else if (resultType == FheType.Uint16) {
+                fheGas = 153_000;
+            } else if (resultType == FheType.Uint32) {
+                fheGas = 183_000;
+            } else if (resultType == FheType.Uint64) {
+                fheGas = 210_000;
+            } else if (resultType == FheType.Uint128) {
+                fheGas = 241_000;
+            } else {
+                revert UnsupportedOperation();
+            }
+        }
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitBinaryOp(fheGas, result, lhs, rhs);
+    }
+
+    /**
+     * @notice Computes the gas required for FheNeg.
+     * @param resultType Result type.
+     * @param ct Ciphertext.
+     * @param result Result of the operation.
+     */
+    function checkGasLimitForFheNeg(FheType resultType, bytes32 ct, bytes32 result) external virtual {
+        if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
+        _checkIfNewBlock();
+        uint256 fheGas;
         if (resultType == FheType.Uint8) {
-            _updateFunding(95000);
+            fheGas = 95_000;
         } else if (resultType == FheType.Uint16) {
-            _updateFunding(131000);
+            fheGas = 131_000;
         } else if (resultType == FheType.Uint32) {
-            _updateFunding(160000);
+            fheGas = 160_000;
         } else if (resultType == FheType.Uint64) {
-            _updateFunding(199000);
+            fheGas = 199_000;
         } else if (resultType == FheType.Uint128) {
-            _updateFunding(248000);
+            fheGas = 248_000;
         } else if (resultType == FheType.Uint256) {
-            _updateFunding(309000);
+            fheGas = 309_000;
         } else {
             revert UnsupportedOperation();
         }
-        _checkFHEGasBlockLimit();
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitUnaryOp(fheGas, result, ct);
     }
 
     /**
      * @notice              Computes the gas required for FheNot.
      * @param resultType    Result type.
      */
-    function payForFheNot(FheType resultType) external virtual {
+    function checkGasLimitForFheNot(FheType resultType, bytes32 ct, bytes32 result) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (resultType == FheType.Bool) {
-            _updateFunding(30000);
+            fheGas = 30_000;
         } else if (resultType == FheType.Uint8) {
-            _updateFunding(34000);
+            fheGas = 34_000;
         } else if (resultType == FheType.Uint16) {
-            _updateFunding(35000);
+            fheGas = 35_000;
         } else if (resultType == FheType.Uint32) {
-            _updateFunding(36000);
+            fheGas = 36_000;
         } else if (resultType == FheType.Uint64) {
-            _updateFunding(37000);
+            fheGas = 37_000;
         } else if (resultType == FheType.Uint128) {
-            _updateFunding(38000);
+            fheGas = 38_000;
         } else if (resultType == FheType.Uint256) {
-            _updateFunding(39000);
+            fheGas = 39_000;
         } else {
             revert UnsupportedOperation();
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitUnaryOp(fheGas, result, ct);
     }
 
     /**
      * @notice              Computes the gas required for Cast.
      * @param resultType    Result type.
      */
-    function payForCast(FheType resultType) external virtual {
+    function checkGasLimitForCast(FheType resultType, bytes32 ct, bytes32 result) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (resultType == FheType.Bool) {
-            _updateFunding(200);
+            fheGas = 200;
         } else if (resultType == FheType.Uint8) {
-            _updateFunding(200);
+            fheGas = 200;
         } else if (resultType == FheType.Uint16) {
-            _updateFunding(200);
+            fheGas = 200;
         } else if (resultType == FheType.Uint32) {
-            _updateFunding(200);
+            fheGas = 200;
         } else if (resultType == FheType.Uint64) {
-            _updateFunding(200);
+            fheGas = 200;
         } else if (resultType == FheType.Uint128) {
-            _updateFunding(200);
+            fheGas = 200;
         } else if (resultType == FheType.Uint256) {
-            _updateFunding(200);
+            fheGas = 200;
         } else {
             revert UnsupportedOperation();
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitUnaryOp(fheGas, result, ct);
     }
 
     /**
      * @notice              Computes the gas required for TrivialEncrypt.
      * @param resultType    Result type.
      */
-    function payForTrivialEncrypt(FheType resultType) external virtual {
+    function checkGasLimitForTrivialEncrypt(FheType resultType, bytes32 result) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (resultType == FheType.Bool) {
-            _updateFunding(100);
+            fheGas = 100;
         } else if (resultType == FheType.Uint8) {
-            _updateFunding(100);
+            fheGas = 100;
         } else if (resultType == FheType.Uint16) {
-            _updateFunding(200);
+            fheGas = 200;
         } else if (resultType == FheType.Uint32) {
-            _updateFunding(300);
+            fheGas = 300;
         } else if (resultType == FheType.Uint64) {
-            _updateFunding(600);
+            fheGas = 600;
         } else if (resultType == FheType.Uint128) {
-            _updateFunding(650);
+            fheGas = 650;
         } else if (resultType == FheType.Uint160) {
-            _updateFunding(700);
+            fheGas = 700;
         } else if (resultType == FheType.Uint256) {
-            _updateFunding(800);
+            fheGas = 800;
         } else if (resultType == FheType.Uint512) {
-            _updateFunding(1600);
+            fheGas = 1600;
         } else if (resultType == FheType.Uint1024) {
-            _updateFunding(3200);
+            fheGas = 3200;
         } else if (resultType == FheType.Uint2048) {
-            _updateFunding(6400);
+            fheGas = 6400;
         } else {
             revert UnsupportedOperation();
         }
-        _checkFHEGasBlockLimit();
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _setFheGasForHandle(result, fheGas);
     }
 
     /**
      * @notice              Computes the gas required for IfThenElse.
      * @param resultType    Result type.
      */
-    function payForIfThenElse(FheType resultType) external virtual {
+    function checkGasLimitForIfThenElse(
+        FheType resultType,
+        bytes32 lhs,
+        bytes32 middle,
+        bytes32 rhs,
+        bytes32 result
+    ) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (resultType == FheType.Bool) {
-            _updateFunding(43000);
+            fheGas = 43_000;
         } else if (resultType == FheType.Uint8) {
-            _updateFunding(47000);
+            fheGas = 47_000;
         } else if (resultType == FheType.Uint16) {
-            _updateFunding(47000);
+            fheGas = 47_000;
         } else if (resultType == FheType.Uint32) {
-            _updateFunding(50000);
+            fheGas = 50_000;
         } else if (resultType == FheType.Uint64) {
-            _updateFunding(53000);
+            fheGas = 53_000;
         } else if (resultType == FheType.Uint128) {
-            _updateFunding(70000);
+            fheGas = 70_000;
         } else if (resultType == FheType.Uint160) {
-            _updateFunding(80000);
+            fheGas = 80_000;
         } else if (resultType == FheType.Uint256) {
-            _updateFunding(90000);
+            fheGas = 90_000;
         } else if (resultType == FheType.Uint512) {
-            _updateFunding(150000);
+            fheGas = 150_000;
         } else if (resultType == FheType.Uint1024) {
-            _updateFunding(200000);
+            fheGas = 200_000;
         } else if (resultType == FheType.Uint2048) {
-            _updateFunding(300000);
+            fheGas = 300_000;
         } else {
             revert UnsupportedOperation();
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _adjustAndCheckFheTransactionLimitTernaryOp(fheGas, result, lhs, middle, rhs);
     }
 
     /**
-     * @notice              Computes the gas required for FheRand.
-     * @param resultType    Result type.
+     * @notice Computes the gas required for FheRand.
+     * @param resultType Result type.
+     * @param result Result of the operation.
      */
-    function payForFheRand(FheType resultType) external virtual {
+    function checkGasLimitForFheRand(FheType resultType, bytes32 result) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (resultType == FheType.Bool) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else if (resultType == FheType.Uint8) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else if (resultType == FheType.Uint16) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else if (resultType == FheType.Uint32) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else if (resultType == FheType.Uint64) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else if (resultType == FheType.Uint128) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else if (resultType == FheType.Uint256) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else if (resultType == FheType.Uint512) {
-            _updateFunding(200000);
+            fheGas = 200_000;
         } else if (resultType == FheType.Uint1024) {
-            _updateFunding(300000);
+            fheGas = 300_000;
         } else if (resultType == FheType.Uint2048) {
-            _updateFunding(400000);
+            fheGas = 400_000;
         } else {
             revert UnsupportedOperation();
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _setFheGasForHandle(result, fheGas);
     }
 
     /**
-     * @notice              Computes the gas required for FheRandBounded.
-     * @param resultType    Result type.
+     * @notice Computes the gas required for FheRandBounded.
+     * @param resultType Result type.
+     * @param result Result of the operation.
      */
-    function payForFheRandBounded(FheType resultType) external virtual {
+    function checkGasLimitForFheRandBounded(FheType resultType, bytes32 result) external virtual {
         if (msg.sender != fhevmExecutorAddress) revert CallerMustBeFHEVMExecutorContract();
         _checkIfNewBlock();
+        uint256 fheGas;
         if (resultType == FheType.Uint8) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else if (resultType == FheType.Uint16) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else if (resultType == FheType.Uint32) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else if (resultType == FheType.Uint64) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else if (resultType == FheType.Uint128) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else if (resultType == FheType.Uint256) {
-            _updateFunding(100000);
+            fheGas = 100_000;
         } else {
             revert UnsupportedOperation();
         }
-        _checkFHEGasBlockLimit();
+
+        _adjustAndCheckFheBlockConsumption(fheGas);
+        _setFheGasForHandle(result, fheGas);
     }
 
     /**
-     * @notice                     Getter function for the FHEVMExecutor contract address.
+     * @notice Getter function for the FHEVMExecutor contract address.
      * @return fhevmExecutorAddress Address of the FHEVMExecutor.
      */
     function getFHEVMExecutorAddress() public view virtual returns (address) {
@@ -1140,7 +1348,7 @@ contract FHEGasLimit is UUPSUpgradeable, Ownable2StepUpgradeable {
     }
 
     /**
-     * @notice        Getter for the name and version of the contract.
+     * @notice Getter for the name and version of the contract.
      * @return string Name and the version of the contract.
      */
     function getVersion() external pure virtual returns (string memory) {
@@ -1159,15 +1367,6 @@ contract FHEGasLimit is UUPSUpgradeable, Ownable2StepUpgradeable {
     }
 
     /**
-     * @dev Checks the accumulated FHE gas used and checks if it is inferior to the limit.
-     *      If so, it reverts.
-     */
-    function _checkFHEGasBlockLimit() internal view virtual {
-        FHEGasLimitStorage storage $ = _getFHEGasLimitStorage();
-        if ($.currentBlockConsumption >= FHE_GAS_BLOCKLIMIT) revert FHEGasBlockLimitExceeded();
-    }
-
-    /**
      * @dev Checks if it is a new block. If so, it resets information for new block.
      */
     function _checkIfNewBlock() internal virtual {
@@ -1180,12 +1379,99 @@ contract FHEGasLimit is UUPSUpgradeable, Ownable2StepUpgradeable {
     }
 
     /**
-     * @dev                 Updates the funding.
+     * @notice Updates the current FHE gas consumption for the transaction.
+     * @param fheGas The FHE gas to be added.
+     * @param result The result of the operation.
+     * @param lhs The only operand.
+     */
+    function _adjustAndCheckFheTransactionLimitUnaryOp(uint256 fheGas, bytes32 result, bytes32 lhs) internal {
+        uint256 txFheGasSpent = fheGas + _getFheGasForHandle(lhs);
+        if (txFheGasSpent >= FHE_GAS_TRANSACTION_LIMIT) {
+            revert FHEGasTransactionLimitExceeded();
+        }
+
+        _setFheGasForHandle(result, txFheGasSpent);
+    }
+
+    /**
+     * @notice Updates the current FHE gas consumption for the transaction.
+     * @param fheGas The FHE gas to be added.
+     * @param result The result of the operation.
+     * @param lhs The left-hand side operand.
+     * @param rhs The right-hand side operand.
+     */
+    function _adjustAndCheckFheTransactionLimitBinaryOp(
+        uint256 fheGas,
+        bytes32 result,
+        bytes32 lhs,
+        bytes32 rhs
+    ) internal {
+        uint256 txFheGasSpent = fheGas + _max(_getFheGasForHandle(lhs), _getFheGasForHandle(rhs));
+        if (txFheGasSpent >= FHE_GAS_TRANSACTION_LIMIT) {
+            revert FHEGasTransactionLimitExceeded();
+        }
+
+        _setFheGasForHandle(result, txFheGasSpent);
+    }
+
+    /**
+     * @notice Updates the current FHE gas consumption for the transaction.
+     * @param fheGas The FHE gas to be added.
+     * @param result The result of the operation.
+     * @param lhs The left-hand side operand.
+     * @param middle The middle operand.
+     * @param rhs The right-hand side operand.
+     */
+    function _adjustAndCheckFheTransactionLimitTernaryOp(
+        uint256 fheGas,
+        bytes32 result,
+        bytes32 lhs,
+        bytes32 middle,
+        bytes32 rhs
+    ) internal {
+        uint256 txFheGasSpent = fheGas +
+            _max(_getFheGasForHandle(lhs), _max(_getFheGasForHandle(middle), _getFheGasForHandle(rhs)));
+
+        console.log(txFheGasSpent);
+
+        if (txFheGasSpent >= FHE_GAS_TRANSACTION_LIMIT) {
+            revert FHEGasTransactionLimitExceeded();
+        }
+
+        _setFheGasForHandle(result, txFheGasSpent);
+    }
+
+    /**
+     * @dev Checks if the FHE gas limit for the block is exceeded.
      * @param paidAmountGas Paid amount gas.
      */
-    function _updateFunding(uint256 paidAmountGas) internal virtual {
+    function _adjustAndCheckFheBlockConsumption(uint256 paidAmountGas) internal virtual {
         FHEGasLimitStorage storage $ = _getFHEGasLimitStorage();
         $.currentBlockConsumption += paidAmountGas;
+
+        if ($.currentBlockConsumption >= FHE_GAS_BLOCKLIMIT) revert FHEGasBlockLimitExceeded();
+    }
+
+    /**
+     * @notice Sets the FHE gas for a given handle in the transient storage.
+     * @param handle The handle for which to set the FHE gas.
+     */
+    function _setFheGasForHandle(bytes32 handle, uint256 handleFheGas) internal {
+        bytes32 slot = keccak256(abi.encodePacked(FHEGasLimitStorageLocation, handle));
+        assembly {
+            tstore(slot, handleFheGas)
+        }
+    }
+
+    /**
+     * @notice Updates the current FHE gas consumption for the block.
+     * @param handle The handle for which to get the FHE gas.
+     */
+    function _getFheGasForHandle(bytes32 handle) internal view returns (uint256 handleFheGas) {
+        bytes32 slot = keccak256(abi.encodePacked(FHEGasLimitStorageLocation, handle));
+        assembly {
+            handleFheGas := tload(slot)
+        }
     }
 
     /**
@@ -1194,11 +1480,149 @@ contract FHEGasLimit is UUPSUpgradeable, Ownable2StepUpgradeable {
     function _authorizeUpgrade(address _newImplementation) internal virtual override onlyOwner {}
 
     /**
-     * @dev  Returns the FHEGasLimit storage location.
+     * @dev Returns the FHEGasLimit storage location.
      */
     function _getFHEGasLimitStorage() internal pure returns (FHEGasLimitStorage storage $) {
         assembly {
             $.slot := FHEGasLimitStorageLocation
         }
+    }
+
+    /**
+     * @notice Computes the gas required for FheEq.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     */
+    function _checkTypeAndReturnGasForFheEq(
+        FheType resultType,
+        bytes1 scalarByte
+    ) private pure returns (uint256 fheGas) {
+        if (scalarByte == 0x01) {
+            if (resultType == FheType.Bool) {
+                fheGas = 49_000;
+            } else if (resultType == FheType.Uint8) {
+                fheGas = 53_000;
+            } else if (resultType == FheType.Uint16) {
+                fheGas = 54_000;
+            } else if (resultType == FheType.Uint32) {
+                fheGas = 82_000;
+            } else if (resultType == FheType.Uint64) {
+                fheGas = 86_000;
+            } else if (resultType == FheType.Uint128) {
+                fheGas = 88_000;
+            } else if (resultType == FheType.Uint160) {
+                fheGas = 90_000;
+            } else if (resultType == FheType.Uint256) {
+                fheGas = 100_000;
+            } else if (resultType == FheType.Uint512) {
+                fheGas = 150_000;
+            } else if (resultType == FheType.Uint1024) {
+                fheGas = 200_000;
+            } else if (resultType == FheType.Uint2048) {
+                fheGas = 300_000;
+            } else {
+                revert UnsupportedOperation();
+            }
+        } else {
+            if (resultType == FheType.Bool) {
+                fheGas = 49_000;
+            } else if (resultType == FheType.Uint8) {
+                fheGas = 53_000;
+            } else if (resultType == FheType.Uint16) {
+                fheGas = 54_000;
+            } else if (resultType == FheType.Uint32) {
+                fheGas = 82_000;
+            } else if (resultType == FheType.Uint64) {
+                fheGas = 86_000;
+            } else if (resultType == FheType.Uint128) {
+                fheGas = 88_000;
+            } else if (resultType == FheType.Uint160) {
+                fheGas = 90_000;
+            } else if (resultType == FheType.Uint256) {
+                fheGas = 100_000;
+            } else if (resultType == FheType.Uint512) {
+                fheGas = 150_000;
+            } else if (resultType == FheType.Uint1024) {
+                fheGas = 200_000;
+            } else if (resultType == FheType.Uint2048) {
+                fheGas = 300_000;
+            } else {
+                revert UnsupportedOperation();
+            }
+        }
+    }
+
+    /**
+     * @notice Computes the gas required for FheNe.
+     * @param resultType Result type.
+     * @param scalarByte Scalar byte.
+     */
+    function _checkTypeAndReturnGasForFheNe(
+        FheType resultType,
+        bytes1 scalarByte
+    ) private pure returns (uint256 fheGas) {
+        if (scalarByte == 0x01) {
+            if (resultType == FheType.Bool) {
+                fheGas = 49_000;
+            } else if (resultType == FheType.Uint8) {
+                fheGas = 53_000;
+            } else if (resultType == FheType.Uint16) {
+                fheGas = 54_000;
+            } else if (resultType == FheType.Uint32) {
+                fheGas = 82_000;
+            } else if (resultType == FheType.Uint64) {
+                fheGas = 86_000;
+            } else if (resultType == FheType.Uint128) {
+                fheGas = 88_000;
+            } else if (resultType == FheType.Uint160) {
+                fheGas = 90_000;
+            } else if (resultType == FheType.Uint256) {
+                fheGas = 100_000;
+            } else if (resultType == FheType.Uint512) {
+                fheGas = 150_000;
+            } else if (resultType == FheType.Uint1024) {
+                fheGas = 200_000;
+            } else if (resultType == FheType.Uint2048) {
+                fheGas = 300_000;
+            } else {
+                revert UnsupportedOperation();
+            }
+        } else {
+            if (resultType == FheType.Bool) {
+                fheGas = 49_000;
+            } else if (resultType == FheType.Uint8) {
+                fheGas = 53_000;
+            } else if (resultType == FheType.Uint16) {
+                fheGas = 54_000;
+            } else if (resultType == FheType.Uint32) {
+                fheGas = 82_000;
+            } else if (resultType == FheType.Uint64) {
+                fheGas = 86_000;
+            } else if (resultType == FheType.Uint128) {
+                fheGas = 88_000;
+            } else if (resultType == FheType.Uint160) {
+                fheGas = 90_000;
+            } else if (resultType == FheType.Uint256) {
+                fheGas = 100_000;
+            } else if (resultType == FheType.Uint512) {
+                fheGas = 150_000;
+            } else if (resultType == FheType.Uint1024) {
+                fheGas = 200_000;
+            } else if (resultType == FheType.Uint2048) {
+                fheGas = 300_000;
+            } else {
+                revert UnsupportedOperation();
+            }
+        }
+    }
+
+    /**
+     * @dev Returns the maximum of two numbers.
+     * @param a The first number.
+     * @param b The second number.
+     * @return The maximum of a and b.
+     */
+    function _max(uint256 a, uint256 b) private pure returns (uint256) {
+        return a >= b ? a : b;
     }
 }

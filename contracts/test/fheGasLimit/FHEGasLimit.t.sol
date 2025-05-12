@@ -21,7 +21,7 @@ contract MockFheGasLimit is FHEGasLimit {
     /// @dev This function is used for testing purposes to increase the paidAmountGas (for checking revertion paths).
     function updateFunding(uint256 paidAmountGas) public {
         _checkIfNewBlock();
-        _updateFunding(paidAmountGas);
+        _updateCurrentFheBlockConsumption(paidAmountGas);
     }
 }
 
