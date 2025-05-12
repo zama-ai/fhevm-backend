@@ -1,7 +1,7 @@
 use opentelemetry::{
     global::{BoxedSpan, BoxedTracer, ObjectSafeSpan},
     trace::{SpanBuilder, Status, TraceContextExt, Tracer},
-    KeyValue,
+    Context, KeyValue,
 };
 use opentelemetry_sdk::Resource;
 use std::time::SystemTime;
@@ -53,23 +53,28 @@ impl OtelTracer {
 }
 
 #[derive(Debug, PartialEq)]
-struct Handle(String);
+struct Handle(Vec<u8>);
 
 pub fn tracer_with_handle(span_name: &'static str, handle: Vec<u8>) -> OtelTracer {
     let tracer = opentelemetry::global::tracer(format!("tracer_{}", span_name));
     let root_span = tracer.start(span_name);
 
-    let ctx = opentelemetry::Context::default().with_span(root_span);
     if handle.is_empty() {
+        let ctx = Context::default().with_span(root_span);
         OtelTracer { ctx, tracer }
     } else {
         // Add a short hex of the handle to the context
-        let otel_handle = compact_hex(&handle)
-            .get(0..8)
+        let ctx = Context::default()
+            .with_span(root_span)
+            .with_value(Handle(handle.clone()));
+
+        let handle = compact_hex(&handle)
+            .get(0..10)
             .unwrap_or_default()
             .to_owned();
 
-        let ctx = ctx.with_value(Handle(otel_handle));
+        ctx.span().set_attribute(KeyValue::new("handle", handle));
+
         OtelTracer { ctx, tracer }
     }
 }

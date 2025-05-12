@@ -5,7 +5,7 @@ use fhevm_engine_common::tenant_keys::{self, FetchTenantKeyResult};
 use fhevm_engine_common::tfhe_ops::{current_ciphertext_version, extract_ct_list};
 use fhevm_engine_common::types::SupportedFheCiphertexts;
 
-use fhevm_engine_common::utils::safe_deserialize;
+use fhevm_engine_common::utils::{compact_hex, safe_deserialize};
 use lru::LruCache;
 use sha3::Digest;
 use sha3::Keccak256;
@@ -279,7 +279,7 @@ pub(crate) fn verify_proof(
     let cts = cts
         .iter()
         .enumerate()
-        .map(|(idx, ct)| create_ciphertext(&blob_hash, idx, ct, aux_data))
+        .map(|(idx, ct)| create_ciphertext(request_id, &blob_hash, idx, ct, aux_data))
         .collect();
 
     Ok((cts, blob_hash))
@@ -306,6 +306,7 @@ fn try_verify_and_expand_ciphertext_list(
 
 /// Creates a ciphertext
 fn create_ciphertext(
+    request_id: i64,
     blob_hash: &[u8],
     ct_idx: usize,
     the_ct: &SupportedFheCiphertexts,
@@ -335,6 +336,22 @@ fn create_ciphertext(
     handle[22..30].copy_from_slice(&(aux_data.chain_id as u64).to_be_bytes());
     handle[30] = serialized_type as u8;
     handle[31] = current_ciphertext_version() as u8;
+
+    let t = telemetry::tracer("new_handle");
+    t.set_attribute("request_id", request_id.to_string());
+    t.set_attribute("handle", hex::encode(handle.clone()));
+    t.set_attribute("chain_id", aux_data.chain_id.to_string());
+    t.set_attribute("ct_idx", ct_idx.to_string());
+    t.set_attribute("user_address", aux_data.user_address.clone());
+    t.set_attribute("contract_address", aux_data.user_address.clone());
+    t.set_attribute("version", current_ciphertext_version().to_string());
+    t.set_attribute("type", serialized_type.to_string());
+    t.set_attribute(
+        "acl_contract_address",
+        aux_data.acl_contract_address.clone(),
+    );
+
+    info!("Create new handle: {:?}", compact_hex(&handle));
 
     Ciphertext {
         handle,
