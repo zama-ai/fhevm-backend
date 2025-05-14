@@ -30,7 +30,7 @@ describe('KMSVerifier', function () {
       const addressSigner = process.env['KMS_SIGNER_ADDRESS_1']!;
       let setSigners = await kmsVerifier.getKmsSigners();
       setSigners = [...setSigners, addressSigner];
-      const tx1 = await kmsVerifier.connect(deployer).defineNewContext(setSigners, 1);
+      const tx1 = await kmsVerifier.connect(deployer).defineNewContext(setSigners, 0);
       await tx1.wait();
 
       expect((await kmsVerifier.getKmsSigners()).length).to.equal(2); // one signer has been added
