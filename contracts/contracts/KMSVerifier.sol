@@ -34,9 +34,6 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
     /// @notice Returned if the signers set is empty.
     error SignersSetIsEmpty();
 
-    /// @notice Returned if the chosen threshold is null.
-    error ThresholdIsNull();
-
     /// @notice Threshold is above number of signers.
     error ThresholdIsAboveNumberOfSigners();
 
@@ -116,7 +113,7 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
      * @notice          Sets a new context (i.e. new set of unique signers and new threshold).
      * @dev             Only the owner can set a new context.
      * @param newSignersSet   The new set of signers to be set. This array should not be empty and without duplicates nor null values.
-     * @param newThreshold    The threshold to be set. Threshold should be non-null and less than the number of signers.
+     * @param newThreshold    The threshold to be set. Threshold + 1 should be less than the number of signers.
      */
     function defineNewContext(address[] memory newSignersSet, uint256 newThreshold) public virtual onlyOwner {
         uint256 newSignersLen = newSignersSet.length;
@@ -255,14 +252,11 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
     /**
      * @notice          Internal function that sets the minimum number of valid signatures required to accept a transaction.
      * @dev             External functions using this internal function should be access controlled to owner.
-     * @param threshold    The threshold to be set. Threshold should be non-null and less than the number of signers.
+     * @param threshold    The threshold to be set. Threshold + 1 should be less than the number of signers.
      */
     function _setThreshold(uint256 threshold) internal virtual {
-        if (threshold == 0) {
-            revert ThresholdIsNull();
-        }
         KMSVerifierStorage storage $ = _getKMSVerifierStorage();
-        if (threshold > $.signers.length) {
+        if (threshold + 1 > $.signers.length) {
             revert ThresholdIsAboveNumberOfSigners();
         }
         $.threshold = threshold;
@@ -282,9 +276,9 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
             revert KMSZeroSignature();
         }
 
-        uint256 threshold = getThreshold();
+        uint256 majorityThreshold = getThreshold() + 1;
 
-        if (numSignatures < threshold) {
+        if (numSignatures < majorityThreshold) {
             revert KMSSignatureThresholdNotReached(numSignatures);
         }
 
@@ -300,7 +294,7 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
                 uniqueValidCount++;
                 _tstore(signerRecovered, 1);
             }
-            if (uniqueValidCount >= threshold) {
+            if (uniqueValidCount >= majorityThreshold) {
                 _cleanTransientHashMap(recoveredSigners, uniqueValidCount);
                 return true;
             }

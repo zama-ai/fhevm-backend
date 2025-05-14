@@ -323,16 +323,6 @@ contract KMSVerifierTest is Test {
     }
 
     /**
-     * @dev Tests that the threshold value must not be set to 0.
-     */
-    function test_ThresholdMustBeNotSetToZero() public {
-        _upgradeProxyWithSigners(3);
-        vm.prank(owner);
-        vm.expectRevert(KMSVerifier.ThresholdIsNull.selector);
-        kmsVerifier.setThreshold(0);
-    }
-
-    /**
      * @dev Tests that the threshold cannot be set if it is above the number of signers.
      */
     function test_ThresholdCannotBeSetIfAboveNumberOfSigners() public {
