@@ -257,8 +257,8 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
     function _setThreshold(uint256 newKmsThreshold) internal virtual {
         KMSVerifierStorage storage $ = _getKMSVerifierStorage();
 
-        // The threshold is the minimum number of valid signatures required to accept a transaction for 
-        // a public decryption. In accordance to the fhevm Gateway and the KMS, it is defined as the 
+        // The threshold is the minimum number of valid signatures required to accept a transaction for
+        // a public decryption. In accordance to the fhevm Gateway and the KMS, it is defined as the
         // KMS threshold + 1. Since the KMS threshold is allowed to be null, this ensures that at least
         // one signature is always required.
         uint256 threshold = newKmsThreshold + 1;
