@@ -1,21 +1,27 @@
-use alloy_provider::fillers::{BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller};
-use futures_util::stream::StreamExt;
-use sqlx::types::Uuid;
 use std::collections::VecDeque;
 use std::str::FromStr;
 use std::time::Duration;
 
+use alloy_provider::fillers::{BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller};
 use alloy::primitives::Address;
 use alloy::providers::{Provider, ProviderBuilder, RootProvider, WsConnect};
 use alloy::pubsub::SubscriptionStream;
 use alloy::rpc::types::{BlockNumberOrTag, Filter, Log};
-
 use alloy_sol_types::SolEventInterface;
-
 use clap::Parser;
+use futures_util::stream::StreamExt;
+use opentelemetry::global::BoxedSpan;
+use opentelemetry::trace::{Span, Status};
+use opentelemetry::KeyValue;
+use sqlx::types::Uuid;
+use tracing::{error, warn, info};
+
+use fhevm_engine_common::telemetry::{self, OtelTracer};
 
 use crate::contracts::{AclContract, TfheContract};
 use crate::database::tfhe_event_propagate::{ChainId, Database};
+
+const LOG_NAME: &str = "fhevm_listener";
 
 #[derive(Parser, Debug, Clone)]
 #[command(version, about, long_about = None)]
@@ -82,6 +88,7 @@ struct InfiniteLogIter {
     current_event: Option<Log>,
     last_block_event_count: u64,
     last_block_recheck_planned: u64,
+    trace: OtelTracer,
 }
 enum LogOrBlockTimeout {
     Log(Option<Log>),
@@ -89,7 +96,7 @@ enum LogOrBlockTimeout {
 }
 
 impl InfiniteLogIter {
-    fn new(args: &Args) -> Self {
+    fn new(args: &Args, trace: OtelTracer) -> Self {
         let mut contract_addresses = vec![];
         if let Some(acl_contract_address) = &args.acl_contract_address {
             contract_addresses.push(Address::from_str(acl_contract_address).unwrap());
@@ -113,6 +120,7 @@ impl InfiniteLogIter {
             current_event: None,
             last_block_event_count: 0,
             last_block_recheck_planned: 0,
+            trace: trace,
         }
     }
 
@@ -179,16 +187,22 @@ impl InfiniteLogIter {
         if logs.len() as u64 == last_block_event_count {
             return false;
         }
+        let mut span = self.trace.child_span("incomplete_block_cause_replay");
+        telemetry::attribute(&mut span, "subscribe_logs count", last_block_event_count.to_string());
+        telemetry::attribute(&mut span, "get_logs count", logs.len().to_string());
+        warn!("Replaying Block {block} with {} events (vs {})", logs.len(), last_block_event_count);
         eprintln!("Replaying Block {block} with {} events (vs {})", logs.len(), last_block_event_count);
         self.catchup_logs.extend(logs);
         if let Some(event) = self.current_event.take() {
             self.catchup_logs.push_back(event);
         }
         self.last_block_recheck_planned = block;
+        span.end();
         true
     }
 
     async fn new_log_stream(&mut self, not_initialized: bool) {
+        let mut span = self.trace.child_span("new_log_stream");
         let mut retry = 20;
         loop {
             let ws = WsConnect::new(&self.url);
@@ -217,11 +231,17 @@ impl InfiniteLogIter {
                     );
                     self.fill_catchup_events(&provider, &filter).await;
                     self.provider = Some(provider);
+                    span.add_event("success", vec![]);
                     return;
                 }
                 Err(err) => {
                     let delay = if not_initialized {
                         if retry == 0 {
+                            span.add_event("failure", vec![]);
+                            error!(
+                                "Cannot connect to {} due to {err}.",
+                                &self.url
+                            );
                             panic!(
                                 "Cannot connect to {} due to {err}.",
                                 &self.url
@@ -232,17 +252,18 @@ impl InfiniteLogIter {
                         1
                     };
                     if not_initialized {
-                        eprintln!(
+                        warn!(
                             "Cannot connect to {} due to {err}. Will retry in {delay} secs, {retry} times.",
                             &self.url
                         );
                     } else {
-                        eprintln!(
+                        info!(
                             "Cannot connect to {} due to {err}. Will retry in {delay} secs, indefinitively.",
                             &self.url
                         );
                     }
                     retry -= 1;
+                    span.add_event("retry", vec![]);
                     tokio::time::sleep(Duration::from_secs(delay)).await;
                 }
             }
@@ -251,7 +272,7 @@ impl InfiniteLogIter {
 
     async fn next_event_or_block_end(&mut self) -> LogOrBlockTimeout {
         let Some(stream) = &mut self.stream else {
-            eprintln!("No stream, inconsistent state");
+            error!("No stream, inconsistent state");
             return LogOrBlockTimeout::Log(None) // simulate a stream end to force reinit
         };
         let next_opt_event = stream.next();
@@ -274,7 +295,8 @@ impl InfiniteLogIter {
             };
             if let Some(log) = self.catchup_logs.pop_front() {
                 if self.catchup_logs.is_empty() {
-                    eprintln!("Going back to real-time events");
+                    warn!("Going back to real-time events");
+                    eprintln!("Going back to real-time events")
                 };
                 self.current_event = Some(log);
                 break;
@@ -288,7 +310,7 @@ impl InfiniteLogIter {
                             return None;
                         }
                     }
-                    eprintln!("Nothing to read, retrying");
+                    warn!("Nothing to read, retrying");
                     tokio::time::sleep(Duration::from_secs(1)).await;
                     continue;
                 }
@@ -343,20 +365,47 @@ impl InfiniteLogIter {
     }
 }
 
+pub fn event_count(trace: &OtelTracer, name: &str, count: &mut u64, sampling: u64, sampling_at:u64, error: bool) {
+    *count += 1;
+    if *count < sampling_at || *count % sampling == 0 {
+        let mut span = trace.child_span("event");
+        span.add_event(format!("{name}"), vec![KeyValue::new("count", count.to_string())]);
+        if error {
+            span.set_status(Status::error(name.to_string()));
+        } else {
+            span.set_status(Status::Ok);
+        }
+        telemetry::end_span(span);
+    }
+}
+
+fn check_contract_address(connect_span: &mut BoxedSpan, name: &str, address: &str) {
+    telemetry::attribute(connect_span, &format!("{name} contract address"), address.to_string());
+    if let Err(err) = Address::from_str(address) {
+        let msg = format!("Invalid {name} contract address ({err}), stopping service");
+        error!("{}", msg);
+        panic!("{}", msg);
+    };
+}
+
 pub async fn main(args: Args) {
+    if let Err(err) = telemetry::setup_otlp(LOG_NAME) {
+        error!("Error while initializing tracing: {:?}", err);
+    }
+    let trace = telemetry::tracer("main");
+    let main_span = trace.child_span("main");
+    let mut connect_span = trace.child_span("connect");
     if let Some(acl_contract_address) = &args.acl_contract_address {
-        if let Err(err) = Address::from_str(acl_contract_address) {
-            panic!("Invalid acl contract address: {err}");
-        };
+        check_contract_address(&mut connect_span, "acl", acl_contract_address);
     };
     if let Some(tfhe_contract_address) = &args.tfhe_contract_address {
-        if let Err(err) = Address::from_str(tfhe_contract_address) {
-            panic!("Invalid tfhe contract address: {err}");
-        };
+        check_contract_address(&mut connect_span, "tfhe", tfhe_contract_address);
     }
 
-    let mut log_iter = InfiniteLogIter::new(&args);
+    let mut log_iter = InfiniteLogIter::new(&args, trace.clone());
     let chain_id = log_iter.get_chain_id_or_panic().await;
+    info!("Chain ID: {chain_id}");
+    telemetry::attribute(&mut connect_span, "chain_id", chain_id.to_string());
     eprintln!("Chain ID: {chain_id}");
 
     let mut db = if !args.database_url.is_empty() {
@@ -383,12 +432,18 @@ pub async fn main(args: Args) {
 
     log_iter.new_log_stream(true).await;
 
+    telemetry::end_span(connect_span);
     let mut block_error_event_fthe = 0;
+    let mut valid_block = 0;
+    let mut invalid_block = 0;
+    let mut tfhe_events = 0;
+    let mut acl_events = 0;
     while let Some(log) = log_iter.next().await {
         if log_iter.is_first_of_block() {
             log_iter.reestimated_block_time();
             if let Some(block_number) = log.block_number {
                 if block_error_event_fthe == 0 {
+                    valid_block += 1;
                     if let Some(ref mut db) = db {
                         db.mark_prev_block_as_valid(
                             &log_iter.current_event,
@@ -396,32 +451,31 @@ pub async fn main(args: Args) {
                         )
                         .await;
                     }
+                    event_count(&trace, "valid_block", &mut valid_block, 60, 60, false);
                 } else {
-                    eprintln!(
+                    error!(
                         "Errors in tfhe events: {block_error_event_fthe}"
                     );
+                    event_count(&trace, "invalid_block", &mut invalid_block, 1, 0, true);
                     block_error_event_fthe = 0;
                 }
                 eprintln!("\n--------------------");
                 eprintln!("Block {block_number}");
             }
         };
-        if block_error_event_fthe > 0 {
-            eprintln!("Errors in block {block_error_event_fthe}");
-        }
         if !args.ignore_tfhe_events {
             if let Ok(event) =
                 TfheContract::TfheContractEvents::decode_log(&log.inner, true)
             {
-                // TODO: filter on contract address if known
                 println!("TFHE {event:#?}");
                 if let Some(ref mut db) = db {
                     let res = db.insert_tfhe_event(&event).await;
                     if let Err(err) = res {
                         block_error_event_fthe += 1;
-                        eprintln!("Error inserting tfhe event: {err}");
+                        error!("Error inserting tfhe event: {err}");
                     }
                 }
+                event_count(&trace, "tfhe", &mut tfhe_events, 100, 100, false);
                 continue;
             }
         }
@@ -433,8 +487,11 @@ pub async fn main(args: Args) {
                 if let Some(ref mut db) = db {
                     let _ = db.handle_acl_event(&event).await;
                 }
+                event_count(&trace, "acl", &mut acl_events, 100, 100, false);
                 continue;
             }
         }
     }
+    telemetry::end_span(main_span);
+    trace.end();
 }
