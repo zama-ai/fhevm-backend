@@ -137,7 +137,7 @@ describe('TestFHEGasLimit', function () {
     await contract.waitForDeployment();
     await expect(contract.aboveBlockFHEGasLimit()).revertedWithCustomError(
       this.fheGasLimit,
-      'FHEGasBlockLimitExceeded',
+      'FHEGasTransactionLimitExceeded',
     );
   });
 

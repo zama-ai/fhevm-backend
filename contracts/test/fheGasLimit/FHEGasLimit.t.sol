@@ -21,7 +21,7 @@ contract MockFheGasLimit is FHEGasLimit {
     /// @dev This function is used for testing purposes to increase the paidAmountGas (for checking revertion paths).
     function updateFunding(uint256 paidAmountGas) public {
         _checkIfNewBlock();
-        _updateCurrentFheBlockConsumption(paidAmountGas);
+        _adjustAndCheckFheBlockConsumption(paidAmountGas);
     }
 }
 
@@ -34,7 +34,12 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
     address internal implementation;
     address internal fhevmExecutor;
 
-    uint256 internal FHE_GAS_BLOCKLIMIT = 20_000_000;
+    uint256 internal FHE_GAS_BLOCKLIMIT = 20_000_000 - 1;
+
+    bytes32 mockLHS;
+    bytes32 mockRHS;
+    bytes32 mockMiddle;
+    bytes32 mockResult;
 
     function _isTypeSupported(FheType fheType, uint256 supportedTypes) internal pure returns (bool) {
         if ((1 << uint8(fheType)) & supportedTypes == 0) {
@@ -71,12 +76,12 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
         assertEq(fheGasLimit.getFHEVMExecutorAddress(), fhevmExecutorAdd);
     }
 
-    function test_PayForFheAddWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheAddWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheAdd));
 
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheAdd(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheAdd(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
 
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 94000);
@@ -88,7 +93,7 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheSub));
 
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheSub(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheSub(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
 
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 94000);
@@ -100,7 +105,7 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheMul));
 
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheMul(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheMul(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
 
         if (scalarByte == 0x01) {
@@ -118,7 +123,7 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
         bytes1 scalarByte = 0x01;
 
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheDiv(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheDiv(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 238000);
         vm.assertLe(currentBlockConsumption, 857000);
@@ -130,29 +135,32 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
         bytes1 scalarByte = 0x01;
 
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheRem(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheRem(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 460000);
         vm.assertLe(currentBlockConsumption, 1499000);
     }
 
-    function test_PayForFheBitAndWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheBitAndWorksAsExpectedForSupportedTypes(
+        uint8 resultType,
+        bytes1 scalarByte
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheBitAnd));
 
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheBitAnd(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheBitAnd(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 26000);
         vm.assertLe(currentBlockConsumption, 44000);
     }
 
-    function test_PayForFheBitOrWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheBitOrWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheBitOr));
 
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheBitOr(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheBitOr(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 26000);
         vm.assertLe(currentBlockConsumption, 44000);
@@ -162,17 +170,17 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheBitXor));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheBitXor(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheBitXor(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 26000);
         vm.assertLe(currentBlockConsumption, 44000);
     }
 
-    function test_PayForFheShlWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheShlWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheShl));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheShl(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheShl(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
 
         if (scalarByte == 0x01) {
@@ -184,11 +192,11 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
         }
     }
 
-    function test_PayForFheShrWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheShrWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheShr));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheShr(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheShr(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
 
         if (scalarByte == 0x01) {
@@ -200,11 +208,11 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
         }
     }
 
-    function test_PayForFheRotlWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheRotlWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheRotl));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheRotl(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheRotl(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
 
         if (scalarByte == 0x01) {
@@ -215,11 +223,11 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
             vm.assertLe(currentBlockConsumption, 350000);
         }
     }
-    function test_PayForFheRotrWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheRotrWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheRotr));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheRotr(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheRotr(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
 
         if (scalarByte == 0x01) {
@@ -231,77 +239,109 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
         }
     }
 
-    function test_PayForFheEqWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheEqWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(
             _isTypeSupported(FheType(resultType), supportedTypesFheEq) ||
                 _isTypeSupported(FheType(resultType), supportedTypesFheEqWithBytes)
         );
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheEq(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheEq(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 49000);
         vm.assertLe(currentBlockConsumption, 300000);
     }
 
-    function test_PayForFheNeWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheEqBytesWorksAsExpectedForSupportedTypes(
+        uint8 resultType,
+        bytes1 scalarByte
+    ) public {
+        vm.assume(resultType <= uint8(FheType.Int248));
+        vm.assume(
+            _isTypeSupported(FheType(resultType), supportedTypesFheEq) ||
+                _isTypeSupported(FheType(resultType), supportedTypesFheEqWithBytes)
+        );
+        vm.prank(fhevmExecutor);
+        fheGasLimit.checkGasLimitForFheEqBytes(FheType(resultType), scalarByte, mockLHS, mockResult);
+        uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
+        vm.assertGe(currentBlockConsumption, 49000);
+        vm.assertLe(currentBlockConsumption, 300000);
+    }
+
+    function test_checkGasLimitForFheNeWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(
             _isTypeSupported(FheType(resultType), supportedTypesFheNe) ||
                 _isTypeSupported(FheType(resultType), supportedTypesFheNeWithBytes)
         );
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheNe(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheNe(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 49000);
         vm.assertLe(currentBlockConsumption, 300000);
     }
 
-    function test_PayForFheGeWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheNeBytesWorksAsExpectedForSupportedTypes(
+        uint8 resultType,
+        bytes1 scalarByte
+    ) public {
+        vm.assume(resultType <= uint8(FheType.Int248));
+        vm.assume(
+            _isTypeSupported(FheType(resultType), supportedTypesFheNe) ||
+                _isTypeSupported(FheType(resultType), supportedTypesFheNeWithBytes)
+        );
+        vm.prank(fhevmExecutor);
+        fheGasLimit.checkGasLimitForFheNeBytes(FheType(resultType), scalarByte, mockLHS, mockResult);
+        uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
+        vm.assertGe(currentBlockConsumption, 49000);
+        vm.assertLe(currentBlockConsumption, 300000);
+    }
+
+    function test_checkGasLimitForFheGeWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheGe));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheGe(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheGe(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 82000);
         vm.assertLe(currentBlockConsumption, 190000);
     }
 
-    function test_PayForFheGtWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheGtWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheGt));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheGt(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheGt(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 82000);
         vm.assertLe(currentBlockConsumption, 190000);
     }
 
-    function test_PayForFheLeWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheLeWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheLe));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheLe(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheLe(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 82000);
         vm.assertLe(currentBlockConsumption, 190000);
     }
 
-    function test_PayForFheLtWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheLtWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheLt));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheLt(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheLt(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 82000);
         vm.assertLe(currentBlockConsumption, 190000);
     }
 
-    function test_PayForFheMinWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheMinWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheMin));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheMin(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheMin(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
 
         if (scalarByte == 0x01) {
@@ -313,11 +353,11 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
         }
     }
 
-    function test_PayForFheMaxWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheMaxWorksAsExpectedForSupportedTypes(uint8 resultType, bytes1 scalarByte) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheMax));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheMax(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheMax(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
 
         if (scalarByte == 0x01) {
@@ -329,431 +369,462 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
         }
     }
 
-    function test_PayForFheNegWorksAsExpectedForSupportedTypes(uint8 resultType) public {
+    function test_checkGasLimitForFheNegWorksAsExpectedForSupportedTypes(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheNeg));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheNeg(FheType(resultType));
+        fheGasLimit.checkGasLimitForFheNeg(FheType(resultType), mockLHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 95000);
         vm.assertLe(currentBlockConsumption, 309000);
     }
 
-    function test_PayForFheNotWorksAsExpectedForSupportedTypes(uint8 resultType) public {
+    function test_checkGasLimitForFheNotWorksAsExpectedForSupportedTypes(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheNot));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheNot(FheType(resultType));
+        fheGasLimit.checkGasLimitForFheNot(FheType(resultType), mockLHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 30000);
         vm.assertLe(currentBlockConsumption, 39000);
     }
 
-    function test_PayForCastWorksAsExpectedForSupportedTypes(uint8 resultType) public {
+    function test_checkGasLimitForCastWorksAsExpectedForSupportedTypes(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesInputCast));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForCast(FheType(resultType));
+        fheGasLimit.checkGasLimitForCast(FheType(resultType), mockLHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertEq(currentBlockConsumption, 200);
     }
 
-    function test_PayForTrivialEncryptWorksAsExpectedForSupportedTypes(uint8 resultType) public {
+    function test_CheckGasLimitForTrivialEncryptWorksAsExpectedForSupportedTypes(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(
             _isTypeSupported(FheType(resultType), supportedTypesTrivialEncrypt) ||
                 _isTypeSupported(FheType(resultType), supportedTypesTrivialEncryptWithBytes)
         );
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForTrivialEncrypt(FheType(resultType));
+        fheGasLimit.checkGasLimitForTrivialEncrypt(FheType(resultType), mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 100);
         vm.assertLe(currentBlockConsumption, 6400);
     }
 
-    function test_PayForIfThenElseWorksAsExpectedForSupportedTypes(uint8 resultType) public {
+    function test_CheckGasLimitForIfThenElseWorksAsExpectedForSupportedTypes(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheIfThenElse));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForIfThenElse(FheType(resultType));
+        fheGasLimit.checkGasLimitForIfThenElse(FheType(resultType), mockLHS, mockMiddle, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 43000);
         vm.assertLe(currentBlockConsumption, 300000);
     }
 
-    function test_PayForFheRandWorksAsExpectedForSupportedTypes(uint8 resultType) public {
+    function test_checkGasLimitForFheRandWorksAsExpectedForSupportedTypes(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheRand));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheRand(FheType(resultType));
+        fheGasLimit.checkGasLimitForFheRand(FheType(resultType), mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertGe(currentBlockConsumption, 100000);
         vm.assertLe(currentBlockConsumption, 400000);
     }
 
-    function test_PayForFheRandBoundedWorksAsExpectedForSupportedTypes(uint8 resultType) public {
+    function test_checkGasLimitForFheRandBoundedWorksAsExpectedForSupportedTypes(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheRandBounded));
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheRandBounded(FheType(resultType));
+        fheGasLimit.checkGasLimitForFheRandBounded(FheType(resultType), mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertEq(currentBlockConsumption, 100000);
     }
 
-    function test_OnlyFHEVMExecutorCanCallPayForFheAdd(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheAdd(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheAdd(FheType.Uint8, 0x01);
+        fheGasLimit.checkGasLimitForFheAdd(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
 
-    function test_OnlyFHEVMExecutorCanCallPayForFheSub(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheSub(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheSub(FheType.Uint8, 0x01);
+        fheGasLimit.checkGasLimitForFheSub(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
-    function test_OnlyFHEVMExecutorCanCallPayForFheMul(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheMul(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheMul(FheType.Uint8, 0x01);
+        fheGasLimit.checkGasLimitForFheMul(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
-    function test_OnlyFHEVMExecutorCanCallPayForFheDiv(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheDiv(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheDiv(FheType.Uint8, 0x01);
+        fheGasLimit.checkGasLimitForFheDiv(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
-    function test_OnlyFHEVMExecutorCanCallPayForFheRem(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheRem(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheRem(FheType.Uint8, 0x01);
+        fheGasLimit.checkGasLimitForFheRem(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
-    function test_OnlyFHEVMExecutorCanCallPayForFheBitAnd(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheBitAnd(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheBitAnd(FheType.Uint8, 0x01);
+        fheGasLimit.checkGasLimitForFheBitAnd(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
-    function test_OnlyFHEVMExecutorCanCallPayForFheBitOr(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheBitOr(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheBitOr(FheType.Uint8, 0x01);
+        fheGasLimit.checkGasLimitForFheBitOr(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
-    function test_OnlyFHEVMExecutorCanCallPayForFheBitXor(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheBitXor(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheBitXor(FheType.Uint8, 0x01);
+        fheGasLimit.checkGasLimitForFheBitXor(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
-    function test_OnlyFHEVMExecutorCanCallPayForFheShl(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheShl(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheShl(FheType.Uint8, 0x01);
-    }
-    function test_OnlyFHEVMExecutorCanCallPayForFheShr(address randomAccount) public {
-        vm.assume(randomAccount != fhevmExecutor);
-        vm.prank(randomAccount);
-        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheShr(FheType.Uint8, 0x01);
-    }
-    function test_OnlyFHEVMExecutorCanCallPayForFheRotl(address randomAccount) public {
-        vm.assume(randomAccount != fhevmExecutor);
-        vm.prank(randomAccount);
-        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheRotl(FheType.Uint8, 0x01);
-    }
-    function test_OnlyFHEVMExecutorCanCallPayForFheRotr(address randomAccount) public {
-        vm.assume(randomAccount != fhevmExecutor);
-        vm.prank(randomAccount);
-        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheRotr(FheType.Uint8, 0x01);
-    }
-    function test_OnlyFHEVMExecutorCanCallPayForFheEq(address randomAccount) public {
-        vm.assume(randomAccount != fhevmExecutor);
-        vm.prank(randomAccount);
-        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheEq(FheType.Uint8, 0x01);
-    }
-    function test_OnlyFHEVMExecutorCanCallPayForFheNe(address randomAccount) public {
-        vm.assume(randomAccount != fhevmExecutor);
-        vm.prank(randomAccount);
-        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheNe(FheType.Uint8, 0x01);
-    }
-    function test_OnlyFHEVMExecutorCanCallPayForFheGe(address randomAccount) public {
-        vm.assume(randomAccount != fhevmExecutor);
-        vm.prank(randomAccount);
-        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheGe(FheType.Uint8, 0x01);
-    }
-    function test_OnlyFHEVMExecutorCanCallPayForFheGt(address randomAccount) public {
-        vm.assume(randomAccount != fhevmExecutor);
-        vm.prank(randomAccount);
-        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheGt(FheType.Uint8, 0x01);
-    }
-    function test_OnlyFHEVMExecutorCanCallPayForFheLe(address randomAccount) public {
-        vm.assume(randomAccount != fhevmExecutor);
-        vm.prank(randomAccount);
-        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheLe(FheType.Uint8, 0x01);
-    }
-    function test_OnlyFHEVMExecutorCanCallPayForFheLt(address randomAccount) public {
-        vm.assume(randomAccount != fhevmExecutor);
-        vm.prank(randomAccount);
-        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheLt(FheType.Uint8, 0x01);
-    }
-    function test_OnlyFHEVMExecutorCanCallPayForFheMin(address randomAccount) public {
-        vm.assume(randomAccount != fhevmExecutor);
-        vm.prank(randomAccount);
-        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheMin(FheType.Uint8, 0x01);
+        fheGasLimit.checkGasLimitForFheShl(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
 
-    function test_OnlyFHEVMExecutorCanCallPayForFheMax(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheShr(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheMax(FheType.Uint8, 0x01);
+        fheGasLimit.checkGasLimitForFheShr(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
-    function test_OnlyFHEVMExecutorCanCallPayForFheNeg(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheRotl(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheNeg(FheType.Uint8);
+        fheGasLimit.checkGasLimitForFheRotl(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
-
-    function test_OnlyFHEVMExecutorCanCallPayForFheNot(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheRotr(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheNot(FheType.Uint8);
+        fheGasLimit.checkGasLimitForFheRotr(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
-
-    function test_OnlyFHEVMExecutorCanCallPayForCast(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheEq(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForCast(FheType.Uint8);
+        fheGasLimit.checkGasLimitForFheEq(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
 
-    function test_OnlyFHEVMExecutorCanCallPayForTrivialEncrypt(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheEqBytes(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForTrivialEncrypt(FheType.Uint8);
+        fheGasLimit.checkGasLimitForFheEqBytes(FheType.Uint8, 0x01, mockLHS, mockResult);
+    }
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheNe(address randomAccount) public {
+        vm.assume(randomAccount != fhevmExecutor);
+        vm.prank(randomAccount);
+        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
+        fheGasLimit.checkGasLimitForFheNe(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
 
-    function test_OnlyFHEVMExecutorCanCallPayForIfThenElse(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheNeBytes(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForIfThenElse(FheType.Uint8);
+        fheGasLimit.checkGasLimitForFheNeBytes(FheType.Uint8, 0x01, mockLHS, mockResult);
     }
-    function test_OnlyFHEVMExecutorCanCallPayForFheRand(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheGe(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheRand(FheType.Uint8);
+        fheGasLimit.checkGasLimitForFheGe(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
+    }
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheGt(address randomAccount) public {
+        vm.assume(randomAccount != fhevmExecutor);
+        vm.prank(randomAccount);
+        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
+        fheGasLimit.checkGasLimitForFheGt(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
+    }
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheLe(address randomAccount) public {
+        vm.assume(randomAccount != fhevmExecutor);
+        vm.prank(randomAccount);
+        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
+        fheGasLimit.checkGasLimitForFheLe(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
+    }
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheLt(address randomAccount) public {
+        vm.assume(randomAccount != fhevmExecutor);
+        vm.prank(randomAccount);
+        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
+        fheGasLimit.checkGasLimitForFheLt(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
+    }
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheMin(address randomAccount) public {
+        vm.assume(randomAccount != fhevmExecutor);
+        vm.prank(randomAccount);
+        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
+        fheGasLimit.checkGasLimitForFheMin(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
     }
 
-    function test_OnlyFHEVMExecutorCanCallPayForFheRandBounded(address randomAccount) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheMax(address randomAccount) public {
         vm.assume(randomAccount != fhevmExecutor);
         vm.prank(randomAccount);
         vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
-        fheGasLimit.payForFheRandBounded(FheType.Uint8);
+        fheGasLimit.checkGasLimitForFheMax(FheType.Uint8, 0x01, mockLHS, mockRHS, mockResult);
+    }
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheNeg(address randomAccount) public {
+        vm.assume(randomAccount != fhevmExecutor);
+        vm.prank(randomAccount);
+        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
+        fheGasLimit.checkGasLimitForFheNeg(FheType.Uint8, mockLHS, mockResult);
     }
 
-    function test_PayForFheAddRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheNot(address randomAccount) public {
+        vm.assume(randomAccount != fhevmExecutor);
+        vm.prank(randomAccount);
+        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
+        fheGasLimit.checkGasLimitForFheNot(FheType.Uint8, mockLHS, mockResult);
+    }
+
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForCast(address randomAccount) public {
+        vm.assume(randomAccount != fhevmExecutor);
+        vm.prank(randomAccount);
+        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
+        fheGasLimit.checkGasLimitForCast(FheType.Uint8, mockLHS, mockResult);
+    }
+
+    function test_OnlyFHEVMExecutorCanCallCheckGasLimitForTrivialEncrypt(address randomAccount) public {
+        vm.assume(randomAccount != fhevmExecutor);
+        vm.prank(randomAccount);
+        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
+        fheGasLimit.checkGasLimitForTrivialEncrypt(FheType.Uint8, mockResult);
+    }
+
+    function test_OnlyFHEVMExecutorCanCallCheckGasLimitForIfThenElse(address randomAccount) public {
+        vm.assume(randomAccount != fhevmExecutor);
+        vm.prank(randomAccount);
+        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
+        fheGasLimit.checkGasLimitForIfThenElse(FheType.Uint8, mockLHS, mockMiddle, mockRHS, mockResult);
+    }
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheRand(address randomAccount) public {
+        vm.assume(randomAccount != fhevmExecutor);
+        vm.prank(randomAccount);
+        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
+        fheGasLimit.checkGasLimitForFheRand(FheType.Uint8, mockResult);
+    }
+
+    function test_OnlyFHEVMExecutorCanCallcheckGasLimitForFheRandBounded(address randomAccount) public {
+        vm.assume(randomAccount != fhevmExecutor);
+        vm.prank(randomAccount);
+        vm.expectRevert(FHEGasLimit.CallerMustBeFHEVMExecutorContract.selector);
+        fheGasLimit.checkGasLimitForFheRandBounded(FheType.Uint8, mockResult);
+    }
+
+    function test_checkGasLimitForFheAddRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheAdd));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheAdd(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheAdd(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheSubRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheSubRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheSub));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheSub(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheSub(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheMulRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheMulRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheMul));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheMul(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheMul(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheDivRevertsForUnsupportedTypes(uint8 fheType) public {
+    function test_checkGasLimitForFheDivRevertsForUnsupportedTypes(uint8 fheType) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheDiv));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheDiv(FheType(fheType), 0x01);
+        fheGasLimit.checkGasLimitForFheDiv(FheType(fheType), 0x01, mockLHS, mockRHS, mockResult);
     }
-    function test_PayForFheRemRevertsForUnsupportedTypes(uint8 fheType) public {
+    function test_checkGasLimitForFheRemRevertsForUnsupportedTypes(uint8 fheType) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheRem));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheRem(FheType(fheType), 0x01);
+        fheGasLimit.checkGasLimitForFheRem(FheType(fheType), 0x01, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheBitAndRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheBitAndRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheBitAnd));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheBitAnd(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheBitAnd(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheBitOrRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheBitOrRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheBitOr));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheBitOr(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheBitOr(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheBitXorRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheBitXorRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheBitXor));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheBitXor(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheBitXor(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheShlRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheShlRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheShl));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheShl(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheShl(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheShrRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheShrRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheShr));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheShr(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheShr(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheRotlRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheRotlRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheRotl));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheRotl(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheRotl(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheRotrRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheRotrRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheRotr));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheRotr(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheRotr(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheEqRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheEqRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheEq));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheEq(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheEq(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheNeRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheEqBytesRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+        vm.assume(fheType <= uint8(FheType.Int248));
+        vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheEq));
+        vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
+        vm.prank(fhevmExecutor);
+        fheGasLimit.checkGasLimitForFheEqBytes(FheType(fheType), scalarByte, mockLHS, mockResult);
+    }
+
+    function test_checkGasLimitForFheNeRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheNe));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheNe(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheNe(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheGeRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheNeBytesRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+        vm.assume(fheType <= uint8(FheType.Int248));
+        vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheNe));
+        vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
+        vm.prank(fhevmExecutor);
+        fheGasLimit.checkGasLimitForFheNeBytes(FheType(fheType), scalarByte, mockLHS, mockResult);
+    }
+
+    function test_checkGasLimitForFheGeRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheGe));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheGe(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheGe(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheGtRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheGtRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheGt));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheGt(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheGt(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheLeRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheLeRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheLe));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheLe(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheLe(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheLtRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheLtRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheLt));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheLt(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheLt(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheMinRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheMinRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheMin));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheMin(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheMin(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheMaxRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
+    function test_checkGasLimitForFheMaxRevertsForUnsupportedTypes(uint8 fheType, bytes1 scalarByte) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheMax));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheMax(FheType(fheType), scalarByte);
+        fheGasLimit.checkGasLimitForFheMax(FheType(fheType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheNegRevertsForUnsupportedTypes(uint8 fheType) public {
+    function test_checkGasLimitForFheNegRevertsForUnsupportedTypes(uint8 fheType) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheNeg));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheNeg(FheType(fheType));
+        fheGasLimit.checkGasLimitForFheNeg(FheType(fheType), mockLHS, mockResult);
     }
 
-    function test_PayForFheNotRevertsForUnsupportedTypes(uint8 fheType) public {
+    function test_checkGasLimitForFheNotRevertsForUnsupportedTypes(uint8 fheType) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheNot));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheNot(FheType(fheType));
+        fheGasLimit.checkGasLimitForFheNot(FheType(fheType), mockLHS, mockResult);
     }
 
-    function test_PayForCastRevertsForUnsupportedTypes(uint8 fheType) public {
+    function test_checkGasLimitForCastRevertsForUnsupportedTypes(uint8 fheType) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesInputCast));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForCast(FheType(fheType));
+        fheGasLimit.checkGasLimitForCast(FheType(fheType), mockLHS, mockResult);
     }
 
-    function test_PayForTrivialEncryptRevertsForUnsupportedTypes(uint8 fheType) public {
+    function test_CheckGasLimitForTrivialEncryptRevertsForUnsupportedTypes(uint8 fheType) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(
             !_isTypeSupported(FheType(fheType), supportedTypesTrivialEncrypt) &&
@@ -761,51 +832,54 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
         );
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForTrivialEncrypt(FheType(fheType));
+        fheGasLimit.checkGasLimitForTrivialEncrypt(FheType(fheType), mockResult);
     }
 
-    function test_PayForIfThenElseRevertsForUnsupportedTypes(uint8 fheType) public {
+    function test_CheckGasLimitForIfThenElseRevertsForUnsupportedTypes(uint8 fheType) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheIfThenElse));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForIfThenElse(FheType(fheType));
+        fheGasLimit.checkGasLimitForIfThenElse(FheType(fheType), mockLHS, mockMiddle, mockRHS, mockResult);
     }
-    function test_PayForFheRandRevertsForUnsupportedTypes(uint8 fheType) public {
+    function test_checkGasLimitForFheRandRevertsForUnsupportedTypes(uint8 fheType) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheRand));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheRand(FheType(fheType));
+        fheGasLimit.checkGasLimitForFheRand(FheType(fheType), mockResult);
     }
 
-    function test_PayForFheRandBoundedRevertsForUnsupportedTypes(uint8 fheType) public {
+    function test_checkGasLimitForFheRandBoundedRevertsForUnsupportedTypes(uint8 fheType) public {
         vm.assume(fheType <= uint8(FheType.Int248));
         vm.assume(!_isTypeSupported(FheType(fheType), supportedTypesFheRandBounded));
         vm.expectRevert(FHEGasLimit.UnsupportedOperation.selector);
         vm.prank(fhevmExecutor);
-        fheGasLimit.payForFheRandBounded(FheType(fheType));
+        fheGasLimit.checkGasLimitForFheRandBounded(FheType(fheType), mockResult);
     }
 
-    function test_PayForFheDivRevertsIfNotScalar(uint8 resultType) public {
+    function test_checkGasLimitForFheDivRevertsIfNotScalar(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheDiv));
         bytes1 scalarByte = 0x00;
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.OnlyScalarOperationsAreSupported.selector);
-        fheGasLimit.payForFheDiv(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheDiv(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheRemRevertsIfNotScalar(uint8 resultType) public {
+    function test_checkGasLimitForFheRemRevertsIfNotScalar(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheRem));
         bytes1 scalarByte = 0x00;
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.OnlyScalarOperationsAreSupported.selector);
-        fheGasLimit.payForFheRem(FheType(resultType), scalarByte);
+        fheGasLimit.checkGasLimitForFheRem(FheType(resultType), scalarByte, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheAddRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheAddRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheAdd));
 
@@ -813,10 +887,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheAdd(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheAdd(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheSubRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheSubRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheSub));
 
@@ -824,10 +901,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheSub(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheSub(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheMulRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheMulRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheMul));
 
@@ -835,10 +915,10 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheMul(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheMul(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheDivRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
+    function test_checkGasLimitForFheDivRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheDiv));
 
@@ -846,10 +926,10 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheDiv(FheType(resultType), 0x01);
+        fheGasLimit.checkGasLimitForFheDiv(FheType(resultType), 0x01, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheRemRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
+    function test_checkGasLimitForFheRemRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheRem));
 
@@ -857,10 +937,10 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheRem(FheType(resultType), 0x01);
+        fheGasLimit.checkGasLimitForFheRem(FheType(resultType), 0x01, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheBitAndRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+    function test_checkGasLimitForFheBitAndRevertsIfFheGasBlockLimitIsAboveBlockLimit(
         uint8 resultType,
         bytes1 scalarType
     ) public {
@@ -871,10 +951,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheBitAnd(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheBitAnd(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheBitOrRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheBitOrRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheBitOr));
 
@@ -882,10 +965,10 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheBitOr(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheBitOr(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheBitXorRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+    function test_checkGasLimitForFheBitXorRevertsIfFheGasBlockLimitIsAboveBlockLimit(
         uint8 resultType,
         bytes1 scalarType
     ) public {
@@ -896,10 +979,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheBitXor(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheBitXor(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheShlRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheShlRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheShl));
 
@@ -907,10 +993,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheShl(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheShl(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheShrRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheShrRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheShr));
 
@@ -918,10 +1007,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheShr(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheShr(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheRotlRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheRotlRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheRotl));
 
@@ -929,10 +1021,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheRotl(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheRotl(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheRotrRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheRotrRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheRotr));
 
@@ -940,10 +1035,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheRotr(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheRotr(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheEqRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheEqRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(
             _isTypeSupported(FheType(resultType), supportedTypesFheEq) ||
@@ -954,10 +1052,30 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheEq(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheEq(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheNeRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheEqBytesRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
+        vm.assume(resultType <= uint8(FheType.Int248));
+        vm.assume(
+            _isTypeSupported(FheType(resultType), supportedTypesFheEq) ||
+                _isTypeSupported(FheType(resultType), supportedTypesFheEqWithBytes)
+        );
+
+        fheGasLimit.updateFunding(FHE_GAS_BLOCKLIMIT);
+
+        vm.prank(fhevmExecutor);
+        vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
+        fheGasLimit.checkGasLimitForFheEqBytes(FheType(resultType), scalarType, mockLHS, mockResult);
+    }
+
+    function test_checkGasLimitForFheNeRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(
             _isTypeSupported(FheType(resultType), supportedTypesFheNe) ||
@@ -968,10 +1086,30 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheNe(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheNe(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheGeRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheNeBytesRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
+        vm.assume(resultType <= uint8(FheType.Int248));
+        vm.assume(
+            _isTypeSupported(FheType(resultType), supportedTypesFheNe) ||
+                _isTypeSupported(FheType(resultType), supportedTypesFheNeWithBytes)
+        );
+
+        fheGasLimit.updateFunding(FHE_GAS_BLOCKLIMIT);
+
+        vm.prank(fhevmExecutor);
+        vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
+        fheGasLimit.checkGasLimitForFheNeBytes(FheType(resultType), scalarType, mockLHS, mockResult);
+    }
+
+    function test_checkGasLimitForFheGeRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheGe));
 
@@ -979,10 +1117,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheGe(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheGe(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheGtRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheGtRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheGt));
 
@@ -990,10 +1131,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheGt(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheGt(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheLeRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheLeRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheLe));
 
@@ -1001,10 +1145,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheLe(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheLe(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheLtRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheLtRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheLt));
 
@@ -1012,10 +1159,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheLt(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheLt(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheMinRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheMinRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheMin));
 
@@ -1023,10 +1173,13 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheMin(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheMin(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheMaxRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType, bytes1 scalarType) public {
+    function test_checkGasLimitForFheMaxRevertsIfFheGasBlockLimitIsAboveBlockLimit(
+        uint8 resultType,
+        bytes1 scalarType
+    ) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheMax));
 
@@ -1034,10 +1187,10 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheMax(FheType(resultType), scalarType);
+        fheGasLimit.checkGasLimitForFheMax(FheType(resultType), scalarType, mockLHS, mockRHS, mockResult);
     }
 
-    function test_PayForFheNegRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
+    function test_checkGasLimitForFheNegRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheNeg));
 
@@ -1045,10 +1198,10 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheNeg(FheType(resultType));
+        fheGasLimit.checkGasLimitForFheNeg(FheType(resultType), mockLHS, mockResult);
     }
 
-    function test_PayForFheNotRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
+    function test_checkGasLimitForFheNotRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheNot));
 
@@ -1056,10 +1209,10 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheNot(FheType(resultType));
+        fheGasLimit.checkGasLimitForFheNot(FheType(resultType), mockLHS, mockResult);
     }
 
-    function test_PayForCastRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
+    function test_checkGasLimitForCastRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesInputCast));
 
@@ -1067,10 +1220,10 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForCast(FheType(resultType));
+        fheGasLimit.checkGasLimitForCast(FheType(resultType), mockLHS, mockResult);
     }
 
-    function test_PayForTrivialEncryptRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
+    function test_CheckGasLimitForTrivialEncryptRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(
             _isTypeSupported(FheType(resultType), supportedTypesTrivialEncrypt) ||
@@ -1081,10 +1234,10 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForTrivialEncrypt(FheType(resultType));
+        fheGasLimit.checkGasLimitForTrivialEncrypt(FheType(resultType), mockResult);
     }
 
-    function test_PayForIfThenElseRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
+    function test_CheckGasLimitForIfThenElseRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheIfThenElse));
 
@@ -1092,9 +1245,9 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForIfThenElse(FheType(resultType));
+        fheGasLimit.checkGasLimitForIfThenElse(FheType(resultType), mockLHS, mockMiddle, mockRHS, mockResult);
     }
-    function test_PayForFheRandRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
+    function test_checkGasLimitForFheRandRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheRand));
 
@@ -1102,10 +1255,10 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheRand(FheType(resultType));
+        fheGasLimit.checkGasLimitForFheRand(FheType(resultType), mockResult);
     }
 
-    function test_PayForFheRandBoundedRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
+    function test_checkGasLimitForFheRandBoundedRevertsIfFheGasBlockLimitIsAboveBlockLimit(uint8 resultType) public {
         vm.assume(resultType <= uint8(FheType.Int248));
         vm.assume(_isTypeSupported(FheType(resultType), supportedTypesFheRandBounded));
 
@@ -1113,23 +1266,23 @@ contract FHEGasLimitTest is Test, SupportedTypesConstants {
 
         vm.prank(fhevmExecutor);
         vm.expectRevert(FHEGasLimit.FHEGasBlockLimitExceeded.selector);
-        fheGasLimit.payForFheRandBounded(FheType(resultType));
+        fheGasLimit.checkGasLimitForFheRandBounded(FheType(resultType), mockResult);
     }
 
     function test_CurrentBlockConsumptionRestartsWhenNewBlock() public {
         vm.startPrank(fhevmExecutor);
-        fheGasLimit.payForFheAdd(FheType.Uint16, 0x01);
+        fheGasLimit.checkGasLimitForFheAdd(FheType.Uint16, 0x01, mockLHS, mockRHS, mockResult);
         uint256 currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertEq(currentBlockConsumption, 133000);
 
         /// @dev In the same block, it should be 2x.
-        fheGasLimit.payForFheAdd(FheType.Uint16, 0x01);
+        fheGasLimit.checkGasLimitForFheAdd(FheType.Uint16, 0x01, mockLHS, mockRHS, mockResult);
         currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertEq(currentBlockConsumption, 133000 * 2);
 
         // It should reset, so it should be 1x.
         vm.roll(block.number + 1);
-        fheGasLimit.payForFheAdd(FheType.Uint16, 0x01);
+        fheGasLimit.checkGasLimitForFheAdd(FheType.Uint16, 0x01, mockLHS, mockRHS, mockResult);
         currentBlockConsumption = fheGasLimit.getCurrentBlockConsumption();
         vm.assertEq(currentBlockConsumption, 133000);
 
