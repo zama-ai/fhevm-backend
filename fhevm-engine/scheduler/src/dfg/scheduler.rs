@@ -111,9 +111,6 @@ impl<'a> Scheduler<'a> {
     #[cfg(not(feature = "gpu"))]
     async fn schedule_fine_grain(&mut self) -> Result<()> {
         let mut set: JoinSet<TaskResult> = JoinSet::new();
-        //#[cfg(feature = "gpu")]
-        //let sks = self.csks.clone();
-        //#[cfg(not(feature = "gpu"))]
         let sks = self.sks.clone();
         tfhe::set_server_key(sks.clone());
         // Prime the scheduler with all nodes without dependences
@@ -187,9 +184,6 @@ impl<'a> Scheduler<'a> {
 
     #[cfg(not(feature = "gpu"))]
     async fn schedule_coarse_grain(&mut self, strategy: PartitionStrategy) -> Result<()> {
-        //#[cfg(feature = "gpu")]
-        //let sks = self.csks.clone();
-        //#[cfg(not(feature = "gpu"))]
         let sks = self.sks.clone();
         tfhe::set_server_key(sks.clone());
         let mut set: JoinSet<(Vec<TaskResult>, NodeIndex)> = JoinSet::new();
