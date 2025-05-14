@@ -405,7 +405,7 @@ contract InputVerifierTest is Test {
     }
 
     /**
-     * @dev Tests that the initial threshold is set correctly for two signers.
+     * @dev Tests that the initial threshold is set correctly for one signer.
      */
     function test_GetInitialThresholdForOneSigner() public {
         _upgradeProxyWithSigners(1);

@@ -13,7 +13,7 @@ import {fhevmExecutorAdd} from "../../addresses/FHEVMExecutorAddress.sol";
 contract KMSVerifierTest is Test {
     KMSVerifier internal kmsVerifier;
 
-    uint256 internal constant initialThreshold = 1;
+    uint256 internal constant kmsThreshold = 0;
     address internal constant verifyingContractSource = address(10000);
     address internal constant owner = address(456);
 
@@ -118,7 +118,7 @@ contract KMSVerifierTest is Test {
             implementation,
             abi.encodeCall(
                 kmsVerifier.reinitialize,
-                (verifyingContractSource, uint64(block.chainid), signers, initialThreshold)
+                (verifyingContractSource, uint64(block.chainid), signers, kmsThreshold)
             ),
             owner
         );
@@ -197,7 +197,7 @@ contract KMSVerifierTest is Test {
         uint256 numberSigners = 3;
         _upgradeProxyWithSigners(numberSigners);
         assertEq(kmsVerifier.getVersion(), string(abi.encodePacked("KMSVerifier v0.1.0")));
-        assertEq(kmsVerifier.getThreshold(), initialThreshold);
+        assertEq(kmsVerifier.getThreshold(), kmsThreshold + 1);
     }
 
     /**
@@ -253,8 +253,8 @@ contract KMSVerifierTest is Test {
         newSigners[0] = randomSigner;
         vm.prank(owner);
         vm.expectEmit();
-        emit KMSVerifier.NewContextSet(newSigners, 1);
-        kmsVerifier.defineNewContext(newSigners, 1);
+        emit KMSVerifier.NewContextSet(newSigners, 0);
+        kmsVerifier.defineNewContext(newSigners, 0);
         assertEq(kmsVerifier.getKmsSigners()[0], randomSigner);
         assertTrue(kmsVerifier.isSigner(randomSigner));
     }
@@ -286,12 +286,12 @@ contract KMSVerifierTest is Test {
         address[] memory newSigners = new address[](2);
         newSigners[0] = address(42);
         newSigners[1] = randomSigner;
-        kmsVerifier.defineNewContext(newSigners, 2);
+        kmsVerifier.defineNewContext(newSigners, 1);
         assertEq(kmsVerifier.getKmsSigners().length, 2);
 
         address[] memory newSigners2 = new address[](1);
         newSigners2[0] = address(42);
-        kmsVerifier.defineNewContext(newSigners2, 1);
+        kmsVerifier.defineNewContext(newSigners2, 0);
         assertFalse(kmsVerifier.isSigner(randomSigner));
         assertEq(kmsVerifier.getKmsSigners().length, 1);
     }
@@ -439,10 +439,10 @@ contract KMSVerifierTest is Test {
      */
     function test_VerifyInputEIP712KMSSignaturesFailAsExpectedIfNumberOfSignaturesIsInferiorToThreshold() public {
         _upgradeProxyWithSigners(3);
-
         vm.prank(owner);
-        kmsVerifier.setThreshold(2);
-        assertEq(kmsVerifier.getThreshold(), 2);
+        uint256 newKmsThreshold = 1;
+        kmsVerifier.setThreshold(newKmsThreshold);
+        assertEq(kmsVerifier.getThreshold(), newKmsThreshold + 1);
 
         /// @dev Mock data for testing purposes.
         bytes32[] memory handlesList = _generateMockHandlesList(3);
@@ -464,8 +464,9 @@ contract KMSVerifierTest is Test {
 
         /// @dev The threshold is set to 2, so we need at least 2 signatures from different signers.
         vm.prank(owner);
-        kmsVerifier.setThreshold(2);
-        assertEq(kmsVerifier.getThreshold(), 2);
+        uint256 newKmsThreshold = 1;
+        kmsVerifier.setThreshold(newKmsThreshold);
+        assertEq(kmsVerifier.getThreshold(), newKmsThreshold + 1);
 
         /// @dev Mock data for testing purposes.
         bytes32[] memory handlesList = _generateMockHandlesList(3);
