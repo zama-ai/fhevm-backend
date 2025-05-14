@@ -212,16 +212,15 @@ async fn schedule_erc20_whitepaper(
         });
     }
 
+    bencher.to_async(FuturesExecutor).iter(|| async {
     let mut compute_request = tonic::Request::new(AsyncComputeRequest {
-        computations: async_computations,
+        computations: async_computations.clone(),
     });
     compute_request.metadata_mut().append(
         "authorization",
         MetadataValue::from_str(&api_key_header).unwrap(),
     );
-    let _resp = client.async_compute(compute_request).await.unwrap();
-
-    bencher.to_async(FuturesExecutor).iter(|| async {
+        let _resp = client.clone().async_compute(compute_request).await.unwrap();
         let db_url = app.db_url().to_string();
         let now = SystemTime::now();
         let _ = tokio::task::spawn_blocking(move || {
@@ -384,16 +383,16 @@ async fn schedule_erc20_no_cmux(
         });
     }
 
+
+    bencher.to_async(FuturesExecutor).iter(|| async {
     let mut compute_request = tonic::Request::new(AsyncComputeRequest {
-        computations: async_computations,
+        computations: async_computations.clone(),
     });
     compute_request.metadata_mut().append(
         "authorization",
         MetadataValue::from_str(&api_key_header).unwrap(),
     );
-    let _resp = client.async_compute(compute_request).await?;
-
-    bencher.to_async(FuturesExecutor).iter(|| async {
+        let _resp = client.clone().async_compute(compute_request).await.unwrap();
         let db_url = app.db_url().to_string();
         let now = SystemTime::now();
         let _ = tokio::task::spawn_blocking(move || {
@@ -582,16 +581,15 @@ async fn schedule_dependent_erc20_no_cmux(
         };
     }
 
+    bencher.to_async(FuturesExecutor).iter(|| async {
     let mut compute_request = tonic::Request::new(AsyncComputeRequest {
-        computations: async_computations,
+        computations: async_computations.clone(),
     });
     compute_request.metadata_mut().append(
         "authorization",
         MetadataValue::from_str(&api_key_header).unwrap(),
     );
-    let _resp = client.async_compute(compute_request).await?;
-
-    bencher.to_async(FuturesExecutor).iter(|| async {
+        let _resp = client.clone().async_compute(compute_request).await.unwrap();
         let db_url = app.db_url().to_string();
         let now = SystemTime::now();
         let _ = tokio::task::spawn_blocking(move || {
