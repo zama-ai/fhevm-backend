@@ -39,8 +39,8 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
 
     /// @notice         Emitted when a context is set or changed.
     /// @param newKmsSignersSet   The set of new KMS signers.
-    /// @param newThreshold   The new threshold set by the owner.
-    event NewContextSet(address[] newKmsSignersSet, uint256 newThreshold);
+    /// @param newKmsThreshold   The new KMS threshold set by the owner.
+    event NewContextSet(address[] newKmsSignersSet, uint256 newKmsThreshold);
 
     /// @notice The typed data structure for the EIP712 signature to validate in public decryption responses.
     /// @dev The name of this struct is not relevant for the signature validation, only the one defined
@@ -95,27 +95,27 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
      * @param verifyingContractSource The Decryption contract address from the Gateway chain.
      * @param chainIDSource The chain id of the Gateway chain.
      * @param initialSigners The list of initial KMS signers, should be non-empty and contain unique addresses, otherwise initialization will fail.
-     * @param initialThreshold Initial threshold, should be non-null and less or equal to the initialSigners length.
+     * @param kmsThreshold The KMS threshold, should be strictly less than the initialSigners length.
      */
     /// @custom:oz-upgrades-validate-as-initializer
     function reinitialize(
         address verifyingContractSource,
         uint64 chainIDSource,
         address[] calldata initialSigners,
-        uint256 initialThreshold
+        uint256 kmsThreshold
     ) public virtual reinitializer(2) {
         __Ownable_init(owner());
         __EIP712_init(CONTRACT_NAME_SOURCE, "1", verifyingContractSource, chainIDSource);
-        defineNewContext(initialSigners, initialThreshold);
+        defineNewContext(initialSigners, kmsThreshold);
     }
 
     /**
      * @notice          Sets a new context (i.e. new set of unique signers and new threshold).
      * @dev             Only the owner can set a new context.
      * @param newSignersSet   The new set of signers to be set. This array should not be empty and without duplicates nor null values.
-     * @param newThreshold    The threshold to be set. Threshold + 1 should be less than the number of signers.
+     * @param newKmsThreshold    The KMS threshold to be set. The KMS threshold should be strictly less than the number of signers.
      */
-    function defineNewContext(address[] memory newSignersSet, uint256 newThreshold) public virtual onlyOwner {
+    function defineNewContext(address[] memory newSignersSet, uint256 newKmsThreshold) public virtual onlyOwner {
         uint256 newSignersLen = newSignersSet.length;
         if (newSignersLen == 0) {
             revert SignersSetIsEmpty();
@@ -142,19 +142,19 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
             $.isSigner[signer] = true;
             $.signers.push(signer);
         }
-        _setThreshold(newThreshold);
-        emit NewContextSet(newSignersSet, newThreshold);
+        _setThreshold(newKmsThreshold);
+        emit NewContextSet(newSignersSet, newKmsThreshold);
     }
 
     /**
      * @notice          Sets a threshold (i.e. the minimum number of valid signatures required to accept a transaction).
      * @dev             Only the owner can set a threshold.
-     * @param threshold    The threshold to be set. Threshold should be non-null and less than the number of signers.
+     * @param newKmsThreshold    The KMS threshold to be set. The KMS threshold should be strictly less than the number of signers.
      */
-    function setThreshold(uint256 threshold) public virtual onlyOwner {
-        _setThreshold(threshold);
+    function setThreshold(uint256 newKmsThreshold) public virtual onlyOwner {
+        _setThreshold(newKmsThreshold);
         KMSVerifierStorage storage $ = _getKMSVerifierStorage();
-        emit NewContextSet($.signers, threshold);
+        emit NewContextSet($.signers, newKmsThreshold);
     }
 
     /**
@@ -252,11 +252,19 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
     /**
      * @notice          Internal function that sets the minimum number of valid signatures required to accept a transaction.
      * @dev             External functions using this internal function should be access controlled to owner.
-     * @param threshold    The threshold to be set. Threshold + 1 should be less than the number of signers.
+     * @param newKmsThreshold    The KMS threshold. The KMS threshold should be strictly less than the number of signers.
      */
-    function _setThreshold(uint256 threshold) internal virtual {
+    function _setThreshold(uint256 newKmsThreshold) internal virtual {
         KMSVerifierStorage storage $ = _getKMSVerifierStorage();
-        if (threshold + 1 > $.signers.length) {
+
+        // The threshold is the minimum number of valid signatures required to accept a transaction for 
+        // a public decryption. In accordance to the fhevm Gateway and the KMS, it is defined as the 
+        // KMS threshold + 1. Since the KMS threshold is allowed to be null, this ensures that at least
+        // one signature is always required.
+        uint256 threshold = newKmsThreshold + 1;
+
+        // The threshold cannot be greater than the number of signers.
+        if (threshold > $.signers.length) {
             revert ThresholdIsAboveNumberOfSigners();
         }
         $.threshold = threshold;
@@ -276,9 +284,9 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
             revert KMSZeroSignature();
         }
 
-        uint256 majorityThreshold = getThreshold() + 1;
+        uint256 threshold = getThreshold();
 
-        if (numSignatures < majorityThreshold) {
+        if (numSignatures < threshold) {
             revert KMSSignatureThresholdNotReached(numSignatures);
         }
 
@@ -294,7 +302,7 @@ contract KMSVerifier is UUPSUpgradeable, Ownable2StepUpgradeable, EIP712Upgradea
                 uniqueValidCount++;
                 _tstore(signerRecovered, 1);
             }
-            if (uniqueValidCount >= majorityThreshold) {
+            if (uniqueValidCount >= threshold) {
                 _cleanTransientHashMap(recoveredSigners, uniqueValidCount);
                 return true;
             }
