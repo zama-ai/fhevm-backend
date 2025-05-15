@@ -161,18 +161,21 @@ async fn counter_increment(
         MetadataValue::from_str(&api_key_header).unwrap(),
     );
     let _resp = client.async_compute(compute_request).await?;
-
-    bencher.to_async(FuturesExecutor).iter(|| async {
-        let db_url = app.db_url().to_string();
-        let now = SystemTime::now();
-        let _ = tokio::task::spawn_blocking(move || {
-            Runtime::new()
-                .unwrap()
-                .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-            println!("Execution time: {}", now.elapsed().unwrap().as_millis());
-        })
-        .await;
-    });
+    let app_ref = &app;
+    bencher
+        .to_async(FuturesExecutor)
+        .iter_custom(|iters| async move {
+            let db_url = app_ref.db_url().to_string();
+            let now = SystemTime::now();
+            let _ = tokio::task::spawn_blocking(move || {
+                Runtime::new()
+                    .unwrap()
+                    .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
+                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+            })
+            .await;
+            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+        });
 
     let params = keys.cks.computation_parameters();
     write_to_json::<u64, _>(
@@ -292,18 +295,21 @@ async fn tree_reduction(
         MetadataValue::from_str(&api_key_header).unwrap(),
     );
     let _resp = client.async_compute(compute_request).await?;
-
-    bencher.to_async(FuturesExecutor).iter(|| async {
-        let db_url = app.db_url().to_string();
-        let now = SystemTime::now();
-        let _ = tokio::task::spawn_blocking(move || {
-            Runtime::new()
-                .unwrap()
-                .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-            println!("Execution time: {}", now.elapsed().unwrap().as_millis());
-        })
-        .await;
-    });
+    let app_ref = &app;
+    bencher
+        .to_async(FuturesExecutor)
+        .iter_custom(|iters| async move {
+            let db_url = app_ref.db_url().to_string();
+            let now = SystemTime::now();
+            let _ = tokio::task::spawn_blocking(move || {
+                Runtime::new()
+                    .unwrap()
+                    .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
+                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+            })
+            .await;
+            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+        });
 
     let params = keys.cks.computation_parameters();
     write_to_json::<u64, _>(
