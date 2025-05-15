@@ -212,25 +212,29 @@ async fn schedule_erc20_whitepaper(
         });
     }
 
-    bencher.to_async(FuturesExecutor).iter(|| async {
     let mut compute_request = tonic::Request::new(AsyncComputeRequest {
-        computations: async_computations.clone(),
+        computations: async_computations,
     });
     compute_request.metadata_mut().append(
         "authorization",
         MetadataValue::from_str(&api_key_header).unwrap(),
     );
-        let _resp = client.clone().async_compute(compute_request).await.unwrap();
-        let db_url = app.db_url().to_string();
-        let now = SystemTime::now();
-        let _ = tokio::task::spawn_blocking(move || {
-            Runtime::new()
-                .unwrap()
-                .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-            println!("Execution time: {}", now.elapsed().unwrap().as_millis());
-        })
-        .await;
-    });
+    let _resp = client.clone().async_compute(compute_request).await.unwrap();
+    let app_ref = &app;
+    bencher
+        .to_async(FuturesExecutor)
+        .iter_custom(|iters| async move {
+            let db_url = app_ref.db_url().to_string();
+            let now = SystemTime::now();
+            let _ = tokio::task::spawn_blocking(move || {
+                Runtime::new()
+                    .unwrap()
+                    .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
+                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+            })
+            .await;
+            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+        });
 
     let params = keys.cks.computation_parameters();
     write_to_json::<u64, _>(
@@ -383,26 +387,29 @@ async fn schedule_erc20_no_cmux(
         });
     }
 
-
-    bencher.to_async(FuturesExecutor).iter(|| async {
     let mut compute_request = tonic::Request::new(AsyncComputeRequest {
-        computations: async_computations.clone(),
+        computations: async_computations,
     });
     compute_request.metadata_mut().append(
         "authorization",
         MetadataValue::from_str(&api_key_header).unwrap(),
     );
-        let _resp = client.clone().async_compute(compute_request).await.unwrap();
-        let db_url = app.db_url().to_string();
-        let now = SystemTime::now();
-        let _ = tokio::task::spawn_blocking(move || {
-            Runtime::new()
-                .unwrap()
-                .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-            println!("Execution time: {}", now.elapsed().unwrap().as_millis());
-        })
-        .await;
-    });
+    let _resp = client.clone().async_compute(compute_request).await.unwrap();
+    let app_ref = &app;
+    bencher
+        .to_async(FuturesExecutor)
+        .iter_custom(|iters| async move {
+            let db_url = app_ref.db_url().to_string();
+            let now = SystemTime::now();
+            let _ = tokio::task::spawn_blocking(move || {
+                Runtime::new()
+                    .unwrap()
+                    .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
+                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+            })
+            .await;
+            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+        });
 
     let params = keys.cks.computation_parameters();
     write_to_json::<u64, _>(
@@ -581,25 +588,29 @@ async fn schedule_dependent_erc20_no_cmux(
         };
     }
 
-    bencher.to_async(FuturesExecutor).iter(|| async {
     let mut compute_request = tonic::Request::new(AsyncComputeRequest {
-        computations: async_computations.clone(),
+        computations: async_computations,
     });
     compute_request.metadata_mut().append(
         "authorization",
         MetadataValue::from_str(&api_key_header).unwrap(),
     );
-        let _resp = client.clone().async_compute(compute_request).await.unwrap();
-        let db_url = app.db_url().to_string();
-        let now = SystemTime::now();
-        let _ = tokio::task::spawn_blocking(move || {
-            Runtime::new()
-                .unwrap()
-                .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-            println!("Execution time: {}", now.elapsed().unwrap().as_millis());
-        })
-        .await;
-    });
+    let _resp = client.clone().async_compute(compute_request).await.unwrap();
+    let app_ref = &app;
+    bencher
+        .to_async(FuturesExecutor)
+        .iter_custom(|iters| async move {
+            let db_url = app_ref.db_url().to_string();
+            let now = SystemTime::now();
+            let _ = tokio::task::spawn_blocking(move || {
+                Runtime::new()
+                    .unwrap()
+                    .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
+                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+            })
+            .await;
+            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+        });
 
     let params = keys.cks.computation_parameters();
     write_to_json::<u64, _>(
