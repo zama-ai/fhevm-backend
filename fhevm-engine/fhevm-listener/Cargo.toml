@@ -22,9 +22,11 @@ alloy-sol-types = "0.8"
 alloy = { workspace = true, features = ["contract", "json", "providers", "provider-ws", "pubsub", "rpc-types", "sol-types"] }
 clap = { workspace = true }
 futures-util = { workspace = true }
+opentelemetry = { workspace = true }
 serde = { workspace = true }
 sqlx = { workspace = true }
 tokio = { workspace = true }
+tracing = { workspace = true }
 
 # local dependencies
 fhevm-engine-common = { path = "../fhevm-engine-common" }

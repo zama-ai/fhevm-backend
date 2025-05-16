@@ -3224,11 +3224,13 @@ dependencies = [
  "foundry-compilers",
  "foundry-compilers-artifacts",
  "futures-util",
+ "opentelemetry",
  "semver 1.0.26",
  "serde",
  "serial_test",
  "sqlx",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
