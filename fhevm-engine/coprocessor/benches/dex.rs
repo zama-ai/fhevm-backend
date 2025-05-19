@@ -415,7 +415,11 @@ async fn swap_request_whitepaper(
                 Runtime::new()
                     .unwrap()
                     .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+                println!(
+                    "Execution time: {} -- {}",
+                    now.elapsed().unwrap().as_millis(),
+                    iters
+                );
             })
             .await;
             std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
@@ -723,7 +727,11 @@ async fn swap_request_no_cmux(
                 Runtime::new()
                     .unwrap()
                     .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+                println!(
+                    "Execution time: {} -- {}",
+                    now.elapsed().unwrap().as_millis(),
+                    iters
+                );
             })
             .await;
             std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
@@ -1097,7 +1105,11 @@ async fn swap_claim_whitepaper(
                 Runtime::new()
                     .unwrap()
                     .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+                println!(
+                    "Execution time: {} -- {}",
+                    now.elapsed().unwrap().as_millis(),
+                    iters
+                );
             })
             .await;
             std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
@@ -1469,7 +1481,11 @@ async fn swap_claim_no_cmux(
                 Runtime::new()
                     .unwrap()
                     .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+                println!(
+                    "Execution time: {} -- {}",
+                    now.elapsed().unwrap().as_millis(),
+                    iters
+                );
             })
             .await;
             std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
@@ -1769,7 +1785,11 @@ async fn swap_request_whitepaper_dep(
                 Runtime::new()
                     .unwrap()
                     .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+                println!(
+                    "Execution time: {} -- {}",
+                    now.elapsed().unwrap().as_millis(),
+                    iters
+                );
             })
             .await;
             std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
@@ -2082,7 +2102,11 @@ async fn swap_request_no_cmux_dep(
                 Runtime::new()
                     .unwrap()
                     .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+                println!(
+                    "Execution time: {} -- {}",
+                    now.elapsed().unwrap().as_millis(),
+                    iters
+                );
             })
             .await;
             std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
@@ -2466,7 +2490,11 @@ async fn swap_claim_whitepaper_dep(
                 Runtime::new()
                     .unwrap()
                     .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+                println!(
+                    "Execution time: {} -- {}",
+                    now.elapsed().unwrap().as_millis(),
+                    iters
+                );
             })
             .await;
             std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
@@ -2848,7 +2876,11 @@ async fn swap_claim_no_cmux_dep(
                 Runtime::new()
                     .unwrap()
                     .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+                println!(
+                    "Execution time: {} -- {}",
+                    now.elapsed().unwrap().as_millis(),
+                    iters
+                );
             })
             .await;
             std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
