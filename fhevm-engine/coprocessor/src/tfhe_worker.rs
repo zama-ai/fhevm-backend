@@ -473,13 +473,17 @@ async fn tfhe_worker_cycle(
 
         let _guard = loop_ctx.attach();
 
-        TIMING.store(
-            now.elapsed().unwrap().as_millis() as u64,
-            std::sync::atomic::Ordering::SeqCst,
-        );
+        #[cfg(feature = "bench")]
+        {
+            let cycle_time = TIMING.load(std::sync::atomic::Ordering::SeqCst);
+            TIMING.store(
+                now.elapsed().unwrap().as_millis() as u64 + cycle_time,
+                std::sync::atomic::Ordering::SeqCst,
+            );
+        }
         println!(
             "Full worker cycle work time for block: {}",
-            TIMING.load(std::sync::atomic::Ordering::SeqCst)
+            now.elapsed().unwrap().as_millis()
         );
     }
 }
