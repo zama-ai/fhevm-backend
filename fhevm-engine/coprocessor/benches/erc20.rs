@@ -10,6 +10,8 @@ use coprocessor::server::coprocessor::{
     fhevm_coprocessor_client::FhevmCoprocessorClient, AsyncComputation, AsyncComputeRequest,
     InputToUpload, InputUploadBatch,
 };
+#[cfg(feature = "bench")]
+use coprocessor::tfhe_worker::TIMING;
 use criterion::{
     async_executor::FuturesExecutor, measurement::WallTime, Bencher, Criterion, Throughput,
 };
