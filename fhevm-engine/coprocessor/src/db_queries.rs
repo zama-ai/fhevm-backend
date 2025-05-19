@@ -150,6 +150,9 @@ where
                 pks,
                 sks: csks.clone().decompress(),
                 csks: csks.clone(),
+                #[cfg(feature = "latency")]
+                gpu_sks: vec![csks.decompress_to_gpu()],
+                #[cfg(not(feature = "latency"))]
                 gpu_sks: (0..num_gpus)
                     .map(|i| csks.decompress_to_specific_gpu(tfhe::GpuIndex::new(i as u32)))
                     .collect::<Vec<_>>(),

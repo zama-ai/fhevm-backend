@@ -40,6 +40,23 @@ on:
           - "MAX_LOCALITY"
           - "LOOP"
           - "FINE_GRAIN"
+      optimization_target:
+        description: "Optimization target"
+        required: false
+        type: choice
+        options:
+          - "throughput"
+          - "latency"
+        default: "throughput"
+      benchmark_type:
+        description: "Benchmark type"
+        required: false
+        type: choice
+        options:
+          - "ALL"
+          - "THROUGHPUT"
+          - "LATENCY"
+        default: "all"
 
 env:
   CARGO_TERM_COLOR: always
@@ -181,7 +198,7 @@ jobs:
 
       - name: Run benchmarks on GPU
         run: |
-          BENCHMARK_BATCH_SIZE="${{ inputs.batch_size }}" FHEVM_DF_SCHEDULE="${{ inputs.scheduling_policy }}" make "benchmark_${{ inputs.benchmarks }}_gpu"
+          BENCHMARK_BATCH_SIZE="${{ inputs.batch_size }}" FHEVM_DF_SCHEDULE="${{ inputs.scheduling_policy }}" BENCHMARK_TYPE="${{ inputs.benchmark_type }}" OPTIMIZATION_TARGET="${{ inputs.optimization_target }}" make -e "benchmark_${{ inputs.benchmarks }}_gpu"
         working-directory: fhevm-engine/coprocessor
 
       - name: Parse results
