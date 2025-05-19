@@ -230,10 +230,16 @@ async fn schedule_erc20_whitepaper(
                 Runtime::new()
                     .unwrap()
                     .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+                println!(
+                    "Execution time: {} -- {}",
+                    now.elapsed().unwrap().as_millis(),
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                );
             })
             .await;
-            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+            std::time::Duration::from_millis(
+                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            )
         });
 
     let params = keys.cks.computation_parameters();
@@ -405,10 +411,16 @@ async fn schedule_erc20_no_cmux(
                 Runtime::new()
                     .unwrap()
                     .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+                println!(
+                    "Execution time: {} -- {}",
+                    now.elapsed().unwrap().as_millis(),
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                );
             })
             .await;
-            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+            std::time::Duration::from_millis(
+                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            )
         });
 
     let params = keys.cks.computation_parameters();
@@ -606,10 +618,16 @@ async fn schedule_dependent_erc20_no_cmux(
                 Runtime::new()
                     .unwrap()
                     .block_on(async { wait_until_all_ciphertexts_computed(db_url).await.unwrap() });
-                println!("Execution time: {}", now.elapsed().unwrap().as_millis(),);
+                println!(
+                    "Execution time: {} -- {}",
+                    now.elapsed().unwrap().as_millis(),
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                );
             })
             .await;
-            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+            std::time::Duration::from_millis(
+                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            )
         });
 
     let params = keys.cks.computation_parameters();

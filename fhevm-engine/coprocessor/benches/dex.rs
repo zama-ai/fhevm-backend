@@ -10,6 +10,7 @@ use coprocessor::server::coprocessor::{
     fhevm_coprocessor_client::FhevmCoprocessorClient, AsyncComputation, AsyncComputeRequest,
     InputToUpload, InputUploadBatch,
 };
+use coprocessor::tfhe_worker::TIMING;
 use criterion::{
     async_executor::FuturesExecutor, measurement::WallTime, Bencher, Criterion, Throughput,
 };
@@ -418,11 +419,13 @@ async fn swap_request_whitepaper(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    iters
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
                 );
             })
             .await;
-            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+            std::time::Duration::from_millis(
+                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            )
         });
 
     let params = keys.cks.computation_parameters();
@@ -730,11 +733,13 @@ async fn swap_request_no_cmux(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    iters
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
                 );
             })
             .await;
-            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+            std::time::Duration::from_millis(
+                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            )
         });
 
     let params = keys.cks.computation_parameters();
@@ -1108,11 +1113,13 @@ async fn swap_claim_whitepaper(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    iters
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
                 );
             })
             .await;
-            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+            std::time::Duration::from_millis(
+                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            )
         });
 
     let params = keys.cks.computation_parameters();
@@ -1484,11 +1491,13 @@ async fn swap_claim_no_cmux(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    iters
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
                 );
             })
             .await;
-            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+            std::time::Duration::from_millis(
+                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            )
         });
 
     let params = keys.cks.computation_parameters();
@@ -1788,11 +1797,13 @@ async fn swap_request_whitepaper_dep(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    iters
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
                 );
             })
             .await;
-            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+            std::time::Duration::from_millis(
+                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            )
         });
 
     let params = keys.cks.computation_parameters();
@@ -2105,11 +2116,13 @@ async fn swap_request_no_cmux_dep(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    iters
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
                 );
             })
             .await;
-            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+            std::time::Duration::from_millis(
+                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            )
         });
 
     let params = keys.cks.computation_parameters();
@@ -2493,11 +2506,13 @@ async fn swap_claim_whitepaper_dep(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    iters
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
                 );
             })
             .await;
-            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+            std::time::Duration::from_millis(
+                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            )
         });
 
     let params = keys.cks.computation_parameters();
@@ -2879,11 +2894,13 @@ async fn swap_claim_no_cmux_dep(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    iters
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
                 );
             })
             .await;
-            std::time::Duration::from_micros(now.elapsed().unwrap().as_micros() as u64 * iters)
+            std::time::Duration::from_millis(
+                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            )
         });
 
     let params = keys.cks.computation_parameters();

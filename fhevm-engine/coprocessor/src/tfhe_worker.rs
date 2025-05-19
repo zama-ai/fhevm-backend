@@ -18,6 +18,11 @@ use tracing::{debug, error, info};
 
 const EVENT_CIPHERTEXT_COMPUTED: &str = "event_ciphertext_computed";
 
+#[cfg(feature = "bench")]
+lazy_static! {
+    pub static ref TIMING: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+}
+
 lazy_static! {
     static ref WORKER_ERRORS_COUNTER: IntCounter =
         register_int_counter!("coprocessor_worker_errors", "worker errors encountered").unwrap();
@@ -468,9 +473,13 @@ async fn tfhe_worker_cycle(
 
         let _guard = loop_ctx.attach();
 
+        TIMING.store(
+            now.elapsed().unwrap().as_millis() as u64,
+            std::sync::atomic::Ordering::SeqCst,
+        );
         println!(
             "Full worker cycle work time for block: {}",
-            now.elapsed().unwrap().as_millis()
+            TIMING.load(std::sync::atomic::Ordering::SeqCst)
         );
     }
 }
