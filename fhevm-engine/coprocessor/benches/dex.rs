@@ -420,12 +420,12 @@ async fn swap_request_whitepaper(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 
@@ -734,12 +734,12 @@ async fn swap_request_no_cmux(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 
@@ -1114,12 +1114,12 @@ async fn swap_claim_whitepaper(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 
@@ -1492,12 +1492,12 @@ async fn swap_claim_no_cmux(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 
@@ -1798,12 +1798,12 @@ async fn swap_request_whitepaper_dep(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 
@@ -2117,12 +2117,12 @@ async fn swap_request_no_cmux_dep(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 
@@ -2507,12 +2507,12 @@ async fn swap_claim_whitepaper_dep(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 
@@ -2895,12 +2895,12 @@ async fn swap_claim_no_cmux_dep(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 

@@ -475,9 +475,9 @@ async fn tfhe_worker_cycle(
 
         #[cfg(feature = "bench")]
         {
-            let cycle_time = TIMING.load(std::sync::atomic::Ordering::SeqCst);
+            let prev_cycle_time = TIMING.load(std::sync::atomic::Ordering::SeqCst);
             TIMING.store(
-                now.elapsed().unwrap().as_millis() as u64 + cycle_time,
+                now.elapsed().unwrap().as_micros() as u64 + prev_cycle_time,
                 std::sync::atomic::Ordering::SeqCst,
             );
         }

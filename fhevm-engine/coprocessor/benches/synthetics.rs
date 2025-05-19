@@ -176,12 +176,12 @@ async fn counter_increment(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 
@@ -316,12 +316,12 @@ async fn tree_reduction(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 

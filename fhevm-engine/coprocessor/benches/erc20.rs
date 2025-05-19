@@ -235,12 +235,12 @@ async fn schedule_erc20_whitepaper(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 
@@ -416,12 +416,12 @@ async fn schedule_erc20_no_cmux(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 
@@ -623,12 +623,12 @@ async fn schedule_dependent_erc20_no_cmux(
                 println!(
                     "Execution time: {} -- {}",
                     now.elapsed().unwrap().as_millis(),
-                    TIMING.load(std::sync::atomic::Ordering::SeqCst)
+                    TIMING.load(std::sync::atomic::Ordering::SeqCst) / 1000
                 );
             })
             .await;
-            std::time::Duration::from_millis(
-                TIMING.load(std::sync::atomic::Ordering::SeqCst) as u64 * iters,
+            std::time::Duration::from_micros(
+                TIMING.swap(0, std::sync::atomic::Ordering::SeqCst) * iters,
             )
         });
 
