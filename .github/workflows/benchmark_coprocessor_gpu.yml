@@ -212,7 +212,7 @@ jobs:
           --commit-date "${{ env.COMMIT_DATE }}" \
           --bench-date "${{ env.BENCH_DATE }}" \
           --walk-subdirs \
-          --name-suffix "operation_batch_size_${{ inputs.batch_size }}-schedule_${{ inputs.scheduling_policy }}"
+          --name-suffix "operation_batch_size_${{ inputs.batch_size }}-schedule_${{ inputs.scheduling_policy }}-optimization_target_${{ inputs.optimization_target }}"
 
       - name: Upload parsed results artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02

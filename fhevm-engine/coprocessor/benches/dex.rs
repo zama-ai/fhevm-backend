@@ -20,6 +20,7 @@ use std::str::FromStr;
 use std::time::SystemTime;
 use tokio::runtime::Runtime;
 use tonic::metadata::MetadataValue;
+use utils::EnvConfig;
 
 fn test_random_user_address() -> String {
     let _private_key = "bd2400c676871534a682ca1c5e4cd647ec9c3e122f188c6e3f54e6900d586c7b";
@@ -32,14 +33,14 @@ fn test_random_contract_address() -> String {
 }
 
 fn main() {
+    let ecfg = EnvConfig::new();
     let mut c = Criterion::default().sample_size(10).configure_from_args();
 
     let bench_name = "dex::swap_request";
     let mut group = c.benchmark_group(bench_name);
-    for num_elems in [10, 50, 200] {
-        group.throughput(Throughput::Elements(num_elems));
-        let bench_id =
-            format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
+    if ecfg.benchmark_type == "LATENCY" || ecfg.benchmark_type == "ALL" {
+        let num_elems = 1;
+        let bench_id = format!("{bench_name}::latency::whitepaper::FHEUint64::{num_elems}_elems");
         group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
             let _ = Runtime::new().unwrap().block_on(swap_request_whitepaper(
                 b,
@@ -48,8 +49,7 @@ fn main() {
             ));
         });
 
-        group.throughput(Throughput::Elements(num_elems));
-        let bench_id = format!("{bench_name}::throughput::no_cmux::FHEUint64::{num_elems}_elems");
+        let bench_id = format!("{bench_name}::latency::no_cmux::FHEUint64::{num_elems}_elems");
         group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
             let _ = Runtime::new().unwrap().block_on(swap_request_no_cmux(
                 b,
@@ -58,14 +58,38 @@ fn main() {
             ));
         });
     }
+    if ecfg.benchmark_type == "THROUGHPUT" || ecfg.benchmark_type == "ALL" {
+        for num_elems in [10, 50, 200] {
+            group.throughput(Throughput::Elements(num_elems));
+            let bench_id =
+                format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
+            group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
+                let _ = Runtime::new().unwrap().block_on(swap_request_whitepaper(
+                    b,
+                    num_elems as usize,
+                    bench_id.clone(),
+                ));
+            });
+
+            group.throughput(Throughput::Elements(num_elems));
+            let bench_id =
+                format!("{bench_name}::throughput::no_cmux::FHEUint64::{num_elems}_elems");
+            group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
+                let _ = Runtime::new().unwrap().block_on(swap_request_no_cmux(
+                    b,
+                    num_elems as usize,
+                    bench_id.clone(),
+                ));
+            });
+        }
+    }
     group.finish();
 
     let bench_name = "dex::swap_claim";
     let mut group = c.benchmark_group(bench_name);
-    for num_elems in [10, 50, 200] {
-        group.throughput(Throughput::Elements(num_elems));
-        let bench_id =
-            format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
+    if ecfg.benchmark_type == "LATENCY" || ecfg.benchmark_type == "ALL" {
+        let num_elems = 1;
+        let bench_id = format!("{bench_name}::latency::whitepaper::FHEUint64::{num_elems}_elems");
         group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
             let _ = Runtime::new().unwrap().block_on(swap_claim_whitepaper(
                 b,
@@ -74,8 +98,7 @@ fn main() {
             ));
         });
 
-        group.throughput(Throughput::Elements(num_elems));
-        let bench_id = format!("{bench_name}::throughput::no_cmux::FHEUint64::{num_elems}_elems");
+        let bench_id = format!("{bench_name}::latency::no_cmux::FHEUint64::{num_elems}_elems");
         group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
             let _ = Runtime::new().unwrap().block_on(swap_claim_no_cmux(
                 b,
@@ -83,6 +106,31 @@ fn main() {
                 bench_id.clone(),
             ));
         });
+    }
+    if ecfg.benchmark_type == "THROUGHPUT" || ecfg.benchmark_type == "ALL" {
+        for num_elems in [10, 50, 200] {
+            group.throughput(Throughput::Elements(num_elems));
+            let bench_id =
+                format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
+            group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
+                let _ = Runtime::new().unwrap().block_on(swap_claim_whitepaper(
+                    b,
+                    num_elems as usize,
+                    bench_id.clone(),
+                ));
+            });
+
+            group.throughput(Throughput::Elements(num_elems));
+            let bench_id =
+                format!("{bench_name}::throughput::no_cmux::FHEUint64::{num_elems}_elems");
+            group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
+                let _ = Runtime::new().unwrap().block_on(swap_claim_no_cmux(
+                    b,
+                    num_elems as usize,
+                    bench_id.clone(),
+                ));
+            });
+        }
     }
     group.finish();
 
