@@ -52,7 +52,6 @@ gpu = ["tfhe/gpu", "scheduler/gpu", "fhevm-engine-common/gpu"]
 bench = []
 latency = []
 throughput = []
-default = ["bench", "latency"]
 
 [dev-dependencies]
 testcontainers = "0.21"
