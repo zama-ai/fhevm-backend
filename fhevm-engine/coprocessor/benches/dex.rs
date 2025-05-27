@@ -36,55 +36,6 @@ fn main() {
     let ecfg = EnvConfig::new();
     let mut c = Criterion::default().sample_size(10).configure_from_args();
 
-    let bench_name = "dex::swap_request";
-    let mut group = c.benchmark_group(bench_name);
-    if ecfg.benchmark_type == "LATENCY" || ecfg.benchmark_type == "ALL" {
-        let num_elems = 1;
-        let bench_id = format!("{bench_name}::latency::whitepaper::FHEUint64::{num_elems}_elems");
-        group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
-            let _ = Runtime::new().unwrap().block_on(swap_request_whitepaper(
-                b,
-                num_elems as usize,
-                bench_id.clone(),
-            ));
-        });
-
-        let bench_id = format!("{bench_name}::latency::no_cmux::FHEUint64::{num_elems}_elems");
-        group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
-            let _ = Runtime::new().unwrap().block_on(swap_request_no_cmux(
-                b,
-                num_elems as usize,
-                bench_id.clone(),
-            ));
-        });
-    }
-    if ecfg.benchmark_type == "THROUGHPUT" || ecfg.benchmark_type == "ALL" {
-        for num_elems in [10, 50, 200] {
-            group.throughput(Throughput::Elements(num_elems));
-            let bench_id =
-                format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
-            group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
-                let _ = Runtime::new().unwrap().block_on(swap_request_whitepaper(
-                    b,
-                    num_elems as usize,
-                    bench_id.clone(),
-                ));
-            });
-
-            group.throughput(Throughput::Elements(num_elems));
-            let bench_id =
-                format!("{bench_name}::throughput::no_cmux::FHEUint64::{num_elems}_elems");
-            group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
-                let _ = Runtime::new().unwrap().block_on(swap_request_no_cmux(
-                    b,
-                    num_elems as usize,
-                    bench_id.clone(),
-                ));
-            });
-        }
-    }
-    group.finish();
-
     let bench_name = "dex::swap_claim";
     let mut group = c.benchmark_group(bench_name);
     if ecfg.benchmark_type == "LATENCY" || ecfg.benchmark_type == "ALL" {
@@ -135,35 +86,6 @@ fn main() {
     group.finish();
 
     if ecfg.benchmark_type == "THROUGHPUT" || ecfg.benchmark_type == "ALL" {
-        let bench_name = "dex::swap_request_dep";
-        let mut group = c.benchmark_group(bench_name);
-        for num_elems in [10, 50, 200] {
-            group.throughput(Throughput::Elements(num_elems));
-            let bench_id =
-                format!("{bench_name}::throughput::whitepaper::FHEUint64::{num_elems}_elems");
-            group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
-                let _ = Runtime::new()
-                    .unwrap()
-                    .block_on(swap_request_whitepaper_dep(
-                        b,
-                        num_elems as usize,
-                        bench_id.clone(),
-                    ));
-            });
-
-            group.throughput(Throughput::Elements(num_elems));
-            let bench_id =
-                format!("{bench_name}::throughput::no_cmux::FHEUint64::{num_elems}_elems");
-            group.bench_with_input(bench_id.clone(), &num_elems, move |b, &num_elems| {
-                let _ = Runtime::new().unwrap().block_on(swap_request_no_cmux_dep(
-                    b,
-                    num_elems as usize,
-                    bench_id.clone(),
-                ));
-            });
-        }
-        group.finish();
-
         let bench_name = "dex::swap_claim_dep";
         let mut group = c.benchmark_group(bench_name);
         for num_elems in [10, 50, 200] {

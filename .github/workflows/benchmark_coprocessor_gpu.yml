@@ -139,6 +139,9 @@ jobs:
       - name: Checkout LFS objects
         run: git lfs checkout
 
+      - name: Fetch TFHE-rs
+        run: git clone https://github.com/zama-ai/tfhe-rs.git
+
       - name: Setup Hyperstack dependencies
         uses: ./.github/actions/gpu_setup
         with:
